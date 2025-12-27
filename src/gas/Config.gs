@@ -5,7 +5,7 @@
 
 const CONFIG = {
   // スプレッドシートID（デプロイ時に設定）
-  SPREADSHEET_ID: '',
+  SPREADSHEET_ID: '1tBwMSYpWtt9ozLh8bd7CE68HM1mITSpzTvr6Y4uOHRM',
 
   // シート名
   SHEETS: {
