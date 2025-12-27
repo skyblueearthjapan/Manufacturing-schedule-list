@@ -137,28 +137,49 @@ function api_createJob(payload) {
 
 /**
  * テスト用：スプレッドシート接続確認
+ * GASエディタで実行して確認してください
  */
 function testConnection() {
   try {
     const ss = getSpreadsheet();
     const sheets = ss.getSheets().map(s => s.getName());
-    Logger.log('接続成功: ' + ss.getName());
-    Logger.log('シート一覧: ' + sheets.join(', '));
-    return { success: true, name: ss.getName(), sheets };
+    Logger.log('✓ 接続成功: ' + ss.getName());
+    Logger.log('✓ シート一覧: ' + sheets.join(', '));
+
+    // 必要なシートをチェック
+    const requiredSheets = ['Jobs', 'ProcessMaster', 'People', 'Schedule', 'Attachments', 'Trips'];
+    const missingSheets = requiredSheets.filter(name => !sheets.includes(name));
+
+    if (missingSheets.length > 0) {
+      Logger.log('✗ 不足シート: ' + missingSheets.join(', '));
+      Logger.log('→ これらのシートをスプレッドシートに作成してください');
+    } else {
+      Logger.log('✓ 全シート存在');
+    }
+
+    return { success: true, name: ss.getName(), sheets, missingSheets };
   } catch (error) {
-    Logger.log('接続失敗: ' + error.message);
+    Logger.log('✗ 接続失敗: ' + error.message);
     return { success: false, error: error.message };
   }
 }
 
 /**
  * テスト用：Bootstrap データ取得
+ * GASエディタで実行して確認してください
  */
 function testGetBootstrapData() {
-  const data = getBootstrapData();
-  Logger.log('Jobs: ' + data.jobs.length + '件');
-  Logger.log('Processes: ' + data.processes.length + '件');
-  Logger.log('People: ' + data.people.length + '件');
-  Logger.log('Schedules: ' + data.schedules.length + '件');
-  return data;
+  try {
+    Logger.log('Bootstrap データ取得開始...');
+    const data = getBootstrapData();
+    Logger.log('✓ Jobs: ' + data.jobs.length + '件');
+    Logger.log('✓ Processes: ' + data.processes.length + '件');
+    Logger.log('✓ People: ' + data.people.length + '件');
+    Logger.log('✓ Schedules: ' + data.schedules.length + '件');
+    Logger.log('✓ 取得成功');
+    return data;
+  } catch (error) {
+    Logger.log('✗ エラー: ' + error.message);
+    throw error;
+  }
 }
