@@ -88,6 +88,15 @@ const API = {
    */
   async getTrips(rangeStart, rangeEnd, filters = {}) {
     return await this.call('api_getTrips', rangeStart, rangeEnd, filters);
+  },
+
+  /**
+   * Job（工番）新規作成
+   * @param {Object} payload
+   * @returns {Promise<Object>}
+   */
+  async createJob(payload) {
+    return await this.call('api_createJob', payload);
   }
 };
 </script>

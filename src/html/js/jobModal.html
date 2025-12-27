@@ -1,0 +1,196 @@
+<script>
+/**
+ * jobModal.js - 工番作成/編集モーダル
+ */
+
+const JobModal = {
+  // 現在の編集対象
+  currentJob: null,
+  isEditMode: false,
+
+  /**
+   * 初期化
+   */
+  init() {
+    this.setupEventListeners();
+  },
+
+  /**
+   * イベントリスナーを設定
+   */
+  setupEventListeners() {
+    // 閉じるボタン
+    document.getElementById('job-modal-close')?.addEventListener('click', () => this.close());
+    document.getElementById('btn-job-modal-cancel')?.addEventListener('click', () => this.close());
+
+    // 背景クリックで閉じる
+    document.querySelector('#modal-job .modal-backdrop')?.addEventListener('click', () => this.close());
+
+    // 保存ボタン
+    document.getElementById('btn-job-modal-save')?.addEventListener('click', () => this.save());
+
+    // ESCキーで閉じる
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !document.getElementById('modal-job').classList.contains('hidden')) {
+        this.close();
+      }
+    });
+  },
+
+  /**
+   * 新規モードで開く
+   */
+  openNew() {
+    this.isEditMode = false;
+    this.currentJob = null;
+
+    // フォームをリセット
+    this.resetForm();
+
+    // UI調整
+    document.getElementById('job-modal-title').textContent = '工番登録';
+
+    this.open();
+  },
+
+  /**
+   * 編集モードで開く（将来用）
+   * @param {Object} job
+   */
+  openEdit(job) {
+    this.isEditMode = true;
+    this.currentJob = job;
+
+    // フォームをリセット
+    this.resetForm();
+
+    // 値を設定
+    document.getElementById('job-jobno').value = job['工番'] || '';
+    document.getElementById('job-customer').value = job['顧客名'] || '';
+    document.getElementById('job-product').value = job['設備/製品名'] || '';
+    document.getElementById('job-qty').value = job['台数'] || '';
+    document.getElementById('job-destination').value = job['納入先'] || '';
+    document.getElementById('job-ship-date').value = job['出荷予定日'] || '';
+    document.getElementById('job-draw-date').value = job['出図予定日'] || '';
+    document.getElementById('job-status-text').value = job['重要メモ'] || '';
+    document.getElementById('job-job-id').value = job.jobId || '';
+
+    // UI調整
+    document.getElementById('job-modal-title').textContent = '工番編集';
+
+    this.open();
+  },
+
+  /**
+   * モーダルを開く
+   */
+  open() {
+    document.getElementById('modal-job').classList.remove('hidden');
+    // 最初の入力欄にフォーカス
+    setTimeout(() => {
+      document.getElementById('job-jobno')?.focus();
+    }, 100);
+  },
+
+  /**
+   * モーダルを閉じる
+   */
+  close() {
+    document.getElementById('modal-job').classList.add('hidden');
+    this.currentJob = null;
+    this.isEditMode = false;
+  },
+
+  /**
+   * フォームをリセット
+   */
+  resetForm() {
+    document.getElementById('job-form').reset();
+    document.getElementById('job-job-id').value = '';
+  },
+
+  /**
+   * バリデーション
+   * @returns {Object|null}
+   */
+  validate() {
+    const jobno = document.getElementById('job-jobno').value.trim();
+    const customer = document.getElementById('job-customer').value.trim();
+    const product = document.getElementById('job-product').value.trim();
+    const qty = document.getElementById('job-qty').value.trim();
+    const destination = document.getElementById('job-destination').value.trim();
+    const shipDate = document.getElementById('job-ship-date').value;
+    const drawDate = document.getElementById('job-draw-date').value;
+    const statusText = document.getElementById('job-status-text').value.trim();
+
+    // 必須チェック
+    if (!jobno) {
+      Utils.showToast('工番を入力してください', 'error');
+      document.getElementById('job-jobno').focus();
+      return null;
+    }
+
+    if (!customer) {
+      Utils.showToast('顧客名を入力してください', 'error');
+      document.getElementById('job-customer').focus();
+      return null;
+    }
+
+    if (!product) {
+      Utils.showToast('設備/製品名を入力してください', 'error');
+      document.getElementById('job-product').focus();
+      return null;
+    }
+
+    if (!qty) {
+      Utils.showToast('台数を入力してください', 'error');
+      document.getElementById('job-qty').focus();
+      return null;
+    }
+
+    return {
+      '工番': jobno,
+      '顧客名': customer,
+      '設備/製品名': product,
+      '台数': qty,
+      '納入先': destination,
+      '出荷予定日': shipDate,
+      '出図予定日': drawDate,
+      '重要メモ': statusText,
+      '状態': '未着手'
+    };
+  },
+
+  /**
+   * 保存
+   */
+  async save() {
+    const payload = this.validate();
+    if (!payload) return;
+
+    try {
+      Utils.setLoading(true);
+
+      if (this.isEditMode) {
+        // 更新（将来用）
+        const jobId = document.getElementById('job-job-id').value;
+        // TODO: API.updateJob(jobId, payload)
+        Utils.showToast('更新機能は今後実装予定です', 'info');
+      } else {
+        // 新規作成
+        const result = await API.createJob(payload);
+        // Storeにジョブを追加
+        Store.addJob(result);
+        Utils.showToast('工番を登録しました', 'success');
+      }
+
+      Utils.setLoading(false);
+      this.close();
+    } catch (error) {
+      Utils.setLoading(false);
+      console.error('Save job failed:', error);
+      Utils.showToast('保存に失敗しました: ' + error.message, 'error');
+    }
+  }
+};
+</script>

@@ -131,6 +131,10 @@ function api_getTrips(rangeStart, rangeEnd, filters) {
   return getTrips(rangeStart, rangeEnd, filters);
 }
 
+function api_createJob(payload) {
+  return createJob(payload);
+}
+
 /**
  * テスト用：スプレッドシート接続確認
  */

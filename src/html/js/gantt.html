@@ -107,11 +107,20 @@ const Gantt = {
     const container = document.getElementById('gantt-job-pane');
     if (!container) return;
 
-    // Jobsが0件の場合
+    // Jobsが0件の場合 - クリック可能な空状態を表示（解決策A+B）
     if (jobs.length === 0) {
       container.innerHTML = `
-        <div class="flex items-center justify-center h-32 text-gray-400 text-sm">
-          工番データがありません
+        <div class="empty-job-pane flex flex-col items-center justify-center h-48 text-center cursor-pointer hover:bg-blue-50 transition-colors rounded-lg m-2 border-2 border-dashed border-gray-300 hover:border-blue-400"
+             onclick="JobModal.openNew()">
+          <div class="text-gray-400 text-sm mb-3">工番データがありません</div>
+          <button
+            type="button"
+            class="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
+            onclick="event.stopPropagation(); JobModal.openNew();"
+          >
+            ＋ 工番を追加
+          </button>
+          <div class="text-gray-400 text-xs mt-2">またはこのエリアをクリック</div>
         </div>
       `;
       return;
@@ -187,11 +196,14 @@ const Gantt = {
     const today = Utils.getToday();
     const gridWidth = this.dates.length * this.config.cellWidth;
 
-    // Jobsが0件の場合でも空グリッドを表示
+    // Jobsが0件の場合 - 右側も同じメッセージを表示
     if (jobs.length === 0) {
       container.innerHTML = `
-        <div class="flex items-center justify-center h-32 text-gray-400 text-sm" style="min-width: ${gridWidth}px;">
-          工番を追加してください
+        <div class="flex items-center justify-center h-48 text-gray-400 text-sm" style="min-width: ${gridWidth}px;">
+          <div class="text-center">
+            <div class="mb-2">← 左のボタンから工番を追加してください</div>
+            <div class="text-xs">工番を追加すると、ここに日付グリッドが表示されます</div>
+          </div>
         </div>
       `;
       container.style.minWidth = `${gridWidth}px`;

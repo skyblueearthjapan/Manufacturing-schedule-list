@@ -102,6 +102,15 @@ const Store = {
   },
 
   /**
+   * Jobを追加
+   * @param {Object} job
+   */
+  addJob(job) {
+    const jobs = [...this.state.jobs, job];
+    this.setState({ jobs });
+  },
+
+  /**
    * スケジュールを追加
    * @param {Object} schedule
    */

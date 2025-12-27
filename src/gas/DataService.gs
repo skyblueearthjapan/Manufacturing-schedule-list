@@ -78,6 +78,47 @@ function getJobById(jobId) {
   return jobs.find(job => job.jobId === jobId) || null;
 }
 
+/**
+ * Job新規作成
+ * @param {Object} payload
+ * @returns {Object}
+ */
+function createJob(payload) {
+  const sheet = getSheet(CONFIG.SHEETS.JOBS);
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+
+  // ID採番
+  const jobId = Utilities.getUuid();
+
+  // 新規行データ作成
+  const newRow = headers.map(header => {
+    switch(header) {
+      case 'jobId': return jobId;
+      case '工番': return payload['工番'] || '';
+      case '顧客名': return payload['顧客名'] || '';
+      case '設備/製品名': return payload['設備/製品名'] || '';
+      case '台数': return payload['台数'] || '';
+      case '納入先': return payload['納入先'] || '';
+      case '出荷予定日': return payload['出荷予定日'] || '';
+      case '出荷実績日': return payload['出荷実績日'] || '';
+      case '出図予定日': return payload['出図予定日'] || '';
+      case '出図実績日': return payload['出図実績日'] || '';
+      case '状態': return payload['状態'] || '未着手';
+      case '重要メモ': return payload['重要メモ'] || '';
+      default: return '';
+    }
+  });
+
+  sheet.appendRow(newRow);
+
+  return {
+    jobId,
+    ...payload,
+    出荷予定日: formatDate(payload['出荷予定日']),
+    出図予定日: formatDate(payload['出図予定日'])
+  };
+}
+
 // ============================================
 // ProcessMaster（工程マスタ）
 // ============================================

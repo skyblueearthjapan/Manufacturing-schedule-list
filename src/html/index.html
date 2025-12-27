@@ -387,6 +387,74 @@
     </div>
   </div>
 
+  <!-- 工番作成モーダル -->
+  <div id="modal-job" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="job-modal-title" class="text-lg font-semibold">工番登録</h3>
+        <button id="job-modal-close" class="modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="job-form">
+          <!-- 工番 -->
+          <div class="form-group">
+            <label class="form-label">工番 <span class="text-danger">*</span></label>
+            <input type="text" id="job-jobno" class="form-input" placeholder="例: 25068" required>
+          </div>
+
+          <!-- 顧客名 -->
+          <div class="form-group">
+            <label class="form-label">顧客名 <span class="text-danger">*</span></label>
+            <input type="text" id="job-customer" class="form-input" placeholder="例: 株式会社〇〇製作所" required>
+          </div>
+
+          <!-- 設備/製品名 -->
+          <div class="form-group">
+            <label class="form-label">設備/製品名 <span class="text-danger">*</span></label>
+            <input type="text" id="job-product" class="form-input" placeholder="例: SK3000RH" required>
+          </div>
+
+          <!-- 台数 -->
+          <div class="form-group">
+            <label class="form-label">台数 <span class="text-danger">*</span></label>
+            <input type="text" id="job-qty" class="form-input" placeholder="例: 1式" required>
+          </div>
+
+          <!-- 納入先 -->
+          <div class="form-group">
+            <label class="form-label">納入先</label>
+            <input type="text" id="job-destination" class="form-input" placeholder="例: 東京工場">
+          </div>
+
+          <!-- 日付（横並び） -->
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label class="form-label">出荷予定日</label>
+              <input type="date" id="job-ship-date" class="form-input">
+            </div>
+            <div class="form-group flex-1">
+              <label class="form-label">出図予定日</label>
+              <input type="date" id="job-draw-date" class="form-input">
+            </div>
+          </div>
+
+          <!-- 状態テキスト/重要メモ -->
+          <div class="form-group">
+            <label class="form-label">重要メモ</label>
+            <input type="text" id="job-status-text" class="form-input" placeholder="例: 出荷先:後報">
+          </div>
+
+          <input type="hidden" id="job-job-id">
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="btn-job-modal-cancel" class="btn btn-secondary">キャンセル</button>
+        <button type="button" id="btn-job-modal-save" class="btn btn-primary">保存</button>
+      </div>
+    </div>
+  </div>
+
   <!-- トースト通知 -->
   <div id="toast-container" class="fixed bottom-4 right-4 z-50 space-y-2"></div>
 
@@ -396,6 +464,7 @@
   <?!= include('js/store'); ?>
   <?!= include('js/gantt'); ?>
   <?!= include('js/modal'); ?>
+  <?!= include('js/jobModal'); ?>
   <?!= include('js/jobDetail'); ?>
   <?!= include('js/resourceView'); ?>
   <?!= include('js/weeklyPlan'); ?>
