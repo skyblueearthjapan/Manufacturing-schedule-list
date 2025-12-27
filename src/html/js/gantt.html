@@ -1,21 +1,18 @@
 <script>
 /**
- * gantt.js - ガントチャート描画（2ペイン構造）
+ * gantt.js - ガントチャート描画（2ペイン構造・縦スクロール統一）
  */
 
 const Gantt = {
   // 設定
   config: {
     cellWidth: 32,       // 1日のセル幅
-    rowHeight: 64,       // 行の高さ（工番情報ブロックに合わせる）
-    jobPaneWidth: 320    // 左ペイン（工番情報）の幅
+    rowHeight: 64,       // 行の高さ（h-16 = 64px固定）
+    jobPaneWidth: 360    // 左ペイン（工番情報）の幅
   },
 
   // 日付配列キャッシュ
   dates: [],
-
-  // スクロール同期フラグ（無限ループ防止）
-  isSyncing: false,
 
   /**
    * 初期化
@@ -29,28 +26,14 @@ const Gantt = {
    * イベントリスナーを設定
    */
   setupEventListeners() {
-    const jobPane = document.getElementById('gantt-job-pane');
-    const gridPane = document.getElementById('gantt-grid-pane');
-    const dateHeaderWrapper = document.getElementById('gantt-date-header-wrapper');
+    const hScrollBody = document.getElementById('gantt-h-scroll-body');
+    const hScrollHeader = document.getElementById('gantt-h-scroll-header');
 
-    // 縦スクロール同期（右ペイン → 左ペイン）
-    if (gridPane && jobPane) {
-      gridPane.addEventListener('scroll', () => {
-        if (this.isSyncing) return;
-        this.isSyncing = true;
-
-        // 縦スクロール同期
-        jobPane.scrollTop = gridPane.scrollTop;
-
-        // 日付ヘッダー横スクロール同期
-        if (dateHeaderWrapper) {
-          dateHeaderWrapper.scrollLeft = gridPane.scrollLeft;
-        }
-
-        // 今日ライン位置更新
+    // 横スクロール同期（ボディ → ヘッダ）
+    if (hScrollBody && hScrollHeader) {
+      hScrollBody.addEventListener('scroll', () => {
+        hScrollHeader.scrollLeft = hScrollBody.scrollLeft;
         this.updateTodayLinePosition();
-
-        this.isSyncing = false;
       });
     }
   },
@@ -63,6 +46,10 @@ const Gantt = {
 
     // 日付配列を生成
     this.dates = Utils.generateDateRange(displayStartDate, displayDays);
+
+    // グリッド幅を計算してCSS変数にセット
+    const gridWidth = this.dates.length * this.config.cellWidth;
+    document.documentElement.style.setProperty('--grid-width', `${gridWidth}px`);
 
     // 各パートをレンダリング
     this.renderDateHeader();
@@ -81,6 +68,9 @@ const Gantt = {
     const today = Utils.getToday();
     let html = '';
     let currentMonth = 0;
+
+    // min-widthを設定して横スクロール可能にする
+    const gridWidth = this.dates.length * this.config.cellWidth;
 
     this.dates.forEach((date, index) => {
       const month = Utils.getMonth(date);
@@ -107,6 +97,7 @@ const Gantt = {
     });
 
     container.innerHTML = html;
+    container.style.minWidth = `${gridWidth}px`;
   },
 
   /**
@@ -182,6 +173,7 @@ const Gantt = {
     if (!container) return;
 
     const today = Utils.getToday();
+    const gridWidth = this.dates.length * this.config.cellWidth;
     let html = '';
 
     jobs.forEach(job => {
@@ -206,6 +198,7 @@ const Gantt = {
     });
 
     container.innerHTML = html;
+    container.style.minWidth = `${gridWidth}px`;
 
     // バーにイベントリスナーを追加
     this.attachBarEventListeners();
@@ -320,8 +313,8 @@ const Gantt = {
    */
   updateTodayLinePosition() {
     const todayLine = document.getElementById('today-line');
-    const gridPane = document.getElementById('gantt-grid-pane');
-    if (!todayLine || !gridPane) return;
+    const hScrollBody = document.getElementById('gantt-h-scroll-body');
+    if (!todayLine || !hScrollBody) return;
 
     const today = Utils.getToday();
     const { displayStartDate } = Store.state;
@@ -332,8 +325,8 @@ const Gantt = {
       return;
     }
 
-    // 今日ラインの位置（左ペイン幅 + 日付オフセット - スクロール位置）
-    const left = this.config.jobPaneWidth + (offset * this.config.cellWidth) + (this.config.cellWidth / 2) - gridPane.scrollLeft;
+    // 今日ラインの位置（左ペイン幅 + 日付オフセット - 横スクロール位置）
+    const left = this.config.jobPaneWidth + (offset * this.config.cellWidth) + (this.config.cellWidth / 2) - hScrollBody.scrollLeft;
     todayLine.style.display = 'block';
     todayLine.style.left = `${left}px`;
   },

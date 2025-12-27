@@ -319,12 +319,58 @@
   }
 
   /* ========================================
-     MasterView 2ペイン構造
+     MasterView 2ペイン構造（縦スクロール統一）
      ======================================== */
 
-  /* 日付ヘッダーラッパー */
-  .gantt-date-header-wrapper {
-    overflow-x: hidden;
+  /* 縦スクロールコンテナ */
+  #gantt-v-scroll {
+    scroll-behavior: smooth;
+  }
+
+  /* 縦スクロールバーのカスタマイズ */
+  #gantt-v-scroll::-webkit-scrollbar {
+    width: 10px;
+  }
+
+  #gantt-v-scroll::-webkit-scrollbar-track {
+    background: #f1f5f9;
+  }
+
+  #gantt-v-scroll::-webkit-scrollbar-thumb {
+    background: #94a3b8;
+    border-radius: 5px;
+  }
+
+  #gantt-v-scroll::-webkit-scrollbar-thumb:hover {
+    background: #64748b;
+  }
+
+  /* ヘッダのスクロールバーを非表示（JS同期のため） */
+  .gantt-hide-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .gantt-hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* 横スクロールバーのカスタマイズ */
+  #gantt-h-scroll-body::-webkit-scrollbar {
+    height: 10px;
+  }
+
+  #gantt-h-scroll-body::-webkit-scrollbar-track {
+    background: #f1f5f9;
+  }
+
+  #gantt-h-scroll-body::-webkit-scrollbar-thumb {
+    background: #94a3b8;
+    border-radius: 5px;
+  }
+
+  #gantt-h-scroll-body::-webkit-scrollbar-thumb:hover {
+    background: #64748b;
   }
 
   /* 2ペイン用日付ヘッダー */
@@ -333,7 +379,7 @@
     display: flex;
   }
 
-  /* 工番情報ブロック */
+  /* 工番情報ブロック（h-16 = 64px固定） */
   .job-info-block {
     height: 64px;
     padding: 8px 12px;
@@ -346,7 +392,7 @@
   }
 
   .job-info-block:hover {
-    background-color: #f8fafc;
+    background-color: #f0f9ff;
   }
 
   .job-info-block:nth-child(even) {
@@ -354,7 +400,7 @@
   }
 
   .job-info-block:nth-child(even):hover {
-    background-color: #f1f5f9;
+    background-color: #f0f9ff;
   }
 
   .job-info-content {
@@ -451,7 +497,7 @@
     white-space: nowrap;
   }
 
-  /* グリッド行の高さを工番情報ブロックに合わせる */
+  /* グリッド行の高さを工番情報ブロックに合わせる（h-16 = 64px） */
   #view-master .gantt-grid-row {
     height: 64px;
     min-height: 64px;
@@ -464,34 +510,6 @@
 
   #view-master .gantt-milestone {
     top: 20px;
-  }
-
-  /* スクロールバーのカスタマイズ */
-  #gantt-job-pane::-webkit-scrollbar,
-  #gantt-grid-pane::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-  }
-
-  #gantt-job-pane::-webkit-scrollbar-track,
-  #gantt-grid-pane::-webkit-scrollbar-track {
-    background: #f1f5f9;
-  }
-
-  #gantt-job-pane::-webkit-scrollbar-thumb,
-  #gantt-grid-pane::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
-    border-radius: 4px;
-  }
-
-  #gantt-job-pane::-webkit-scrollbar-thumb:hover,
-  #gantt-grid-pane::-webkit-scrollbar-thumb:hover {
-    background: #94a3b8;
-  }
-
-  /* 縦スクロールバーを右ペインのみ表示 */
-  #gantt-job-pane {
-    overflow-y: hidden;
   }
 
   /* ========================================
