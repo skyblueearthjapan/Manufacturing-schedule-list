@@ -1,0 +1,349 @@
+<script>
+/**
+ * gantt.js - ガントチャート描画
+ */
+
+const Gantt = {
+  // 設定
+  config: {
+    cellWidth: 32,       // 1日のセル幅
+    rowHeight: 36,       // 行の高さ
+    fixedColumnsWidth: 876  // 固定列の合計幅
+  },
+
+  // 日付配列キャッシュ
+  dates: [],
+
+  /**
+   * 初期化
+   */
+  init() {
+    this.setupEventListeners();
+    Store.subscribe(() => this.render());
+  },
+
+  /**
+   * イベントリスナーを設定
+   */
+  setupEventListeners() {
+    // スクロール同期
+    const scrollArea = document.getElementById('gantt-scroll-area');
+    if (scrollArea) {
+      scrollArea.addEventListener('scroll', () => {
+        this.updateTodayLinePosition();
+      });
+    }
+  },
+
+  /**
+   * レンダリング
+   */
+  render() {
+    const { jobs, displayStartDate, displayDays } = Store.state;
+
+    // 日付配列を生成
+    this.dates = Utils.generateDateRange(displayStartDate, displayDays);
+
+    // 各パートをレンダリング
+    this.renderDateHeader();
+    this.renderBody();
+    this.updateTodayLinePosition();
+  },
+
+  /**
+   * 日付ヘッダーをレンダリング
+   */
+  renderDateHeader() {
+    const container = document.getElementById('gantt-date-header');
+    if (!container) return;
+
+    const today = Utils.getToday();
+    let html = '';
+    let currentMonth = 0;
+
+    this.dates.forEach((date, index) => {
+      const month = Utils.getMonth(date);
+      const day = Utils.getDay(date);
+      const dow = Utils.getDayOfWeek(date);
+      const isWeekend = Utils.isWeekend(date);
+      const isToday = date === today;
+
+      let classes = 'gantt-date-cell';
+      if (isWeekend) classes += ' weekend';
+      if (isToday) classes += ' today';
+
+      // 月の最初の日だけ月を表示
+      const showMonth = month !== currentMonth;
+      currentMonth = month;
+
+      html += `
+        <div class="${classes}" data-date="${date}">
+          ${showMonth ? `<div class="month">${month}月</div>` : '<div class="month">&nbsp;</div>'}
+          <div class="day">${day}</div>
+          <div class="dow">${dow}</div>
+        </div>
+      `;
+    });
+
+    container.innerHTML = html;
+  },
+
+  /**
+   * ボディをレンダリング
+   */
+  renderBody() {
+    const { jobs } = Store.state;
+
+    this.renderFixedBody(jobs);
+    this.renderGrid(jobs);
+  },
+
+  /**
+   * 固定列をレンダリング
+   */
+  renderFixedBody(jobs) {
+    const container = document.getElementById('gantt-fixed-body');
+    if (!container) return;
+
+    let html = '';
+
+    jobs.forEach((job, index) => {
+      const statusClass = `status-${job['状態'] || '未着手'}`;
+
+      html += `
+        <div class="gantt-row" data-job-id="${job.jobId}">
+          <div class="gantt-cell gantt-cell-no">${index + 1}</div>
+          <div class="gantt-cell gantt-cell-status">
+            <span class="status-badge ${statusClass}">${Utils.escapeHtml(job['状態'] || '-')}</span>
+          </div>
+          <div class="gantt-cell gantt-cell-jobno cursor-pointer hover:text-primary" onclick="Gantt.onJobClick('${job.jobId}')">
+            ${Utils.escapeHtml(job['工番'] || '')}
+          </div>
+          <div class="gantt-cell gantt-cell-customer text-truncate" title="${Utils.escapeHtml(job['顧客名'] || '')}">
+            ${Utils.escapeHtml(job['顧客名'] || '')}
+          </div>
+          <div class="gantt-cell gantt-cell-product text-truncate" title="${Utils.escapeHtml(job['設備/製品名'] || '')}">
+            ${Utils.escapeHtml(job['設備/製品名'] || '')}
+          </div>
+          <div class="gantt-cell gantt-cell-qty">${job['台数'] || ''}</div>
+          <div class="gantt-cell gantt-cell-dest text-truncate" title="${Utils.escapeHtml(job['納入先'] || '')}">
+            ${Utils.escapeHtml(job['納入先'] || '')}
+          </div>
+          <div class="gantt-cell gantt-cell-ship">${job['出荷予定日'] || ''}</div>
+          <div class="gantt-cell gantt-cell-draw">${job['出図予定日'] || ''}</div>
+          <div class="gantt-cell gantt-cell-memo text-truncate" title="${Utils.escapeHtml(job['重要メモ'] || '')}">
+            ${Utils.escapeHtml(job['重要メモ'] || '')}
+          </div>
+          <div class="gantt-cell gantt-cell-attach">
+            <span class="attach-icon ${Store.hasAttachments(job.jobId) ? 'has-attachment' : ''}"
+                  onclick="Gantt.onAttachClick('${job.jobId}')">📎</span>
+          </div>
+        </div>
+      `;
+    });
+
+    container.innerHTML = html;
+  },
+
+  /**
+   * グリッドをレンダリング
+   */
+  renderGrid(jobs) {
+    const container = document.getElementById('gantt-grid');
+    if (!container) return;
+
+    const today = Utils.getToday();
+    let html = '';
+
+    jobs.forEach(job => {
+      html += `<div class="gantt-grid-row" data-job-id="${job.jobId}">`;
+
+      // 日付セルを生成
+      this.dates.forEach(date => {
+        const isWeekend = Utils.isWeekend(date);
+        const isToday = date === today;
+
+        let classes = 'gantt-grid-cell';
+        if (isWeekend) classes += ' weekend';
+        if (isToday) classes += ' today';
+
+        html += `<div class="${classes}" data-date="${date}"></div>`;
+      });
+
+      html += '</div>';
+
+      // このJobのスケジュールバーを追加
+      html += this.renderBarsForJob(job.jobId);
+    });
+
+    container.innerHTML = html;
+
+    // バーにイベントリスナーを追加
+    this.attachBarEventListeners();
+  },
+
+  /**
+   * Job用のバーをレンダリング
+   */
+  renderBarsForJob(jobId) {
+    const schedules = Store.getSchedulesByJobId(jobId);
+    if (schedules.length === 0) return '';
+
+    const { displayStartDate } = Store.state;
+    let html = '';
+
+    schedules.forEach(schedule => {
+      const isMilestone = Store.isMilestone(schedule.processId);
+
+      if (isMilestone) {
+        html += this.renderMilestone(schedule, displayStartDate);
+      } else {
+        html += this.renderBar(schedule, displayStartDate);
+      }
+    });
+
+    return html;
+  },
+
+  /**
+   * 期間バーをレンダリング
+   */
+  renderBar(schedule, displayStartDate) {
+    const startOffset = Utils.getDaysBetween(displayStartDate, schedule.start);
+    const duration = Utils.getDaysBetween(schedule.start, schedule.end) + 1;
+
+    // 表示範囲外チェック
+    if (startOffset + duration < 0 || startOffset >= this.dates.length) {
+      return '';
+    }
+
+    const left = Math.max(0, startOffset) * this.config.cellWidth;
+    const width = Math.min(duration, this.dates.length - startOffset) * this.config.cellWidth - 4;
+
+    const color = Store.getBarColor(schedule);
+    const process = Store.getProcessById(schedule.processId);
+    const processName = process?.['工程名'] || '';
+    const label = schedule.label || '';
+
+    return `
+      <div class="gantt-bar"
+           data-schedule-id="${schedule.scheduleId}"
+           style="left: ${left}px; width: ${width}px; background-color: ${color};"
+           title="${processName}${label ? ' - ' + label : ''}">
+        <span class="bar-text">${Utils.escapeHtml(processName)}</span>
+        ${label ? `<span class="gantt-bar-label">${Utils.escapeHtml(label)}</span>` : ''}
+      </div>
+    `;
+  },
+
+  /**
+   * マイルストーンをレンダリング
+   */
+  renderMilestone(schedule, displayStartDate) {
+    const startOffset = Utils.getDaysBetween(displayStartDate, schedule.start);
+
+    // 表示範囲外チェック
+    if (startOffset < 0 || startOffset >= this.dates.length) {
+      return '';
+    }
+
+    const left = startOffset * this.config.cellWidth + (this.config.cellWidth / 2) - 12;
+    const process = Store.getProcessById(schedule.processId);
+    const processName = process?.['工程名'] || '';
+
+    return `
+      <div class="gantt-milestone"
+           data-schedule-id="${schedule.scheduleId}"
+           style="left: ${left}px;"
+           title="${processName}">
+        ★
+      </div>
+    `;
+  },
+
+  /**
+   * バーにイベントリスナーを追加
+   */
+  attachBarEventListeners() {
+    // バークリック
+    document.querySelectorAll('.gantt-bar, .gantt-milestone').forEach(el => {
+      el.addEventListener('click', (e) => {
+        const scheduleId = e.currentTarget.dataset.scheduleId;
+        this.onBarClick(scheduleId);
+      });
+    });
+
+    // グリッドセルクリック（新規登録用）
+    document.querySelectorAll('.gantt-grid-row').forEach(row => {
+      row.addEventListener('click', (e) => {
+        if (e.target.classList.contains('gantt-grid-cell')) {
+          const jobId = row.dataset.jobId;
+          const date = e.target.dataset.date;
+          this.onCellClick(jobId, date);
+        }
+      });
+    });
+  },
+
+  /**
+   * 今日ラインの位置を更新
+   */
+  updateTodayLinePosition() {
+    const todayLine = document.getElementById('today-line');
+    const scrollArea = document.getElementById('gantt-scroll-area');
+    if (!todayLine || !scrollArea) return;
+
+    const today = Utils.getToday();
+    const { displayStartDate } = Store.state;
+    const offset = Utils.getDaysBetween(displayStartDate, today);
+
+    if (offset < 0 || offset >= this.dates.length) {
+      todayLine.style.display = 'none';
+      return;
+    }
+
+    const left = this.config.fixedColumnsWidth + (offset * this.config.cellWidth) + (this.config.cellWidth / 2);
+    todayLine.style.display = 'block';
+    todayLine.style.left = `${left - scrollArea.scrollLeft}px`;
+  },
+
+  // ========== イベントハンドラー ==========
+
+  /**
+   * 工番クリック
+   */
+  onJobClick(jobId) {
+    console.log('Job clicked:', jobId);
+    // TODO: JobDetailViewを開く
+    Utils.showToast('工番別詳細（Phase 4で実装）', 'info');
+  },
+
+  /**
+   * 添付クリック
+   */
+  onAttachClick(jobId) {
+    console.log('Attachment clicked:', jobId);
+    // TODO: AttachmentViewを開く
+    Utils.showToast('添付一覧（Phase 5で実装）', 'info');
+  },
+
+  /**
+   * バークリック
+   */
+  onBarClick(scheduleId) {
+    console.log('Bar clicked:', scheduleId);
+    const schedule = Store.state.schedules.find(s => s.scheduleId === scheduleId);
+    if (schedule) {
+      Modal.openEdit(schedule);
+    }
+  },
+
+  /**
+   * セルクリック（新規登録）
+   */
+  onCellClick(jobId, date) {
+    console.log('Cell clicked:', jobId, date);
+    Modal.openNew(jobId, date, date);
+  }
+};
+</script>

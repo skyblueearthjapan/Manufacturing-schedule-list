@@ -1,0 +1,135 @@
+<script>
+/**
+ * app.js - アプリケーションメインエントリーポイント
+ */
+
+const App = {
+  /**
+   * 初期化
+   */
+  async init() {
+    console.log('Manufacturing Schedule App initializing...');
+
+    // コンポーネント初期化
+    Gantt.init();
+    Modal.init();
+
+    // イベントリスナー設定
+    this.setupEventListeners();
+
+    // 初期表示日付を設定
+    document.getElementById('display-start-date').value = Store.state.displayStartDate;
+
+    // データロード
+    await Store.loadBootstrapData();
+
+    console.log('App initialized successfully');
+  },
+
+  /**
+   * イベントリスナーを設定
+   */
+  setupEventListeners() {
+    // 表示開始日変更
+    document.getElementById('display-start-date')?.addEventListener('change', (e) => {
+      this.onDisplayRangeChange();
+    });
+
+    // 表示日数変更
+    document.getElementById('display-days')?.addEventListener('change', (e) => {
+      this.onDisplayRangeChange();
+    });
+
+    // 更新ボタン
+    document.getElementById('btn-refresh')?.addEventListener('click', () => {
+      Store.loadBootstrapData();
+    });
+
+    // 色モード切替
+    document.getElementById('color-mode-process')?.addEventListener('click', () => {
+      this.setColorMode('process');
+    });
+
+    document.getElementById('color-mode-person')?.addEventListener('click', () => {
+      this.setColorMode('person');
+    });
+
+    // ナビゲーション
+    document.querySelectorAll('.nav-tab').forEach(tab => {
+      tab.addEventListener('click', (e) => {
+        this.switchView(e.target.dataset.view);
+      });
+    });
+
+    // ウィンドウリサイズ
+    window.addEventListener('resize', Utils.debounce(() => {
+      Gantt.updateTodayLinePosition();
+    }, 200));
+  },
+
+  /**
+   * 表示範囲変更
+   */
+  onDisplayRangeChange() {
+    const startDate = document.getElementById('display-start-date').value;
+    const days = parseInt(document.getElementById('display-days').value, 10);
+
+    if (startDate && days) {
+      Store.changeDisplayRange(startDate, days);
+    }
+  },
+
+  /**
+   * 色モード切替
+   * @param {string} mode - 'process' or 'person'
+   */
+  setColorMode(mode) {
+    Store.setState({ colorMode: mode });
+
+    // ボタンのアクティブ状態を更新
+    document.getElementById('color-mode-process').classList.toggle('active', mode === 'process');
+    document.getElementById('color-mode-person').classList.toggle('active', mode === 'person');
+  },
+
+  /**
+   * ビュー切替
+   * @param {string} view - 'master', 'resource', 'weekly'
+   */
+  switchView(view) {
+    Store.setState({ currentView: view });
+
+    // ナビゲーションタブのアクティブ状態
+    document.querySelectorAll('.nav-tab').forEach(tab => {
+      tab.classList.toggle('active', tab.dataset.view === view);
+    });
+
+    // ビューの表示切替
+    document.querySelectorAll('.view-container').forEach(container => {
+      container.classList.add('hidden');
+    });
+
+    const viewContainer = document.getElementById(`view-${view}`);
+    if (viewContainer) {
+      viewContainer.classList.remove('hidden');
+    }
+
+    // ビュー固有の初期化
+    switch (view) {
+      case 'master':
+        Gantt.render();
+        break;
+      case 'resource':
+        // TODO: ResourceView実装
+        break;
+      case 'weekly':
+        // TODO: WeeklyPlanView実装
+        break;
+    }
+  }
+};
+
+// DOMContentLoaded で初期化
+document.addEventListener('DOMContentLoaded', () => {
+  App.init();
+});
+</script>

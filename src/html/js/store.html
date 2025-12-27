@@ -1,0 +1,223 @@
+<script>
+/**
+ * store.js - アプリケーション状態管理
+ */
+
+const Store = {
+  // 状態
+  state: {
+    // マスタデータ
+    jobs: [],
+    processes: [],
+    people: [],
+    schedules: [],
+    attachments: [],
+    trips: [],
+
+    // 表示設定
+    displayStartDate: Utils.getToday(),
+    displayDays: 70,
+    colorMode: 'process', // 'process' or 'person'
+    currentView: 'master', // 'master', 'resource', 'weekly'
+
+    // メタ情報
+    isLoading: false,
+    lastFetchedAt: null
+  },
+
+  // リスナー
+  listeners: [],
+
+  /**
+   * 状態を更新
+   * @param {Object} newState
+   */
+  setState(newState) {
+    this.state = { ...this.state, ...newState };
+    this.notify();
+  },
+
+  /**
+   * リスナーを登録
+   * @param {Function} callback
+   */
+  subscribe(callback) {
+    this.listeners.push(callback);
+    return () => {
+      this.listeners = this.listeners.filter(l => l !== callback);
+    };
+  },
+
+  /**
+   * リスナーに通知
+   */
+  notify() {
+    this.listeners.forEach(callback => callback(this.state));
+  },
+
+  /**
+   * 初期データをロード
+   */
+  async loadBootstrapData() {
+    try {
+      this.setState({ isLoading: true });
+      Utils.setLoading(true);
+
+      const data = await API.getBootstrapData(
+        this.state.displayStartDate,
+        this.state.displayDays
+      );
+
+      this.setState({
+        jobs: data.jobs || [],
+        processes: data.processes || [],
+        people: data.people || [],
+        schedules: data.schedules || [],
+        trips: data.trips || [],
+        lastFetchedAt: data.meta?.fetchedAt || new Date().toISOString(),
+        isLoading: false
+      });
+
+      Utils.setLoading(false);
+      console.log('Bootstrap data loaded:', data);
+    } catch (error) {
+      console.error('Failed to load bootstrap data:', error);
+      Utils.setLoading(false);
+      Utils.showToast('データの読み込みに失敗しました', 'error');
+      this.setState({ isLoading: false });
+    }
+  },
+
+  /**
+   * 表示範囲を変更してリロード
+   * @param {string} startDate
+   * @param {number} days
+   */
+  async changeDisplayRange(startDate, days) {
+    this.setState({
+      displayStartDate: startDate,
+      displayDays: days
+    });
+    await this.loadBootstrapData();
+  },
+
+  /**
+   * スケジュールを追加
+   * @param {Object} schedule
+   */
+  addSchedule(schedule) {
+    const schedules = [...this.state.schedules, schedule];
+    this.setState({ schedules });
+  },
+
+  /**
+   * スケジュールを更新
+   * @param {string} scheduleId
+   * @param {Object} updates
+   */
+  updateScheduleInStore(scheduleId, updates) {
+    const schedules = this.state.schedules.map(s =>
+      s.scheduleId === scheduleId ? { ...s, ...updates } : s
+    );
+    this.setState({ schedules });
+  },
+
+  /**
+   * スケジュールを削除
+   * @param {string} scheduleId
+   */
+  removeSchedule(scheduleId) {
+    const schedules = this.state.schedules.filter(s => s.scheduleId !== scheduleId);
+    this.setState({ schedules });
+  },
+
+  // ========== ゲッター ==========
+
+  /**
+   * JobIdでJobを取得
+   * @param {string} jobId
+   * @returns {Object|null}
+   */
+  getJobById(jobId) {
+    return this.state.jobs.find(j => j.jobId === jobId) || null;
+  },
+
+  /**
+   * ProcessIdでProcessを取得
+   * @param {string} processId
+   * @returns {Object|null}
+   */
+  getProcessById(processId) {
+    return this.state.processes.find(p => p.processId === processId) || null;
+  },
+
+  /**
+   * PersonIdでPersonを取得
+   * @param {string} personId
+   * @returns {Object|null}
+   */
+  getPersonById(personId) {
+    return this.state.people.find(p => p.personId === personId) || null;
+  },
+
+  /**
+   * JobIdでスケジュールを取得
+   * @param {string} jobId
+   * @returns {Array}
+   */
+  getSchedulesByJobId(jobId) {
+    return this.state.schedules.filter(s => s.jobId === jobId);
+  },
+
+  /**
+   * 工程色を取得
+   * @param {string} processId
+   * @returns {string}
+   */
+  getProcessColor(processId) {
+    const process = this.getProcessById(processId);
+    return process?.['工程色(colorHex)'] || '#6b7280';
+  },
+
+  /**
+   * 作業者色を取得
+   * @param {string} personId
+   * @returns {string}
+   */
+  getPersonColor(personId) {
+    const person = this.getPersonById(personId);
+    return person?.['作業者色(colorHex)'] || '#6b7280';
+  },
+
+  /**
+   * バーの色を取得（現在の色モードに応じて）
+   * @param {Object} schedule
+   * @returns {string}
+   */
+  getBarColor(schedule) {
+    if (this.state.colorMode === 'person') {
+      return this.getPersonColor(schedule.mainPersonId);
+    }
+    return this.getProcessColor(schedule.processId);
+  },
+
+  /**
+   * 工程がマイルストーンかどうか
+   * @param {string} processId
+   * @returns {boolean}
+   */
+  isMilestone(processId) {
+    const process = this.getProcessById(processId);
+    return process?.['種別(type)'] === 'milestone';
+  },
+
+  /**
+   * 工番に添付があるかどうか
+   * @param {string} jobId
+   * @returns {boolean}
+   */
+  hasAttachments(jobId) {
+    return this.state.attachments.some(a => a.jobId === jobId);
+  }
+};
+</script>

@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>生産工程表</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#2563eb',
+            secondary: '#64748b',
+            accent: '#f59e0b',
+            success: '#10b981',
+            danger: '#ef4444',
+            weekend: '#fef9c3',
+            today: '#dbeafe'
+          }
+        }
+      }
+    }
+  </script>
+  <?!= include('css'); ?>
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <!-- ヘッダー -->
+  <header class="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-50">
+    <div class="max-w-full mx-auto px-4 py-3">
+      <div class="flex items-center justify-between">
+        <!-- ロゴ・タイトル -->
+        <div class="flex items-center space-x-4">
+          <h1 class="text-xl font-bold text-gray-800">
+            <span class="text-primary">生産工程表</span>
+          </h1>
+          <nav class="hidden md:flex space-x-1">
+            <button id="nav-master" class="nav-tab active" data-view="master">
+              大工程表
+            </button>
+            <button id="nav-resource" class="nav-tab" data-view="resource">
+              作業者別
+            </button>
+            <button id="nav-weekly" class="nav-tab" data-view="weekly">
+              今週の予定
+            </button>
+          </nav>
+        </div>
+
+        <!-- コントロール -->
+        <div class="flex items-center space-x-3">
+          <!-- 表示期間 -->
+          <div class="flex items-center space-x-2 text-sm">
+            <label class="text-gray-600">表示開始:</label>
+            <input type="date" id="display-start-date"
+                   class="border border-gray-300 rounded px-2 py-1 text-sm focus:ring-2 focus:ring-primary focus:border-transparent">
+            <label class="text-gray-600">日数:</label>
+            <select id="display-days" class="border border-gray-300 rounded px-2 py-1 text-sm focus:ring-2 focus:ring-primary">
+              <option value="30">30日</option>
+              <option value="60">60日</option>
+              <option value="70" selected>70日</option>
+              <option value="90">90日</option>
+              <option value="120">120日</option>
+            </select>
+          </div>
+
+          <!-- 色モード切替 -->
+          <div class="flex items-center space-x-2">
+            <span class="text-sm text-gray-600">色:</span>
+            <button id="color-mode-process" class="color-mode-btn active" title="工程色">工程</button>
+            <button id="color-mode-person" class="color-mode-btn" title="作業者色">担当</button>
+          </div>
+
+          <!-- 更新ボタン -->
+          <button id="btn-refresh" class="btn-icon" title="データ更新">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- メインコンテンツ -->
+  <main class="flex-1">
+    <!-- ローディング -->
+    <div id="loading" class="fixed inset-0 bg-white bg-opacity-80 flex items-center justify-center z-50">
+      <div class="text-center">
+        <div class="animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent mb-4"></div>
+        <p class="text-gray-600">データを読み込んでいます...</p>
+      </div>
+    </div>
+
+    <!-- MasterView（大工程表） -->
+    <div id="view-master" class="view-container">
+      <div class="gantt-container">
+        <!-- 固定列ヘッダー -->
+        <div class="gantt-fixed-header">
+          <div class="gantt-header-row">
+            <div class="gantt-cell gantt-cell-no">No</div>
+            <div class="gantt-cell gantt-cell-status">状態</div>
+            <div class="gantt-cell gantt-cell-jobno">工番</div>
+            <div class="gantt-cell gantt-cell-customer">顧客名</div>
+            <div class="gantt-cell gantt-cell-product">設備/製品名</div>
+            <div class="gantt-cell gantt-cell-qty">台数</div>
+            <div class="gantt-cell gantt-cell-dest">納入先</div>
+            <div class="gantt-cell gantt-cell-ship">出荷予定</div>
+            <div class="gantt-cell gantt-cell-draw">出図予定</div>
+            <div class="gantt-cell gantt-cell-memo">重要メモ</div>
+            <div class="gantt-cell gantt-cell-attach">📎</div>
+          </div>
+        </div>
+
+        <!-- スクロール領域 -->
+        <div class="gantt-scroll-area" id="gantt-scroll-area">
+          <!-- 日付ヘッダー -->
+          <div class="gantt-date-header" id="gantt-date-header">
+            <!-- JSで生成 -->
+          </div>
+
+          <!-- ガントボディ -->
+          <div class="gantt-body" id="gantt-body">
+            <!-- 固定列 -->
+            <div class="gantt-fixed-body" id="gantt-fixed-body">
+              <!-- JSで生成 -->
+            </div>
+
+            <!-- スケジュールグリッド -->
+            <div class="gantt-grid" id="gantt-grid">
+              <!-- JSで生成 -->
+            </div>
+          </div>
+        </div>
+
+        <!-- 今日ライン -->
+        <div class="today-line" id="today-line"></div>
+      </div>
+    </div>
+
+    <!-- ResourceView（作業者別） -->
+    <div id="view-resource" class="view-container hidden">
+      <div class="p-4">
+        <p class="text-gray-500">作業者別工程表（Phase 4で実装）</p>
+      </div>
+    </div>
+
+    <!-- WeeklyPlanView（今週の予定） -->
+    <div id="view-weekly" class="view-container hidden">
+      <div class="p-4">
+        <p class="text-gray-500">今週の予定（Phase 4で実装）</p>
+      </div>
+    </div>
+  </main>
+
+  <!-- 入力モーダル -->
+  <div id="modal-entry" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="modal-title" class="text-lg font-semibold">工程登録</h3>
+        <button id="modal-close" class="modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="entry-form">
+          <!-- 工番（読み取り専用） -->
+          <div class="form-group">
+            <label class="form-label">工番</label>
+            <input type="text" id="entry-job" class="form-input" readonly>
+            <input type="hidden" id="entry-job-id">
+          </div>
+
+          <!-- 工程選択 -->
+          <div class="form-group">
+            <label class="form-label">工程 <span class="text-danger">*</span></label>
+            <select id="entry-process" class="form-select" required>
+              <option value="">選択してください</option>
+            </select>
+          </div>
+
+          <!-- 期間 -->
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label class="form-label">開始日 <span class="text-danger">*</span></label>
+              <input type="date" id="entry-start" class="form-input" required>
+            </div>
+            <div class="form-group flex-1">
+              <label class="form-label">終了日 <span class="text-danger">*</span></label>
+              <input type="date" id="entry-end" class="form-input" required>
+            </div>
+          </div>
+
+          <!-- 担当者 -->
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label class="form-label">主担当 <span class="text-danger">*</span></label>
+              <select id="entry-main-person" class="form-select" required>
+                <option value="">選択してください</option>
+              </select>
+            </div>
+            <div class="form-group flex-1">
+              <label class="form-label">副担当</label>
+              <select id="entry-sub-person" class="form-select">
+                <option value="">なし</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- ラベル -->
+          <div class="form-group">
+            <label class="form-label">ラベル</label>
+            <input type="text" id="entry-label" class="form-input" placeholder="工程上に表示するテキスト">
+          </div>
+
+          <!-- 状態 -->
+          <div class="form-group">
+            <label class="form-label">状態</label>
+            <select id="entry-status" class="form-select">
+              <option value="予定">予定</option>
+              <option value="進行中">進行中</option>
+              <option value="完了">完了</option>
+              <option value="遅延">遅延</option>
+            </select>
+          </div>
+
+          <!-- メモ -->
+          <div class="form-group">
+            <label class="form-label">メモ</label>
+            <textarea id="entry-memo" class="form-textarea" rows="2"></textarea>
+          </div>
+
+          <input type="hidden" id="entry-schedule-id">
+          <input type="hidden" id="entry-updated-at">
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="btn-modal-cancel" class="btn btn-secondary">キャンセル</button>
+        <button type="button" id="btn-modal-delete" class="btn btn-danger hidden">削除</button>
+        <button type="button" id="btn-modal-save" class="btn btn-primary">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- トースト通知 -->
+  <div id="toast-container" class="fixed bottom-4 right-4 z-50 space-y-2"></div>
+
+  <!-- JavaScript -->
+  <?!= include('js/utils'); ?>
+  <?!= include('js/api'); ?>
+  <?!= include('js/store'); ?>
+  <?!= include('js/gantt'); ?>
+  <?!= include('js/modal'); ?>
+  <?!= include('js/app'); ?>
+</body>
+</html>

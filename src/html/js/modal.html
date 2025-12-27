@@ -1,0 +1,357 @@
+<script>
+/**
+ * modal.js - モーダル制御
+ */
+
+const Modal = {
+  // 現在の編集対象
+  currentSchedule: null,
+  isEditMode: false,
+
+  /**
+   * 初期化
+   */
+  init() {
+    this.setupEventListeners();
+  },
+
+  /**
+   * イベントリスナーを設定
+   */
+  setupEventListeners() {
+    // 閉じるボタン
+    document.getElementById('modal-close')?.addEventListener('click', () => this.close());
+    document.getElementById('btn-modal-cancel')?.addEventListener('click', () => this.close());
+
+    // 背景クリックで閉じる
+    document.querySelector('.modal-backdrop')?.addEventListener('click', () => this.close());
+
+    // 保存ボタン
+    document.getElementById('btn-modal-save')?.addEventListener('click', () => this.save());
+
+    // 削除ボタン
+    document.getElementById('btn-modal-delete')?.addEventListener('click', () => this.delete());
+
+    // ESCキーで閉じる
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') this.close();
+    });
+
+    // 工程変更時のバリデーション
+    document.getElementById('entry-process')?.addEventListener('change', () => this.validateProcess());
+  },
+
+  /**
+   * 新規モードで開く
+   * @param {string} jobId
+   * @param {string} startDate
+   * @param {string} endDate
+   */
+  openNew(jobId, startDate, endDate) {
+    this.isEditMode = false;
+    this.currentSchedule = null;
+
+    const job = Store.getJobById(jobId);
+    if (!job) {
+      Utils.showToast('工番が見つかりません', 'error');
+      return;
+    }
+
+    // フォームをリセット
+    this.resetForm();
+
+    // 値を設定
+    document.getElementById('entry-job').value = job['工番'] || '';
+    document.getElementById('entry-job-id').value = jobId;
+    document.getElementById('entry-start').value = startDate;
+    document.getElementById('entry-end').value = endDate;
+
+    // UI調整
+    document.getElementById('modal-title').textContent = '工程登録';
+    document.getElementById('btn-modal-delete').classList.add('hidden');
+
+    // 工程・担当者のプルダウンを設定
+    this.populateProcessSelect();
+    this.populatePeopleSelect();
+
+    this.open();
+  },
+
+  /**
+   * 編集モードで開く
+   * @param {Object} schedule
+   */
+  openEdit(schedule) {
+    this.isEditMode = true;
+    this.currentSchedule = schedule;
+
+    const job = Store.getJobById(schedule.jobId);
+    if (!job) {
+      Utils.showToast('工番が見つかりません', 'error');
+      return;
+    }
+
+    // フォームをリセット
+    this.resetForm();
+
+    // 値を設定
+    document.getElementById('entry-job').value = job['工番'] || '';
+    document.getElementById('entry-job-id').value = schedule.jobId;
+    document.getElementById('entry-start').value = schedule.start;
+    document.getElementById('entry-end').value = schedule.end;
+    document.getElementById('entry-label').value = schedule.label || '';
+    document.getElementById('entry-status').value = schedule.status || '予定';
+    document.getElementById('entry-memo').value = schedule.memo || '';
+    document.getElementById('entry-schedule-id').value = schedule.scheduleId;
+    document.getElementById('entry-updated-at').value = schedule.updatedAt || '';
+
+    // 工程・担当者のプルダウンを設定
+    this.populateProcessSelect(schedule.processId);
+    this.populatePeopleSelect(schedule.mainPersonId, schedule.subPersonId);
+
+    // UI調整
+    document.getElementById('modal-title').textContent = '工程編集';
+    document.getElementById('btn-modal-delete').classList.remove('hidden');
+
+    this.open();
+  },
+
+  /**
+   * モーダルを開く
+   */
+  open() {
+    document.getElementById('modal-entry').classList.remove('hidden');
+  },
+
+  /**
+   * モーダルを閉じる
+   */
+  close() {
+    document.getElementById('modal-entry').classList.add('hidden');
+    this.currentSchedule = null;
+    this.isEditMode = false;
+  },
+
+  /**
+   * フォームをリセット
+   */
+  resetForm() {
+    document.getElementById('entry-form').reset();
+    document.getElementById('entry-schedule-id').value = '';
+    document.getElementById('entry-updated-at').value = '';
+  },
+
+  /**
+   * 工程プルダウンを設定
+   * @param {string} selectedId
+   */
+  populateProcessSelect(selectedId = '') {
+    const select = document.getElementById('entry-process');
+    const processes = Store.state.processes;
+
+    let html = '<option value="">選択してください</option>';
+
+    processes.forEach(process => {
+      const selected = process.processId === selectedId ? 'selected' : '';
+      const type = process['種別(type)'] === 'milestone' ? '★' : '';
+      html += `<option value="${process.processId}" ${selected}>${type}${Utils.escapeHtml(process['工程名'])}</option>`;
+    });
+
+    // 新規追加オプション
+    html += '<option value="__new__">＋ 新しい工程を追加</option>';
+
+    select.innerHTML = html;
+  },
+
+  /**
+   * 担当者プルダウンを設定
+   * @param {string} mainPersonId
+   * @param {string} subPersonId
+   */
+  populatePeopleSelect(mainPersonId = '', subPersonId = '') {
+    const mainSelect = document.getElementById('entry-main-person');
+    const subSelect = document.getElementById('entry-sub-person');
+    const people = Store.state.people;
+
+    let mainHtml = '<option value="">選択してください</option>';
+    let subHtml = '<option value="">なし</option>';
+
+    people.forEach(person => {
+      const mainSelected = person.personId === mainPersonId ? 'selected' : '';
+      const subSelected = person.personId === subPersonId ? 'selected' : '';
+      const dept = person['部署/区分'] ? `（${person['部署/区分']}）` : '';
+
+      mainHtml += `<option value="${person.personId}" ${mainSelected}>${Utils.escapeHtml(person['氏名'])}${dept}</option>`;
+      subHtml += `<option value="${person.personId}" ${subSelected}>${Utils.escapeHtml(person['氏名'])}${dept}</option>`;
+    });
+
+    mainSelect.innerHTML = mainHtml;
+    subSelect.innerHTML = subHtml;
+  },
+
+  /**
+   * 工程変更時のバリデーション
+   */
+  validateProcess() {
+    const processId = document.getElementById('entry-process').value;
+
+    if (processId === '__new__') {
+      // TODO: 新規工程追加モーダルを開く
+      Utils.showToast('新規工程追加（Phase 3で実装）', 'info');
+      document.getElementById('entry-process').value = '';
+      return;
+    }
+
+    const process = Store.getProcessById(processId);
+    if (!process) return;
+
+    // マイルストーンの場合、開始日=終了日に
+    if (process['種別(type)'] === 'milestone') {
+      const start = document.getElementById('entry-start').value;
+      document.getElementById('entry-end').value = start;
+    }
+
+    // 副担当の許可/必須チェック
+    const subSelect = document.getElementById('entry-sub-person');
+    const allowsSub = process['副担当許可'] === true || process['副担当許可'] === 'TRUE';
+    subSelect.disabled = !allowsSub;
+    if (!allowsSub) {
+      subSelect.value = '';
+    }
+  },
+
+  /**
+   * バリデーション
+   * @returns {Object|null}
+   */
+  validate() {
+    const jobId = document.getElementById('entry-job-id').value;
+    const processId = document.getElementById('entry-process').value;
+    const start = document.getElementById('entry-start').value;
+    const end = document.getElementById('entry-end').value;
+    const mainPersonId = document.getElementById('entry-main-person').value;
+    const subPersonId = document.getElementById('entry-sub-person').value;
+    const label = document.getElementById('entry-label').value;
+    const status = document.getElementById('entry-status').value;
+    const memo = document.getElementById('entry-memo').value;
+
+    // 必須チェック
+    if (!processId || processId === '__new__') {
+      Utils.showToast('工程を選択してください', 'error');
+      return null;
+    }
+
+    if (!start || !end) {
+      Utils.showToast('期間を入力してください', 'error');
+      return null;
+    }
+
+    if (start > end) {
+      Utils.showToast('終了日は開始日以降にしてください', 'error');
+      return null;
+    }
+
+    // 工程ルールチェック
+    const process = Store.getProcessById(processId);
+    if (process) {
+      // マイルストーンチェック
+      if (process['種別(type)'] === 'milestone' && start !== end) {
+        Utils.showToast('マイルストーン工程は開始日と終了日を同じにしてください', 'error');
+        return null;
+      }
+
+      // 主担当必須チェック
+      const requiresMain = process['主担当必須'] === true || process['主担当必須'] === 'TRUE';
+      if (requiresMain && !mainPersonId) {
+        Utils.showToast('主担当を選択してください', 'error');
+        return null;
+      }
+
+      // 副担当必須チェック
+      const requiresSub = process['副担当必須'] === true || process['副担当必須'] === 'TRUE';
+      if (requiresSub && !subPersonId) {
+        Utils.showToast('副担当を選択してください', 'error');
+        return null;
+      }
+    }
+
+    return {
+      jobId,
+      processId,
+      start,
+      end,
+      mainPersonId,
+      subPersonId: subPersonId || '',
+      label,
+      status,
+      memo
+    };
+  },
+
+  /**
+   * 保存
+   */
+  async save() {
+    const payload = this.validate();
+    if (!payload) return;
+
+    try {
+      Utils.setLoading(true);
+
+      if (this.isEditMode) {
+        // 更新
+        const scheduleId = document.getElementById('entry-schedule-id').value;
+        const expectedUpdatedAt = document.getElementById('entry-updated-at').value;
+
+        const result = await API.updateSchedule(scheduleId, payload, expectedUpdatedAt);
+        Store.updateScheduleInStore(scheduleId, result);
+        Utils.showToast('更新しました', 'success');
+      } else {
+        // 新規作成
+        const result = await API.createSchedule(payload);
+        Store.addSchedule(result);
+        Utils.showToast('登録しました', 'success');
+      }
+
+      Utils.setLoading(false);
+      this.close();
+    } catch (error) {
+      Utils.setLoading(false);
+      console.error('Save failed:', error);
+
+      if (error.message?.includes('他のユーザー')) {
+        Utils.showToast('他のユーザーが更新しました。再読み込みしてください。', 'error');
+      } else {
+        Utils.showToast('保存に失敗しました', 'error');
+      }
+    }
+  },
+
+  /**
+   * 削除
+   */
+  async delete() {
+    if (!this.isEditMode || !this.currentSchedule) return;
+
+    if (!confirm('この工程を削除しますか？')) return;
+
+    try {
+      Utils.setLoading(true);
+
+      const scheduleId = this.currentSchedule.scheduleId;
+      const expectedUpdatedAt = document.getElementById('entry-updated-at').value;
+
+      await API.deleteSchedule(scheduleId, expectedUpdatedAt);
+      Store.removeSchedule(scheduleId);
+
+      Utils.setLoading(false);
+      Utils.showToast('削除しました', 'success');
+      this.close();
+    } catch (error) {
+      Utils.setLoading(false);
+      console.error('Delete failed:', error);
+      Utils.showToast('削除に失敗しました', 'error');
+    }
+  }
+};
+</script>

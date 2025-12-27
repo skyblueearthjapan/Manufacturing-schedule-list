@@ -1,0 +1,506 @@
+<style>
+  /* ========================================
+     グローバルスタイル
+     ======================================== */
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  }
+
+  /* ========================================
+     ナビゲーション
+     ======================================== */
+  .nav-tab {
+    @apply px-4 py-2 text-sm font-medium text-gray-600 rounded-lg transition-colors;
+  }
+
+  .nav-tab:hover {
+    @apply bg-gray-100 text-gray-800;
+  }
+
+  .nav-tab.active {
+    @apply bg-primary text-white;
+  }
+
+  /* ========================================
+     ボタン
+     ======================================== */
+  .btn {
+    @apply px-4 py-2 rounded-lg font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2;
+  }
+
+  .btn-primary {
+    @apply bg-primary text-white hover:bg-blue-700 focus:ring-primary;
+  }
+
+  .btn-secondary {
+    @apply bg-gray-200 text-gray-700 hover:bg-gray-300 focus:ring-gray-400;
+  }
+
+  .btn-danger {
+    @apply bg-danger text-white hover:bg-red-600 focus:ring-danger;
+  }
+
+  .btn-icon {
+    @apply p-2 rounded-lg text-gray-600 hover:bg-gray-100 hover:text-gray-800 transition-colors focus:outline-none focus:ring-2 focus:ring-primary;
+  }
+
+  .color-mode-btn {
+    @apply px-3 py-1 text-xs rounded border border-gray-300 text-gray-600 transition-colors;
+  }
+
+  .color-mode-btn.active {
+    @apply bg-primary text-white border-primary;
+  }
+
+  /* ========================================
+     ガントチャート
+     ======================================== */
+  .gantt-container {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 70px);
+    overflow: hidden;
+  }
+
+  /* 固定ヘッダー */
+  .gantt-fixed-header {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    background: white;
+    border-bottom: 2px solid #e5e7eb;
+  }
+
+  .gantt-header-row {
+    display: flex;
+    background: linear-gradient(to bottom, #f8fafc, #f1f5f9);
+  }
+
+  .gantt-cell {
+    padding: 8px 6px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #374151;
+    border-right: 1px solid #e5e7eb;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+  }
+
+  /* 固定列の幅 */
+  .gantt-cell-no { width: 40px; }
+  .gantt-cell-status { width: 50px; }
+  .gantt-cell-jobno { width: 70px; }
+  .gantt-cell-customer { width: 100px; }
+  .gantt-cell-product { width: 160px; }
+  .gantt-cell-qty { width: 40px; }
+  .gantt-cell-dest { width: 100px; }
+  .gantt-cell-ship { width: 80px; }
+  .gantt-cell-draw { width: 80px; }
+  .gantt-cell-memo { width: 120px; }
+  .gantt-cell-attach { width: 36px; }
+
+  /* スクロール領域 */
+  .gantt-scroll-area {
+    flex: 1;
+    overflow: auto;
+    position: relative;
+  }
+
+  /* 日付ヘッダー */
+  .gantt-date-header {
+    display: flex;
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: white;
+    border-bottom: 1px solid #e5e7eb;
+    margin-left: 876px; /* 固定列の合計幅 */
+  }
+
+  .gantt-date-cell {
+    width: 32px;
+    min-width: 32px;
+    padding: 4px 0;
+    text-align: center;
+    font-size: 10px;
+    border-right: 1px solid #f3f4f6;
+    flex-shrink: 0;
+  }
+
+  .gantt-date-cell .month {
+    font-weight: 600;
+    color: #6b7280;
+  }
+
+  .gantt-date-cell .day {
+    font-weight: 700;
+    color: #374151;
+  }
+
+  .gantt-date-cell .dow {
+    font-size: 9px;
+    color: #9ca3af;
+  }
+
+  .gantt-date-cell.weekend {
+    background-color: #fef9c3;
+  }
+
+  .gantt-date-cell.today {
+    background-color: #dbeafe;
+  }
+
+  .gantt-date-cell.holiday {
+    background-color: #fef9c3;
+  }
+
+  /* ガントボディ */
+  .gantt-body {
+    display: flex;
+    position: relative;
+  }
+
+  .gantt-fixed-body {
+    position: sticky;
+    left: 0;
+    z-index: 15;
+    background: white;
+  }
+
+  .gantt-row {
+    display: flex;
+    border-bottom: 1px solid #f3f4f6;
+    min-height: 36px;
+  }
+
+  .gantt-row:hover {
+    background-color: #f8fafc;
+  }
+
+  .gantt-row .gantt-cell {
+    font-weight: 400;
+    font-size: 11px;
+    color: #4b5563;
+    background: white;
+  }
+
+  .gantt-row:hover .gantt-cell {
+    background: #f8fafc;
+  }
+
+  /* ステータスバッジ */
+  .status-badge {
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 9px;
+    font-weight: 600;
+  }
+
+  .status-未着手 { background: #f3f4f6; color: #6b7280; }
+  .status-進行中 { background: #dbeafe; color: #1d4ed8; }
+  .status-完了 { background: #d1fae5; color: #047857; }
+  .status-保留 { background: #fef3c7; color: #b45309; }
+  .status-遅延 { background: #fee2e2; color: #dc2626; }
+
+  /* グリッド領域 */
+  .gantt-grid {
+    position: relative;
+    flex: 1;
+  }
+
+  .gantt-grid-row {
+    display: flex;
+    position: relative;
+    height: 36px;
+    border-bottom: 1px solid #f3f4f6;
+  }
+
+  .gantt-grid-cell {
+    width: 32px;
+    min-width: 32px;
+    height: 100%;
+    border-right: 1px solid #f9fafb;
+    flex-shrink: 0;
+  }
+
+  .gantt-grid-cell.weekend {
+    background-color: rgba(254, 249, 195, 0.5);
+  }
+
+  .gantt-grid-cell.today {
+    background-color: rgba(219, 234, 254, 0.5);
+  }
+
+  /* 工程バー */
+  .gantt-bar {
+    position: absolute;
+    height: 24px;
+    top: 6px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    padding: 0 6px;
+    font-size: 10px;
+    font-weight: 500;
+    color: white;
+    cursor: pointer;
+    transition: transform 0.1s, box-shadow 0.1s;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  }
+
+  .gantt-bar:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 6px rgba(0,0,0,0.15);
+    z-index: 10;
+  }
+
+  .gantt-bar.dragging {
+    opacity: 0.8;
+    z-index: 100;
+  }
+
+  .gantt-bar-label {
+    background: rgba(255,255,255,0.9);
+    color: #374151;
+    padding: 1px 4px;
+    border-radius: 2px;
+    font-size: 9px;
+    margin-left: 4px;
+    border: 1px solid #f59e0b;
+  }
+
+  /* マイルストーン */
+  .gantt-milestone {
+    position: absolute;
+    top: 6px;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    cursor: pointer;
+    z-index: 5;
+  }
+
+  /* 今日ライン */
+  .today-line {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: #ef4444;
+    z-index: 25;
+    pointer-events: none;
+  }
+
+  .today-line::before {
+    content: '今日';
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    background: #ef4444;
+    color: white;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 600;
+  }
+
+  /* ========================================
+     モーダル
+     ======================================== */
+  .modal {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .modal.hidden {
+    display: none;
+  }
+
+  .modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+  }
+
+  .modal-content {
+    position: relative;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
+    width: 90%;
+    max-width: 500px;
+    max-height: 90vh;
+    overflow: auto;
+  }
+
+  .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  .modal-close-btn {
+    font-size: 24px;
+    color: #9ca3af;
+    cursor: pointer;
+    transition: color 0.2s;
+  }
+
+  .modal-close-btn:hover {
+    color: #374151;
+  }
+
+  .modal-body {
+    padding: 20px;
+  }
+
+  .modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 16px 20px;
+    border-top: 1px solid #e5e7eb;
+    background: #f9fafb;
+    border-radius: 0 0 12px 12px;
+  }
+
+  /* ========================================
+     フォーム
+     ======================================== */
+  .form-group {
+    margin-bottom: 16px;
+  }
+
+  .form-row {
+    display: flex;
+    gap: 16px;
+  }
+
+  .form-label {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #374151;
+  }
+
+  .form-input,
+  .form-select,
+  .form-textarea {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 14px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+
+  .form-input:focus,
+  .form-select:focus,
+  .form-textarea:focus {
+    outline: none;
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  }
+
+  .form-input:read-only {
+    background: #f3f4f6;
+    color: #6b7280;
+  }
+
+  /* ========================================
+     トースト
+     ======================================== */
+  .toast {
+    padding: 12px 16px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    animation: slideIn 0.3s ease;
+  }
+
+  .toast-success {
+    background: #d1fae5;
+    color: #047857;
+    border-left: 4px solid #10b981;
+  }
+
+  .toast-error {
+    background: #fee2e2;
+    color: #dc2626;
+    border-left: 4px solid #ef4444;
+  }
+
+  .toast-info {
+    background: #dbeafe;
+    color: #1d4ed8;
+    border-left: 4px solid #2563eb;
+  }
+
+  @keyframes slideIn {
+    from {
+      transform: translateX(100%);
+      opacity: 0;
+    }
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+
+  /* ========================================
+     ユーティリティ
+     ======================================== */
+  .hidden {
+    display: none !important;
+  }
+
+  .text-truncate {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .cursor-pointer {
+    cursor: pointer;
+  }
+
+  /* 添付アイコン */
+  .attach-icon {
+    cursor: pointer;
+    opacity: 0.6;
+    transition: opacity 0.2s;
+  }
+
+  .attach-icon:hover {
+    opacity: 1;
+  }
+
+  .attach-icon.has-attachment {
+    opacity: 1;
+    color: #2563eb;
+  }
+</style>
