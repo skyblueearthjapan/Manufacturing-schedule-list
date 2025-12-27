@@ -1,18 +1,21 @@
 <script>
 /**
- * gantt.js - ガントチャート描画
+ * gantt.js - ガントチャート描画（2ペイン構造）
  */
 
 const Gantt = {
   // 設定
   config: {
     cellWidth: 32,       // 1日のセル幅
-    rowHeight: 36,       // 行の高さ
-    fixedColumnsWidth: 876  // 固定列の合計幅
+    rowHeight: 64,       // 行の高さ（工番情報ブロックに合わせる）
+    jobPaneWidth: 320    // 左ペイン（工番情報）の幅
   },
 
   // 日付配列キャッシュ
   dates: [],
+
+  // スクロール同期フラグ（無限ループ防止）
+  isSyncing: false,
 
   /**
    * 初期化
@@ -26,11 +29,28 @@ const Gantt = {
    * イベントリスナーを設定
    */
   setupEventListeners() {
-    // スクロール同期
-    const scrollArea = document.getElementById('gantt-scroll-area');
-    if (scrollArea) {
-      scrollArea.addEventListener('scroll', () => {
+    const jobPane = document.getElementById('gantt-job-pane');
+    const gridPane = document.getElementById('gantt-grid-pane');
+    const dateHeaderWrapper = document.getElementById('gantt-date-header-wrapper');
+
+    // 縦スクロール同期（右ペイン → 左ペイン）
+    if (gridPane && jobPane) {
+      gridPane.addEventListener('scroll', () => {
+        if (this.isSyncing) return;
+        this.isSyncing = true;
+
+        // 縦スクロール同期
+        jobPane.scrollTop = gridPane.scrollTop;
+
+        // 日付ヘッダー横スクロール同期
+        if (dateHeaderWrapper) {
+          dateHeaderWrapper.scrollLeft = gridPane.scrollLeft;
+        }
+
+        // 今日ライン位置更新
         this.updateTodayLinePosition();
+
+        this.isSyncing = false;
       });
     }
   },
@@ -46,7 +66,8 @@ const Gantt = {
 
     // 各パートをレンダリング
     this.renderDateHeader();
-    this.renderBody();
+    this.renderJobPane(jobs);
+    this.renderGrid(jobs);
     this.updateTodayLinePosition();
   },
 
@@ -89,54 +110,44 @@ const Gantt = {
   },
 
   /**
-   * ボディをレンダリング
+   * 工番情報ペイン（左ペイン）をレンダリング
    */
-  renderBody() {
-    const { jobs } = Store.state;
-
-    this.renderFixedBody(jobs);
-    this.renderGrid(jobs);
-  },
-
-  /**
-   * 固定列をレンダリング
-   */
-  renderFixedBody(jobs) {
-    const container = document.getElementById('gantt-fixed-body');
+  renderJobPane(jobs) {
+    const container = document.getElementById('gantt-job-pane');
     if (!container) return;
 
     let html = '';
 
-    jobs.forEach((job, index) => {
-      const statusClass = `status-${job['状態'] || '未着手'}`;
+    jobs.forEach((job) => {
+      // 日付のフォーマット（MM/DD形式）
+      const shipDate = this.formatShortDate(job['出荷予定日']);
+      const drawDate = this.formatShortDate(job['出図予定日']);
 
       html += `
-        <div class="gantt-row" data-job-id="${job.jobId}">
-          <div class="gantt-cell gantt-cell-no">${index + 1}</div>
-          <div class="gantt-cell gantt-cell-status">
-            <span class="status-badge ${statusClass}">${Utils.escapeHtml(job['状態'] || '-')}</span>
-          </div>
-          <div class="gantt-cell gantt-cell-jobno cursor-pointer hover:text-primary" onclick="Gantt.onJobClick('${job.jobId}')">
-            ${Utils.escapeHtml(job['工番'] || '')}
-          </div>
-          <div class="gantt-cell gantt-cell-customer text-truncate" title="${Utils.escapeHtml(job['顧客名'] || '')}">
-            ${Utils.escapeHtml(job['顧客名'] || '')}
-          </div>
-          <div class="gantt-cell gantt-cell-product text-truncate" title="${Utils.escapeHtml(job['設備/製品名'] || '')}">
-            ${Utils.escapeHtml(job['設備/製品名'] || '')}
-          </div>
-          <div class="gantt-cell gantt-cell-qty">${job['台数'] || ''}</div>
-          <div class="gantt-cell gantt-cell-dest text-truncate" title="${Utils.escapeHtml(job['納入先'] || '')}">
-            ${Utils.escapeHtml(job['納入先'] || '')}
-          </div>
-          <div class="gantt-cell gantt-cell-ship">${job['出荷予定日'] || ''}</div>
-          <div class="gantt-cell gantt-cell-draw">${job['出図予定日'] || ''}</div>
-          <div class="gantt-cell gantt-cell-memo text-truncate" title="${Utils.escapeHtml(job['重要メモ'] || '')}">
-            ${Utils.escapeHtml(job['重要メモ'] || '')}
-          </div>
-          <div class="gantt-cell gantt-cell-attach">
-            <span class="attach-icon ${Store.hasAttachments(job.jobId) ? 'has-attachment' : ''}"
-                  onclick="Gantt.onAttachClick('${job.jobId}')">📎</span>
+        <div class="job-info-block" data-job-id="${job.jobId}" onclick="Gantt.onJobClick('${job.jobId}')">
+          <div class="job-info-content">
+            <!-- 1行目：工番 + 状態/メモ -->
+            <div class="job-info-row1">
+              <div class="job-info-jobno">
+                <span class="label">[工番]</span>
+                <span>${Utils.escapeHtml(job['工番'] || '')}</span>
+              </div>
+              <div class="job-info-status">
+                <span class="label">[${Utils.escapeHtml(job['状態'] || '未着手')}]</span>
+                <span>${Utils.escapeHtml(job['重要メモ'] || '')}</span>
+              </div>
+            </div>
+            <!-- 2行目：顧客 + 出図予定日 -->
+            <div class="job-info-row2">
+              <div class="job-info-customer">顧客：${Utils.escapeHtml(job['顧客名'] || '-')}</div>
+              <div class="job-info-draw-date">出図予定：${drawDate || '-'}</div>
+            </div>
+            <!-- 3行目：製品名 + 台数 + 出荷予定日 -->
+            <div class="job-info-row3">
+              <div class="job-info-product">${Utils.escapeHtml(job['設備/製品名'] || '-')}</div>
+              <div class="job-info-qty">台数：${job['台数'] || '-'}</div>
+              <div class="job-info-ship-date">出荷予定：${shipDate || '-'}</div>
+            </div>
           </div>
         </div>
       `;
@@ -146,7 +157,25 @@ const Gantt = {
   },
 
   /**
-   * グリッドをレンダリング
+   * 日付を短い形式（MM/DD）にフォーマット
+   */
+  formatShortDate(dateStr) {
+    if (!dateStr) return '';
+    // YYYY-MM-DD形式の場合
+    const match = dateStr.match(/(\d{4})-(\d{2})-(\d{2})/);
+    if (match) {
+      return `${parseInt(match[2])}/${parseInt(match[3])}`;
+    }
+    // MM/DD形式の場合
+    const match2 = dateStr.match(/(\d{1,2})\/(\d{1,2})/);
+    if (match2) {
+      return `${match2[1]}/${match2[2]}`;
+    }
+    return dateStr;
+  },
+
+  /**
+   * グリッドをレンダリング（右ペイン）
    */
   renderGrid(jobs) {
     const container = document.getElementById('gantt-grid');
@@ -266,15 +295,16 @@ const Gantt = {
    */
   attachBarEventListeners() {
     // バークリック
-    document.querySelectorAll('.gantt-bar, .gantt-milestone').forEach(el => {
+    document.querySelectorAll('#gantt-grid .gantt-bar, #gantt-grid .gantt-milestone').forEach(el => {
       el.addEventListener('click', (e) => {
+        e.stopPropagation();
         const scheduleId = e.currentTarget.dataset.scheduleId;
         this.onBarClick(scheduleId);
       });
     });
 
     // グリッドセルクリック（新規登録用）
-    document.querySelectorAll('.gantt-grid-row').forEach(row => {
+    document.querySelectorAll('#gantt-grid .gantt-grid-row').forEach(row => {
       row.addEventListener('click', (e) => {
         if (e.target.classList.contains('gantt-grid-cell')) {
           const jobId = row.dataset.jobId;
@@ -290,8 +320,8 @@ const Gantt = {
    */
   updateTodayLinePosition() {
     const todayLine = document.getElementById('today-line');
-    const scrollArea = document.getElementById('gantt-scroll-area');
-    if (!todayLine || !scrollArea) return;
+    const gridPane = document.getElementById('gantt-grid-pane');
+    if (!todayLine || !gridPane) return;
 
     const today = Utils.getToday();
     const { displayStartDate } = Store.state;
@@ -302,9 +332,10 @@ const Gantt = {
       return;
     }
 
-    const left = this.config.fixedColumnsWidth + (offset * this.config.cellWidth) + (this.config.cellWidth / 2);
+    // 今日ラインの位置（左ペイン幅 + 日付オフセット - スクロール位置）
+    const left = this.config.jobPaneWidth + (offset * this.config.cellWidth) + (this.config.cellWidth / 2) - gridPane.scrollLeft;
     todayLine.style.display = 'block';
-    todayLine.style.left = `${left - scrollArea.scrollLeft}px`;
+    todayLine.style.left = `${left}px`;
   },
 
   // ========== イベントハンドラー ==========

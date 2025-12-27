@@ -319,6 +319,182 @@
   }
 
   /* ========================================
+     MasterView 2ペイン構造
+     ======================================== */
+
+  /* 日付ヘッダーラッパー */
+  .gantt-date-header-wrapper {
+    overflow-x: hidden;
+  }
+
+  /* 2ペイン用日付ヘッダー */
+  #view-master .gantt-date-header {
+    margin-left: 0;
+    display: flex;
+  }
+
+  /* 工番情報ブロック */
+  .job-info-block {
+    height: 64px;
+    padding: 8px 12px;
+    border-bottom: 1px solid #e5e7eb;
+    display: flex;
+    align-items: center;
+    background: white;
+    cursor: pointer;
+    transition: background-color 0.15s;
+  }
+
+  .job-info-block:hover {
+    background-color: #f8fafc;
+  }
+
+  .job-info-block:nth-child(even) {
+    background-color: #fafafa;
+  }
+
+  .job-info-block:nth-child(even):hover {
+    background-color: #f1f5f9;
+  }
+
+  .job-info-content {
+    width: 100%;
+    line-height: 1.3;
+  }
+
+  /* 工番情報1行目 */
+  .job-info-row1 {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .job-info-jobno {
+    font-size: 12px;
+    font-weight: 600;
+    color: #0f172a;
+    white-space: nowrap;
+  }
+
+  .job-info-jobno .label {
+    font-size: 10px;
+    color: #64748b;
+    font-weight: 400;
+  }
+
+  .job-info-status {
+    font-size: 10px;
+    color: #475569;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+    text-align: right;
+  }
+
+  .job-info-status .label {
+    color: #94a3b8;
+  }
+
+  /* 工番情報2行目 */
+  .job-info-row2 {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 2px;
+  }
+
+  .job-info-customer {
+    font-size: 10px;
+    color: #334155;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+  }
+
+  .job-info-draw-date {
+    font-size: 10px;
+    color: #475569;
+    white-space: nowrap;
+  }
+
+  /* 工番情報3行目 */
+  .job-info-row3 {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 2px;
+  }
+
+  .job-info-product {
+    font-size: 13px;
+    font-weight: 700;
+    color: #0f172a;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+  }
+
+  .job-info-qty {
+    font-size: 10px;
+    color: #334155;
+    white-space: nowrap;
+  }
+
+  .job-info-ship-date {
+    font-size: 10px;
+    color: #475569;
+    white-space: nowrap;
+  }
+
+  /* グリッド行の高さを工番情報ブロックに合わせる */
+  #view-master .gantt-grid-row {
+    height: 64px;
+    min-height: 64px;
+  }
+
+  #view-master .gantt-bar {
+    height: 32px;
+    top: 16px;
+  }
+
+  #view-master .gantt-milestone {
+    top: 20px;
+  }
+
+  /* スクロールバーのカスタマイズ */
+  #gantt-job-pane::-webkit-scrollbar,
+  #gantt-grid-pane::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  #gantt-job-pane::-webkit-scrollbar-track,
+  #gantt-grid-pane::-webkit-scrollbar-track {
+    background: #f1f5f9;
+  }
+
+  #gantt-job-pane::-webkit-scrollbar-thumb,
+  #gantt-grid-pane::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+  }
+
+  #gantt-job-pane::-webkit-scrollbar-thumb:hover,
+  #gantt-grid-pane::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+  }
+
+  /* 縦スクロールバーを右ペインのみ表示 */
+  #gantt-job-pane {
+    overflow-y: hidden;
+  }
+
+  /* ========================================
      モーダル
      ======================================== */
   .modal {

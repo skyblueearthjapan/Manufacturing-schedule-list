@@ -94,44 +94,35 @@
       </div>
     </div>
 
-    <!-- MasterView（大工程表） -->
-    <div id="view-master" class="view-container">
-      <div class="gantt-container">
-        <!-- 固定列ヘッダー -->
-        <div class="gantt-fixed-header">
-          <div class="gantt-header-row">
-            <div class="gantt-cell gantt-cell-no">No</div>
-            <div class="gantt-cell gantt-cell-status">状態</div>
-            <div class="gantt-cell gantt-cell-jobno">工番</div>
-            <div class="gantt-cell gantt-cell-customer">顧客名</div>
-            <div class="gantt-cell gantt-cell-product">設備/製品名</div>
-            <div class="gantt-cell gantt-cell-qty">台数</div>
-            <div class="gantt-cell gantt-cell-dest">納入先</div>
-            <div class="gantt-cell gantt-cell-ship">出荷予定</div>
-            <div class="gantt-cell gantt-cell-draw">出図予定</div>
-            <div class="gantt-cell gantt-cell-memo">重要メモ</div>
-            <div class="gantt-cell gantt-cell-attach">📎</div>
+    <!-- MasterView（大工程表）- 2ペイン構造 -->
+    <div id="view-master" class="view-container flex flex-col h-[calc(100vh-80px)]">
+      <!-- 日付ヘッダー行 -->
+      <div class="flex border-b border-gray-300 bg-gray-100">
+        <!-- 左側空白（工番情報ペインの幅に合わせる） -->
+        <div class="w-[320px] shrink-0 border-r border-gray-300 px-2 py-1">
+          <div class="text-xs text-gray-500 font-medium">工番情報</div>
+        </div>
+        <!-- 日付ヘッダー（横スクロール連動） -->
+        <div class="flex-1 overflow-hidden">
+          <div class="gantt-date-header-wrapper" id="gantt-date-header-wrapper">
+            <div class="gantt-date-header flex" id="gantt-date-header">
+              <!-- JSで生成 -->
+            </div>
           </div>
         </div>
+      </div>
 
-        <!-- スクロール領域 -->
-        <div class="gantt-scroll-area" id="gantt-scroll-area">
-          <!-- 日付ヘッダー -->
-          <div class="gantt-date-header" id="gantt-date-header">
-            <!-- JSで生成 -->
-          </div>
+      <!-- メインコンテンツ（2ペイン） -->
+      <div class="flex flex-1 overflow-hidden relative">
+        <!-- 左ペイン：工番情報 -->
+        <div id="gantt-job-pane" class="w-[320px] shrink-0 overflow-y-auto border-r border-gray-300 bg-white">
+          <!-- 工番情報ブロック × n（JSで生成） -->
+        </div>
 
-          <!-- ガントボディ -->
-          <div class="gantt-body" id="gantt-body">
-            <!-- 固定列 -->
-            <div class="gantt-fixed-body" id="gantt-fixed-body">
-              <!-- JSで生成 -->
-            </div>
-
-            <!-- スケジュールグリッド -->
-            <div class="gantt-grid" id="gantt-grid">
-              <!-- JSで生成 -->
-            </div>
+        <!-- 右ペイン：日付グリッド -->
+        <div id="gantt-grid-pane" class="flex-1 overflow-auto">
+          <div class="gantt-grid relative" id="gantt-grid">
+            <!-- グリッド行 × n（JSで生成） -->
           </div>
         </div>
 
