@@ -1,0 +1,320 @@
+<script>
+/**
+ * jobDetail.js - 工番別工程表（提出用）
+ */
+
+const JobDetail = {
+  // 現在表示中のJob
+  currentJobId: null,
+  currentJob: null,
+
+  // 表示設定
+  config: {
+    displayDays: 90,
+    displayStartDate: null,
+    viewMode: 'daily', // 'daily' or 'weekly'
+    cellWidth: 24,
+    rowHeight: 32
+  },
+
+  /**
+   * 初期化
+   */
+  init() {
+    this.setupEventListeners();
+  },
+
+  /**
+   * イベントリスナー設定
+   */
+  setupEventListeners() {
+    // 閉じるボタン
+    document.getElementById('job-detail-close')?.addEventListener('click', () => this.close());
+
+    // 印刷ボタン
+    document.getElementById('btn-print-job')?.addEventListener('click', () => this.print());
+
+    // 表示モード切替
+    document.getElementById('job-detail-mode-daily')?.addEventListener('click', () => this.setViewMode('daily'));
+    document.getElementById('job-detail-mode-weekly')?.addEventListener('click', () => this.setViewMode('weekly'));
+
+    // 表示期間変更
+    document.getElementById('job-detail-start')?.addEventListener('change', () => this.onDisplayRangeChange());
+    document.getElementById('job-detail-days')?.addEventListener('change', () => this.onDisplayRangeChange());
+  },
+
+  /**
+   * 工番詳細を開く
+   * @param {string} jobId
+   */
+  open(jobId) {
+    const job = Store.getJobById(jobId);
+    if (!job) {
+      Utils.showToast('工番が見つかりません', 'error');
+      return;
+    }
+
+    this.currentJobId = jobId;
+    this.currentJob = job;
+
+    // 表示開始日を設定（最も早い工程の開始日、または今日）
+    const schedules = Store.getSchedulesByJobId(jobId);
+    if (schedules.length > 0) {
+      const earliestStart = schedules.reduce((min, s) => s.start < min ? s.start : min, schedules[0].start);
+      // 1週間前から表示
+      this.config.displayStartDate = Utils.addDays(earliestStart, -7);
+    } else {
+      this.config.displayStartDate = Utils.getToday();
+    }
+
+    // フォーム値を設定
+    document.getElementById('job-detail-start').value = this.config.displayStartDate;
+    document.getElementById('job-detail-days').value = this.config.displayDays;
+
+    // ヘッダー情報を設定
+    this.renderHeader();
+
+    // ガントチャートをレンダリング
+    this.render();
+
+    // モーダルを表示
+    document.getElementById('view-job-detail').classList.remove('hidden');
+  },
+
+  /**
+   * 閉じる
+   */
+  close() {
+    document.getElementById('view-job-detail').classList.add('hidden');
+    this.currentJobId = null;
+    this.currentJob = null;
+  },
+
+  /**
+   * ヘッダー情報をレンダリング
+   */
+  renderHeader() {
+    const job = this.currentJob;
+    if (!job) return;
+
+    document.getElementById('job-detail-customer').textContent = job['顧客名'] || '-';
+    document.getElementById('job-detail-product').textContent = job['設備/製品名'] || '-';
+    document.getElementById('job-detail-jobno').textContent = job['工番'] || '-';
+    document.getElementById('job-detail-ship-date').textContent = job['出荷予定日'] || '-';
+    document.getElementById('job-detail-draw-date').textContent = job['出図予定日'] || '-';
+    document.getElementById('job-detail-created').textContent = Utils.formatDate(new Date());
+  },
+
+  /**
+   * レンダリング
+   */
+  render() {
+    const dates = Utils.generateDateRange(this.config.displayStartDate, this.config.displayDays);
+    const schedules = Store.getSchedulesByJobId(this.currentJobId);
+    const processes = Store.state.processes;
+
+    this.renderDateHeader(dates);
+    this.renderProcessRows(processes, schedules, dates);
+  },
+
+  /**
+   * 日付ヘッダーをレンダリング
+   */
+  renderDateHeader(dates) {
+    const container = document.getElementById('job-detail-date-header');
+    if (!container) return;
+
+    const today = Utils.getToday();
+    let html = '';
+    let currentMonth = 0;
+
+    if (this.config.viewMode === 'weekly') {
+      // 週次モード：週ごとにグループ化
+      const weeks = this.groupByWeek(dates);
+      weeks.forEach(week => {
+        const isCurrentWeek = week.dates.includes(today);
+        html += `
+          <div class="job-date-cell weekly ${isCurrentWeek ? 'current' : ''}" style="width: ${week.dates.length * this.config.cellWidth}px">
+            <div class="month">${Utils.getMonth(week.start)}月</div>
+            <div class="week">${Utils.getDay(week.start)}〜</div>
+          </div>
+        `;
+      });
+    } else {
+      // 日次モード
+      dates.forEach(date => {
+        const month = Utils.getMonth(date);
+        const day = Utils.getDay(date);
+        const dow = Utils.getDayOfWeek(date);
+        const isWeekend = Utils.isWeekend(date);
+        const isToday = date === today;
+
+        const showMonth = month !== currentMonth;
+        currentMonth = month;
+
+        let classes = 'job-date-cell';
+        if (isWeekend) classes += ' weekend';
+        if (isToday) classes += ' today';
+
+        html += `
+          <div class="${classes}" style="width: ${this.config.cellWidth}px">
+            ${showMonth ? `<div class="month">${month}月</div>` : '<div class="month"></div>'}
+            <div class="day">${day}</div>
+            <div class="dow">${dow}</div>
+          </div>
+        `;
+      });
+    }
+
+    container.innerHTML = html;
+    container.style.width = `${dates.length * this.config.cellWidth}px`;
+  },
+
+  /**
+   * 工程行をレンダリング
+   */
+  renderProcessRows(processes, schedules, dates) {
+    const container = document.getElementById('job-detail-body');
+    if (!container) return;
+
+    const today = Utils.getToday();
+    let html = '';
+
+    processes.forEach(process => {
+      const processSchedules = schedules.filter(s => s.processId === process.processId);
+      const isMilestone = process['種別(type)'] === 'milestone';
+
+      html += `
+        <div class="job-process-row">
+          <div class="job-process-name" style="background-color: ${process['工程色(colorHex)'] || '#6b7280'}20; border-left: 4px solid ${process['工程色(colorHex)'] || '#6b7280'}">
+            ${isMilestone ? '★ ' : ''}${Utils.escapeHtml(process['工程名'])}
+          </div>
+          <div class="job-process-grid" style="width: ${dates.length * this.config.cellWidth}px">
+      `;
+
+      // グリッドセル
+      dates.forEach(date => {
+        const isWeekend = Utils.isWeekend(date);
+        const isToday = date === today;
+        let classes = 'job-grid-cell';
+        if (isWeekend) classes += ' weekend';
+        if (isToday) classes += ' today';
+
+        html += `<div class="${classes}" style="width: ${this.config.cellWidth}px"></div>`;
+      });
+
+      // バー描画
+      processSchedules.forEach(schedule => {
+        if (isMilestone) {
+          html += this.renderMilestone(schedule, dates);
+        } else {
+          html += this.renderBar(schedule, dates, process);
+        }
+      });
+
+      html += `
+          </div>
+        </div>
+      `;
+    });
+
+    container.innerHTML = html;
+  },
+
+  /**
+   * バーをレンダリング
+   */
+  renderBar(schedule, dates, process) {
+    const startOffset = Utils.getDaysBetween(this.config.displayStartDate, schedule.start);
+    const duration = Utils.getDaysBetween(schedule.start, schedule.end) + 1;
+
+    if (startOffset + duration < 0 || startOffset >= dates.length) {
+      return '';
+    }
+
+    const left = Math.max(0, startOffset) * this.config.cellWidth;
+    const width = Math.min(duration, dates.length - Math.max(0, startOffset)) * this.config.cellWidth - 2;
+    const color = process['工程色(colorHex)'] || '#6b7280';
+
+    const mainPerson = Store.getPersonById(schedule.mainPersonId);
+    const personName = mainPerson?.['氏名'] || '';
+
+    return `
+      <div class="job-bar" style="left: ${left}px; width: ${width}px; background-color: ${color};"
+           title="${personName}${schedule.label ? ' - ' + schedule.label : ''}">
+        ${schedule.label ? `<span class="job-bar-label">${Utils.escapeHtml(schedule.label)}</span>` : ''}
+      </div>
+    `;
+  },
+
+  /**
+   * マイルストーンをレンダリング
+   */
+  renderMilestone(schedule, dates) {
+    const startOffset = Utils.getDaysBetween(this.config.displayStartDate, schedule.start);
+
+    if (startOffset < 0 || startOffset >= dates.length) {
+      return '';
+    }
+
+    const left = startOffset * this.config.cellWidth + (this.config.cellWidth / 2) - 8;
+
+    return `
+      <div class="job-milestone" style="left: ${left}px;" title="${schedule.label || ''}">
+        ★
+      </div>
+    `;
+  },
+
+  /**
+   * 週ごとにグループ化
+   */
+  groupByWeek(dates) {
+    const weeks = [];
+    let currentWeek = { start: dates[0], dates: [] };
+
+    dates.forEach(date => {
+      const d = new Date(date);
+      if (d.getDay() === 1 && currentWeek.dates.length > 0) {
+        weeks.push(currentWeek);
+        currentWeek = { start: date, dates: [] };
+      }
+      currentWeek.dates.push(date);
+    });
+
+    if (currentWeek.dates.length > 0) {
+      weeks.push(currentWeek);
+    }
+
+    return weeks;
+  },
+
+  /**
+   * 表示モード切替
+   */
+  setViewMode(mode) {
+    this.config.viewMode = mode;
+
+    document.getElementById('job-detail-mode-daily')?.classList.toggle('active', mode === 'daily');
+    document.getElementById('job-detail-mode-weekly')?.classList.toggle('active', mode === 'weekly');
+
+    this.render();
+  },
+
+  /**
+   * 表示範囲変更
+   */
+  onDisplayRangeChange() {
+    this.config.displayStartDate = document.getElementById('job-detail-start').value;
+    this.config.displayDays = parseInt(document.getElementById('job-detail-days').value, 10);
+    this.render();
+  },
+
+  /**
+   * 印刷
+   */
+  print() {
+    window.print();
+  }
+};
+</script>

@@ -503,4 +503,413 @@
     opacity: 1;
     color: #2563eb;
   }
+
+  /* ========================================
+     ResourceView（作業者別）
+     ======================================== */
+  .resource-container {
+    height: calc(100vh - 70px);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .resource-header {
+    display: flex;
+    border-bottom: 2px solid #e5e7eb;
+    background: linear-gradient(to bottom, #f8fafc, #f1f5f9);
+  }
+
+  .resource-header-fixed {
+    width: 180px;
+    flex-shrink: 0;
+    border-right: 1px solid #e5e7eb;
+  }
+
+  .resource-header-cell {
+    padding: 12px 16px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #374151;
+  }
+
+  .resource-header-scroll {
+    flex: 1;
+    overflow: hidden;
+  }
+
+  .resource-date-header {
+    display: flex;
+  }
+
+  .resource-date-cell {
+    width: 32px;
+    min-width: 32px;
+    padding: 4px 0;
+    text-align: center;
+    font-size: 10px;
+    border-right: 1px solid #f3f4f6;
+  }
+
+  .resource-date-cell .month {
+    font-weight: 600;
+    color: #6b7280;
+    font-size: 9px;
+  }
+
+  .resource-date-cell .day {
+    font-weight: 700;
+    color: #374151;
+  }
+
+  .resource-date-cell .dow {
+    font-size: 9px;
+    color: #9ca3af;
+  }
+
+  .resource-date-cell.weekend {
+    background-color: #fef9c3;
+  }
+
+  .resource-date-cell.today {
+    background-color: #dbeafe;
+  }
+
+  .resource-scroll-area {
+    flex: 1;
+    overflow: auto;
+  }
+
+  .resource-body {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .resource-dept-header {
+    display: flex;
+    background: #f1f5f9;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  .resource-dept-name {
+    width: 180px;
+    flex-shrink: 0;
+    padding: 8px 16px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #374151;
+    border-right: 1px solid #e5e7eb;
+  }
+
+  .resource-dept-grid {
+    display: flex;
+    flex: 1;
+  }
+
+  .resource-person-row {
+    display: flex;
+    border-bottom: 1px solid #f3f4f6;
+    min-height: 40px;
+  }
+
+  .resource-person-row:hover {
+    background-color: #f8fafc;
+  }
+
+  .resource-person-name {
+    width: 180px;
+    flex-shrink: 0;
+    padding: 8px 12px;
+    font-size: 12px;
+    color: #374151;
+    border-right: 1px solid #e5e7eb;
+    display: flex;
+    align-items: center;
+    background: white;
+  }
+
+  .resource-person-grid {
+    display: flex;
+    position: relative;
+    flex: 1;
+  }
+
+  .resource-grid-cell {
+    width: 32px;
+    min-width: 32px;
+    height: 100%;
+    border-right: 1px solid #f9fafb;
+  }
+
+  .resource-grid-cell.weekend {
+    background-color: rgba(254, 249, 195, 0.5);
+  }
+
+  .resource-grid-cell.today {
+    background-color: rgba(219, 234, 254, 0.5);
+  }
+
+  .resource-bar {
+    position: absolute;
+    height: 28px;
+    top: 6px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    padding: 0 6px;
+    font-size: 10px;
+    font-weight: 500;
+    color: white;
+    cursor: pointer;
+    overflow: hidden;
+    white-space: nowrap;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  }
+
+  .resource-bar-text {
+    font-weight: 600;
+    margin-right: 4px;
+  }
+
+  .resource-bar-process {
+    opacity: 0.9;
+    font-size: 9px;
+  }
+
+  .resource-milestone {
+    position: absolute;
+    top: 8px;
+    font-size: 16px;
+    color: #f59e0b;
+    z-index: 5;
+  }
+
+  .resource-trip-bar {
+    position: absolute;
+    height: 28px;
+    top: 6px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    padding: 0 6px;
+    font-size: 10px;
+    background: repeating-linear-gradient(
+      45deg,
+      #fef3c7,
+      #fef3c7 4px,
+      #fde68a 4px,
+      #fde68a 8px
+    );
+    border: 1px solid #f59e0b;
+    color: #92400e;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+
+  .trip-icon {
+    margin-right: 4px;
+  }
+
+  /* ========================================
+     JobDetail（工番別）
+     ======================================== */
+  .job-detail-gantt {
+    min-width: 100%;
+  }
+
+  .job-detail-header {
+    display: flex;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: white;
+    border-bottom: 2px solid #e5e7eb;
+  }
+
+  .job-process-name-header {
+    width: 140px;
+    flex-shrink: 0;
+    padding: 12px 16px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #374151;
+    background: linear-gradient(to bottom, #f8fafc, #f1f5f9);
+    border-right: 1px solid #e5e7eb;
+  }
+
+  .job-date-header-scroll {
+    flex: 1;
+    overflow-x: auto;
+  }
+
+  .job-date-header {
+    display: flex;
+  }
+
+  .job-date-cell {
+    min-width: 24px;
+    padding: 4px 0;
+    text-align: center;
+    font-size: 9px;
+    border-right: 1px solid #f3f4f6;
+    background: linear-gradient(to bottom, #f8fafc, #f1f5f9);
+  }
+
+  .job-date-cell .month {
+    font-weight: 600;
+    color: #6b7280;
+    font-size: 8px;
+    height: 12px;
+  }
+
+  .job-date-cell .day {
+    font-weight: 700;
+    color: #374151;
+  }
+
+  .job-date-cell .dow {
+    font-size: 8px;
+    color: #9ca3af;
+  }
+
+  .job-date-cell.weekend {
+    background: linear-gradient(to bottom, #fef9c3, #fef3c7);
+  }
+
+  .job-date-cell.today {
+    background: linear-gradient(to bottom, #dbeafe, #bfdbfe);
+  }
+
+  .job-date-cell.weekly {
+    min-width: auto;
+    padding: 8px 4px;
+  }
+
+  .job-date-cell .week {
+    font-weight: 600;
+    color: #374151;
+    font-size: 10px;
+  }
+
+  .job-detail-body {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .job-process-row {
+    display: flex;
+    border-bottom: 1px solid #f3f4f6;
+    min-height: 32px;
+  }
+
+  .job-process-row:hover {
+    background-color: #f8fafc;
+  }
+
+  .job-process-name {
+    width: 140px;
+    flex-shrink: 0;
+    padding: 6px 12px;
+    font-size: 11px;
+    color: #374151;
+    border-right: 1px solid #e5e7eb;
+    display: flex;
+    align-items: center;
+    background: white;
+  }
+
+  .job-process-grid {
+    display: flex;
+    position: relative;
+    flex: 1;
+  }
+
+  .job-grid-cell {
+    min-width: 24px;
+    width: 24px;
+    height: 100%;
+    border-right: 1px solid #f9fafb;
+  }
+
+  .job-grid-cell.weekend {
+    background-color: rgba(254, 249, 195, 0.5);
+  }
+
+  .job-grid-cell.today {
+    background-color: rgba(219, 234, 254, 0.5);
+  }
+
+  .job-bar {
+    position: absolute;
+    height: 20px;
+    top: 6px;
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    padding: 0 4px;
+    font-size: 9px;
+    font-weight: 500;
+    color: white;
+    overflow: hidden;
+    white-space: nowrap;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+  }
+
+  .job-bar-label {
+    background: rgba(255,255,255,0.9);
+    color: #374151;
+    padding: 0 3px;
+    border-radius: 2px;
+    font-size: 8px;
+    border: 1px solid #f59e0b;
+  }
+
+  .job-milestone {
+    position: absolute;
+    top: 6px;
+    font-size: 14px;
+    color: #f59e0b;
+  }
+
+  /* ========================================
+     印刷スタイル
+     ======================================== */
+  @media print {
+    body {
+      background: white;
+    }
+
+    header, .nav-tab, .btn, #loading, #toast-container {
+      display: none !important;
+    }
+
+    #view-job-detail {
+      position: static;
+      height: auto;
+    }
+
+    #view-job-detail > div:first-child {
+      display: none;
+    }
+
+    #view-job-detail > div:last-child {
+      position: static;
+      box-shadow: none;
+      border-radius: 0;
+    }
+
+    .job-detail-gantt {
+      font-size: 10px;
+    }
+
+    .job-date-cell {
+      min-width: 18px;
+      font-size: 8px;
+    }
+
+    .job-process-name {
+      width: 100px;
+      font-size: 9px;
+    }
+  }
 </style>

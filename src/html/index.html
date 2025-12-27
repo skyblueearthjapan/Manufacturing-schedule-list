@@ -142,18 +142,162 @@
 
     <!-- ResourceView（作業者別） -->
     <div id="view-resource" class="view-container hidden">
-      <div class="p-4">
-        <p class="text-gray-500">作業者別工程表（Phase 4で実装）</p>
+      <div class="resource-container">
+        <!-- 固定列ヘッダー -->
+        <div class="resource-header">
+          <div class="resource-header-fixed">
+            <div class="resource-header-cell">部署 / 作業者</div>
+          </div>
+          <div class="resource-header-scroll">
+            <div class="resource-date-header" id="resource-date-header">
+              <!-- JSで生成 -->
+            </div>
+          </div>
+        </div>
+
+        <!-- ボディ -->
+        <div class="resource-scroll-area">
+          <div class="resource-body" id="resource-body">
+            <!-- JSで生成 -->
+          </div>
+        </div>
       </div>
     </div>
 
     <!-- WeeklyPlanView（今週の予定） -->
     <div id="view-weekly" class="view-container hidden">
-      <div class="p-4">
-        <p class="text-gray-500">今週の予定（Phase 4で実装）</p>
+      <div class="weekly-container p-4">
+        <!-- ヘッダー -->
+        <div class="flex items-center justify-between mb-4">
+          <div class="flex items-center space-x-4">
+            <h2 class="text-lg font-bold text-gray-800">今週の予定</h2>
+            <div class="flex items-center space-x-2">
+              <button onclick="WeeklyPlan.prevWeek()" class="btn-icon" title="前週">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                </svg>
+              </button>
+              <span id="weekly-range-display" class="text-sm font-medium text-gray-700 min-w-[200px] text-center"></span>
+              <button onclick="WeeklyPlan.nextWeek()" class="btn-icon" title="次週">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                </svg>
+              </button>
+            </div>
+            <button onclick="WeeklyPlan.goToThisWeek()" class="btn btn-secondary text-xs">今週</button>
+            <input type="date" id="weekly-start-date" onchange="WeeklyPlan.onDateChange()"
+                   class="border border-gray-300 rounded px-2 py-1 text-sm">
+          </div>
+          <button onclick="WeeklyPlan.exportCSV()" class="btn btn-primary text-sm">
+            <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+            </svg>
+            CSV出力
+          </button>
+        </div>
+
+        <!-- テーブル -->
+        <div class="bg-white rounded-lg shadow overflow-hidden">
+          <table class="w-full">
+            <thead class="bg-gray-100">
+              <tr>
+                <th class="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase w-20">日付</th>
+                <th class="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase w-24">種別</th>
+                <th class="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase w-28">作業者</th>
+                <th class="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase w-24">工番</th>
+                <th class="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase w-32">工程</th>
+                <th class="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase">内容/ラベル</th>
+                <th class="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase w-40">場所/備考</th>
+              </tr>
+            </thead>
+            <tbody id="weekly-tbody">
+              <!-- JSで生成 -->
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   </main>
+
+  <!-- 工番別詳細モーダル -->
+  <div id="view-job-detail" class="fixed inset-0 z-50 hidden">
+    <div class="absolute inset-0 bg-black bg-opacity-50" onclick="JobDetail.close()"></div>
+    <div class="absolute inset-4 bg-white rounded-lg shadow-2xl flex flex-col overflow-hidden">
+      <!-- ヘッダー -->
+      <div class="bg-gray-100 px-6 py-4 border-b flex items-center justify-between">
+        <div class="flex items-center space-x-6">
+          <h2 class="text-lg font-bold text-gray-800">工番別工程表</h2>
+          <div class="flex items-center space-x-4 text-sm">
+            <div><span class="text-gray-500">顧客:</span> <span id="job-detail-customer" class="font-medium"></span></div>
+            <div><span class="text-gray-500">工番:</span> <span id="job-detail-jobno" class="font-mono font-medium"></span></div>
+            <div><span class="text-gray-500">製品:</span> <span id="job-detail-product" class="font-medium"></span></div>
+          </div>
+        </div>
+        <div class="flex items-center space-x-3">
+          <div class="flex items-center space-x-2 text-sm">
+            <span class="text-gray-500">出荷予定:</span>
+            <span id="job-detail-ship-date" class="font-medium"></span>
+            <span class="text-gray-500 ml-2">出図予定:</span>
+            <span id="job-detail-draw-date" class="font-medium"></span>
+          </div>
+          <button id="btn-print-job" class="btn btn-secondary text-sm">
+            <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
+            </svg>
+            印刷
+          </button>
+          <button id="job-detail-close" class="btn-icon">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- コントロール -->
+      <div class="px-6 py-2 border-b bg-gray-50 flex items-center justify-between">
+        <div class="flex items-center space-x-4">
+          <div class="flex items-center space-x-2">
+            <label class="text-sm text-gray-600">表示開始:</label>
+            <input type="date" id="job-detail-start" class="border border-gray-300 rounded px-2 py-1 text-sm">
+          </div>
+          <div class="flex items-center space-x-2">
+            <label class="text-sm text-gray-600">日数:</label>
+            <select id="job-detail-days" class="border border-gray-300 rounded px-2 py-1 text-sm">
+              <option value="60">60日</option>
+              <option value="90" selected>90日</option>
+              <option value="120">120日</option>
+            </select>
+          </div>
+        </div>
+        <div class="flex items-center space-x-2">
+          <span class="text-sm text-gray-600">表示:</span>
+          <button id="job-detail-mode-daily" class="color-mode-btn active">日次</button>
+          <button id="job-detail-mode-weekly" class="color-mode-btn">週次</button>
+        </div>
+        <div class="text-sm text-gray-500">
+          作成日: <span id="job-detail-created"></span>
+        </div>
+      </div>
+
+      <!-- ガントチャート -->
+      <div class="flex-1 overflow-auto">
+        <div class="job-detail-gantt">
+          <div class="job-detail-header">
+            <div class="job-process-name-header">工程</div>
+            <div class="job-date-header-scroll">
+              <div class="job-date-header" id="job-detail-date-header">
+                <!-- JSで生成 -->
+              </div>
+            </div>
+          </div>
+          <div class="job-detail-body" id="job-detail-body">
+            <!-- JSで生成 -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- 入力モーダル -->
   <div id="modal-entry" class="modal hidden">
@@ -252,6 +396,9 @@
   <?!= include('js/store'); ?>
   <?!= include('js/gantt'); ?>
   <?!= include('js/modal'); ?>
+  <?!= include('js/jobDetail'); ?>
+  <?!= include('js/resourceView'); ?>
+  <?!= include('js/weeklyPlan'); ?>
   <?!= include('js/app'); ?>
 </body>
 </html>

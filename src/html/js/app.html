@@ -13,6 +13,9 @@ const App = {
     // コンポーネント初期化
     Gantt.init();
     Modal.init();
+    JobDetail.init();
+    ResourceView.init();
+    WeeklyPlan.init();
 
     // イベントリスナー設定
     this.setupEventListeners();
@@ -119,10 +122,10 @@ const App = {
         Gantt.render();
         break;
       case 'resource':
-        // TODO: ResourceView実装
+        ResourceView.render();
         break;
       case 'weekly':
-        // TODO: WeeklyPlanView実装
+        WeeklyPlan.render();
         break;
     }
   }

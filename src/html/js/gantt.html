@@ -314,8 +314,7 @@ const Gantt = {
    */
   onJobClick(jobId) {
     console.log('Job clicked:', jobId);
-    // TODO: JobDetailViewを開く
-    Utils.showToast('工番別詳細（Phase 4で実装）', 'info');
+    JobDetail.open(jobId);
   },
 
   /**
