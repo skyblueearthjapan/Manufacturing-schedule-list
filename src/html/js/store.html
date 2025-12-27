@@ -62,11 +62,17 @@ const Store = {
     try {
       this.setState({ isLoading: true });
       Utils.setLoading(true);
+      console.log('Loading bootstrap data...');
 
       const data = await API.getBootstrapData(
         this.state.displayStartDate,
         this.state.displayDays
       );
+
+      // データの検証
+      if (!data) {
+        throw new Error('サーバーからデータが返されませんでした');
+      }
 
       this.setState({
         jobs: data.jobs || [],
@@ -79,12 +85,31 @@ const Store = {
       });
 
       Utils.setLoading(false);
-      console.log('Bootstrap data loaded:', data);
+      console.log('Bootstrap data loaded:', {
+        jobs: data.jobs?.length || 0,
+        processes: data.processes?.length || 0,
+        people: data.people?.length || 0,
+        schedules: data.schedules?.length || 0
+      });
     } catch (error) {
       console.error('Failed to load bootstrap data:', error);
+
+      // 確実にローディングを非表示
       Utils.setLoading(false);
-      Utils.showToast('データの読み込みに失敗しました', 'error');
       this.setState({ isLoading: false });
+
+      // エラーメッセージを詳細に表示
+      let errorMessage = 'データの読み込みに失敗しました';
+      if (error.message) {
+        if (error.message.includes('タイムアウト')) {
+          errorMessage = 'サーバー応答がタイムアウトしました。スプレッドシートの設定を確認してください。';
+        } else if (error.message.includes('シート') && error.message.includes('見つかりません')) {
+          errorMessage = error.message + ' スプレッドシートにシートを作成してください。';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      Utils.showToast(errorMessage, 'error', 8000);
     }
   },
 

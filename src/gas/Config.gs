@@ -38,11 +38,24 @@ const CONFIG = {
  * @returns {GoogleAppsScript.Spreadsheet.Spreadsheet}
  */
 function getSpreadsheet() {
+  let ss = null;
+
   if (CONFIG.SPREADSHEET_ID) {
-    return SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+    try {
+      ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+    } catch (e) {
+      throw new Error(`スプレッドシートを開けません (ID: ${CONFIG.SPREADSHEET_ID}): ${e.message}`);
+    }
+  } else {
+    // バインドされたスクリプトの場合
+    ss = SpreadsheetApp.getActiveSpreadsheet();
   }
-  // バインドされたスクリプトの場合
-  return SpreadsheetApp.getActiveSpreadsheet();
+
+  if (!ss) {
+    throw new Error('スプレッドシートが見つかりません。Config.gsのSPREADSHEET_IDを設定するか、スプレッドシートにバインドしてください。');
+  }
+
+  return ss;
 }
 
 /**

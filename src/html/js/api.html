@@ -4,18 +4,53 @@
  */
 
 const API = {
+  // タイムアウト時間（ミリ秒）
+  TIMEOUT: 30000, // 30秒
+
   /**
-   * google.script.run をPromise化
+   * GAS環境かどうかをチェック
+   * @returns {boolean}
+   */
+  isGasEnvironment() {
+    return typeof google !== 'undefined' && google.script && google.script.run;
+  },
+
+  /**
+   * google.script.run をPromise化（タイムアウト付き）
    * @param {string} functionName
    * @param {...any} args
    * @returns {Promise}
    */
   call(functionName, ...args) {
     return new Promise((resolve, reject) => {
-      google.script.run
-        .withSuccessHandler(resolve)
-        .withFailureHandler(reject)
-        [functionName](...args);
+      // GAS環境チェック
+      if (!this.isGasEnvironment()) {
+        reject(new Error('GAS環境で実行されていません。ウェブアプリとしてデプロイしてください。'));
+        return;
+      }
+
+      // タイムアウト処理
+      const timeoutId = setTimeout(() => {
+        reject(new Error(`API呼び出しがタイムアウトしました (${functionName})`));
+      }, this.TIMEOUT);
+
+      try {
+        google.script.run
+          .withSuccessHandler((result) => {
+            clearTimeout(timeoutId);
+            resolve(result);
+          })
+          .withFailureHandler((error) => {
+            clearTimeout(timeoutId);
+            // GASのエラーオブジェクトをErrorに変換
+            const errorMessage = error?.message || error?.toString() || '不明なエラーが発生しました';
+            reject(new Error(errorMessage));
+          })
+          [functionName](...args);
+      } catch (e) {
+        clearTimeout(timeoutId);
+        reject(new Error(`API呼び出しに失敗しました: ${e.message}`));
+      }
     });
   },
 
