@@ -220,23 +220,40 @@
     display: flex;
     position: relative;
     height: 36px;
-    border-bottom: 1px solid #f3f4f6;
+    border-bottom: 1px solid #e5e7eb;
   }
 
+  /* グリッドセル（クリック可能なボタン） */
   .gantt-grid-cell {
     width: 32px;
     min-width: 32px;
     height: 100%;
-    border-right: 1px solid #f9fafb;
+    border: none;
+    border-right: 1px solid #e5e7eb;
     flex-shrink: 0;
+    cursor: pointer;
+    padding: 0;
+    transition: background-color 0.1s;
   }
 
-  .gantt-grid-cell.weekend {
-    background-color: rgba(254, 249, 195, 0.5);
+  .gantt-grid-cell:hover {
+    background-color: #e0f2fe !important;
   }
 
-  .gantt-grid-cell.today {
-    background-color: rgba(219, 234, 254, 0.5);
+  .gantt-grid-cell:focus {
+    outline: 2px solid #3b82f6;
+    outline-offset: -2px;
+    z-index: 5;
+  }
+
+  .gantt-grid-cell.weekend,
+  .gantt-grid-cell.bg-yellow-50 {
+    background-color: #fef9c3;
+  }
+
+  .gantt-grid-cell.today,
+  .gantt-grid-cell.bg-blue-50 {
+    background-color: #dbeafe;
   }
 
   /* 工程バー */

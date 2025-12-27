@@ -107,6 +107,16 @@ const Gantt = {
     const container = document.getElementById('gantt-job-pane');
     if (!container) return;
 
+    // Jobsが0件の場合
+    if (jobs.length === 0) {
+      container.innerHTML = `
+        <div class="flex items-center justify-center h-32 text-gray-400 text-sm">
+          工番データがありません
+        </div>
+      `;
+      return;
+    }
+
     let html = '';
 
     jobs.forEach((job) => {
@@ -167,6 +177,8 @@ const Gantt = {
 
   /**
    * グリッドをレンダリング（右ペイン）
+   * - データ0件でも罫線付きグリッドを必ず表示
+   * - セルはクリック可能なボタン
    */
   renderGrid(jobs) {
     const container = document.getElementById('gantt-grid');
@@ -174,34 +186,55 @@ const Gantt = {
 
     const today = Utils.getToday();
     const gridWidth = this.dates.length * this.config.cellWidth;
+
+    // Jobsが0件の場合でも空グリッドを表示
+    if (jobs.length === 0) {
+      container.innerHTML = `
+        <div class="flex items-center justify-center h-32 text-gray-400 text-sm" style="min-width: ${gridWidth}px;">
+          工番を追加してください
+        </div>
+      `;
+      container.style.minWidth = `${gridWidth}px`;
+      return;
+    }
+
     let html = '';
 
     jobs.forEach(job => {
+      // 行コンテナ（相対配置でバーを重ねる）
       html += `<div class="gantt-grid-row" data-job-id="${job.jobId}">`;
 
-      // 日付セルを生成
+      // 日付セルを生成（クリック可能なボタン）
       this.dates.forEach(date => {
         const isWeekend = Utils.isWeekend(date);
         const isToday = date === today;
 
-        let classes = 'gantt-grid-cell';
-        if (isWeekend) classes += ' weekend';
-        if (isToday) classes += ' today';
+        let bgClass = 'bg-white';
+        if (isWeekend) bgClass = 'bg-yellow-50';
+        if (isToday) bgClass = 'bg-blue-50';
 
-        html += `<div class="${classes}" data-date="${date}"></div>`;
+        html += `
+          <button
+            type="button"
+            class="gantt-grid-cell ${bgClass}"
+            data-job-id="${job.jobId}"
+            data-date="${date}"
+            title="${job['工番']} - ${date}"
+          ></button>
+        `;
       });
 
       html += '</div>';
 
-      // このJobのスケジュールバーを追加
+      // このJobのスケジュールバーを追加（行の上に絶対配置）
       html += this.renderBarsForJob(job.jobId);
     });
 
     container.innerHTML = html;
     container.style.minWidth = `${gridWidth}px`;
 
-    // バーにイベントリスナーを追加
-    this.attachBarEventListeners();
+    // イベントリスナーを追加
+    this.attachGridEventListeners();
   },
 
   /**
@@ -284,9 +317,9 @@ const Gantt = {
   },
 
   /**
-   * バーにイベントリスナーを追加
+   * グリッドにイベントリスナーを追加
    */
-  attachBarEventListeners() {
+  attachGridEventListeners() {
     // バークリック
     document.querySelectorAll('#gantt-grid .gantt-bar, #gantt-grid .gantt-milestone').forEach(el => {
       el.addEventListener('click', (e) => {
@@ -296,14 +329,13 @@ const Gantt = {
       });
     });
 
-    // グリッドセルクリック（新規登録用）
-    document.querySelectorAll('#gantt-grid .gantt-grid-row').forEach(row => {
-      row.addEventListener('click', (e) => {
-        if (e.target.classList.contains('gantt-grid-cell')) {
-          const jobId = row.dataset.jobId;
-          const date = e.target.dataset.date;
-          this.onCellClick(jobId, date);
-        }
+    // セルクリック（新規登録用）- ボタンなので直接クリックイベント
+    document.querySelectorAll('#gantt-grid .gantt-grid-cell').forEach(cell => {
+      cell.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const jobId = cell.dataset.jobId;
+        const date = cell.dataset.date;
+        this.onCellClick(jobId, date);
       });
     });
   },
@@ -366,6 +398,11 @@ const Gantt = {
    */
   onCellClick(jobId, date) {
     console.log('Cell clicked:', jobId, date);
+    // 工番情報を取得
+    const job = Store.state.jobs.find(j => j.jobId === jobId);
+    if (job) {
+      console.log('Opening modal for:', job['工番'], date);
+    }
     Modal.openNew(jobId, date, date);
   }
 };
