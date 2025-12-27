@@ -1,4 +1,5 @@
 <script>
+console.log('[DEBUG] js_app.html loaded');
 /**
  * app.js - アプリケーションメインエントリーポイント
  */
@@ -9,6 +10,9 @@ const App = {
    */
   async init() {
     console.log('Manufacturing Schedule App initializing...');
+
+    // Store初期化（日付などの設定）
+    Store.init();
 
     // コンポーネント初期化
     Gantt.init();

@@ -1,4 +1,5 @@
 <script>
+console.log('[DEBUG] js_store.html loaded');
 /**
  * store.js - アプリケーション状態管理
  */
@@ -15,7 +16,7 @@ const Store = {
     trips: [],
 
     // 表示設定
-    displayStartDate: Utils.getToday(),
+    displayStartDate: null, // init()で設定
     displayDays: 70,
     colorMode: 'process', // 'process' or 'person'
     currentView: 'master', // 'master', 'resource', 'weekly'
@@ -23,6 +24,15 @@ const Store = {
     // メタ情報
     isLoading: false,
     lastFetchedAt: null
+  },
+
+  /**
+   * 状態を初期化
+   */
+  init() {
+    if (!this.state.displayStartDate) {
+      this.state.displayStartDate = Utils.getToday();
+    }
   },
 
   // リスナー
@@ -60,6 +70,9 @@ const Store = {
    */
   async loadBootstrapData() {
     try {
+      // 初期化（Utils.getToday()など）
+      this.init();
+
       this.setState({ isLoading: true });
       Utils.setLoading(true);
       console.log('Loading bootstrap data...');
