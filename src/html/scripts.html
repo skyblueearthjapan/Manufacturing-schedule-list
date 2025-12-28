@@ -127,6 +127,99 @@ const Utils = {
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#039;');
+  },
+
+  /**
+   * 日本語色名やrgb()をHex形式に正規化
+   * @param {string} input - 色の入力値
+   * @returns {string|null} - #RRGGBB形式、または無効な場合はnull
+   */
+  normalizeColor(input) {
+    if (!input) return null;
+
+    const str = String(input).trim();
+
+    // 既に#RRGGBB形式
+    if (/^#[0-9A-Fa-f]{6}$/.test(str)) {
+      return str.toUpperCase();
+    }
+
+    // #RGB形式 → #RRGGBB
+    if (/^#[0-9A-Fa-f]{3}$/.test(str)) {
+      const r = str[1], g = str[2], b = str[3];
+      return `#${r}${r}${g}${g}${b}${b}`.toUpperCase();
+    }
+
+    // rgb(r, g, b)形式
+    const rgbMatch = str.match(/^rgb\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)$/i);
+    if (rgbMatch) {
+      const r = Math.min(255, parseInt(rgbMatch[1])).toString(16).padStart(2, '0');
+      const g = Math.min(255, parseInt(rgbMatch[2])).toString(16).padStart(2, '0');
+      const b = Math.min(255, parseInt(rgbMatch[3])).toString(16).padStart(2, '0');
+      return `#${r}${g}${b}`.toUpperCase();
+    }
+
+    // 日本語色名マッピング
+    const colorMap = {
+      '青': '#2563EB',
+      '赤': '#EF4444',
+      '緑': '#22C55E',
+      '黄': '#F59E0B',
+      '黄色': '#F59E0B',
+      '紫': '#A855F7',
+      '橙': '#F97316',
+      'オレンジ': '#F97316',
+      '黒': '#111827',
+      '灰': '#6B7280',
+      '灰色': '#6B7280',
+      'グレー': '#6B7280',
+      '白': '#FFFFFF',
+      'ピンク': '#EC4899',
+      '水色': '#06B6D4',
+      '茶': '#92400E',
+      '茶色': '#92400E',
+      // 英語色名
+      'blue': '#2563EB',
+      'red': '#EF4444',
+      'green': '#22C55E',
+      'yellow': '#F59E0B',
+      'purple': '#A855F7',
+      'orange': '#F97316',
+      'black': '#111827',
+      'gray': '#6B7280',
+      'grey': '#6B7280',
+      'white': '#FFFFFF',
+      'pink': '#EC4899',
+      'cyan': '#06B6D4'
+    };
+
+    const mapped = colorMap[str.toLowerCase()] || colorMap[str];
+    if (mapped) return mapped;
+
+    // 不明な値はnull
+    return null;
+  },
+
+  /**
+   * Hex色にアルファ値を追加
+   * @param {string} hex - #RRGGBB形式
+   * @param {string} alphaHex - 00-FF形式のアルファ値
+   * @param {string} fallback - hexが無効な場合のフォールバック色
+   * @returns {string} - #RRGGBBAA形式
+   */
+  withAlpha(hex, alphaHex, fallback = '#6B7280') {
+    const normalized = this.normalizeColor(hex);
+    const color = normalized || fallback;
+    return `${color}${alphaHex}`;
+  },
+
+  /**
+   * 色が有効かどうかをチェック
+   * @param {string} input
+   * @returns {boolean}
+   */
+  isValidColor(input) {
+    return this.normalizeColor(input) !== null;
   }
 };
 
@@ -221,6 +314,18 @@ const API = {
 
   async searchExternalJobMaster(query, limit = 20) {
     return await this.call('api_searchExternalJobMaster', query, limit);
+  },
+
+  async getPeople(includeInactive = false) {
+    return await this.call('api_getPeople', includeInactive);
+  },
+
+  async createPerson(payload) {
+    return await this.call('api_createPerson', payload);
+  },
+
+  async updatePerson(personId, patch, expectedUpdatedAt) {
+    return await this.call('api_updatePerson', personId, patch, expectedUpdatedAt);
   }
 };
 
@@ -365,6 +470,18 @@ const Store = {
     this.setState({ schedules });
   },
 
+  addPerson(person) {
+    const people = [...this.state.people, person];
+    this.setState({ people });
+  },
+
+  updatePersonInStore(personId, updates) {
+    const people = this.state.people.map(p =>
+      p.personId === personId ? { ...p, ...updates } : p
+    );
+    this.setState({ people });
+  },
+
   getJobById(jobId) {
     return this.state.jobs.find(j => j.jobId === jobId) || null;
   },
@@ -383,12 +500,14 @@ const Store = {
 
   getProcessColor(processId) {
     const process = this.getProcessById(processId);
-    return process?.['工程色(colorHex)'] || '#6b7280';
+    const raw = process?.['工程色(colorHex)'];
+    return Utils.normalizeColor(raw) || '#6B7280';
   },
 
   getPersonColor(personId) {
     const person = this.getPersonById(personId);
-    return person?.['作業者色(colorHex)'] || '#6b7280';
+    const raw = person?.['作業者色(colorHex)'];
+    return Utils.normalizeColor(raw) || '#6B7280';
   },
 
   getBarColor(schedule) {
@@ -1462,6 +1581,210 @@ const JobModal = {
 console.log('[DEBUG] JobModal defined');
 
 // ========================================
+// PeopleModal - 担当者管理モーダル
+// ========================================
+
+const PeopleModal = {
+  currentPerson: null,
+  isEditMode: false,
+
+  open() {
+    this.currentPerson = null;
+    this.isEditMode = false;
+    this.renderList();
+    document.getElementById('modal-people').classList.remove('hidden');
+    document.getElementById('people-list-view').classList.remove('hidden');
+    document.getElementById('people-edit-view').classList.add('hidden');
+  },
+
+  close() {
+    document.getElementById('modal-people').classList.add('hidden');
+  },
+
+  renderList() {
+    const container = document.getElementById('people-list-container');
+    const people = Store.state.people || [];
+
+    if (people.length === 0) {
+      container.innerHTML = '<div class="p-4 text-gray-500 text-center">担当者がいません</div>';
+      return;
+    }
+
+    let html = '<table class="w-full text-sm"><thead class="bg-gray-50"><tr>';
+    html += '<th class="px-3 py-2 text-left">ID</th>';
+    html += '<th class="px-3 py-2 text-left">氏名</th>';
+    html += '<th class="px-3 py-2 text-left">部署/区分</th>';
+    html += '<th class="px-3 py-2 text-left">色</th>';
+    html += '<th class="px-3 py-2 text-left">状態</th>';
+    html += '<th class="px-3 py-2"></th>';
+    html += '</tr></thead><tbody>';
+
+    people.forEach(person => {
+      const color = Utils.normalizeColor(person['作業者色(colorHex)']) || '#6B7280';
+      const isActive = person['有効(isActive)'] === true || person['有効(isActive)'] === 'TRUE';
+      html += `
+        <tr class="border-t hover:bg-gray-50 cursor-pointer" data-person-id="${person.personId}">
+          <td class="px-3 py-2 font-mono text-xs">${Utils.escapeHtml(person.personId)}</td>
+          <td class="px-3 py-2">${Utils.escapeHtml(person['氏名'] || '')}</td>
+          <td class="px-3 py-2">${Utils.escapeHtml(person['部署/区分'] || '')}</td>
+          <td class="px-3 py-2">
+            <div class="flex items-center gap-2">
+              <span class="w-6 h-6 rounded" style="background-color: ${color}"></span>
+              <span class="font-mono text-xs">${color}</span>
+            </div>
+          </td>
+          <td class="px-3 py-2">
+            <span class="px-2 py-1 rounded text-xs ${isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}">
+              ${isActive ? '有効' : '無効'}
+            </span>
+          </td>
+          <td class="px-3 py-2">
+            <button class="text-blue-600 hover:underline edit-person-btn" data-person-id="${person.personId}">編集</button>
+          </td>
+        </tr>
+      `;
+    });
+
+    html += '</tbody></table>';
+    container.innerHTML = html;
+
+    // 編集ボタンにイベント設定
+    container.querySelectorAll('.edit-person-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const personId = btn.dataset.personId;
+        this.openEdit(personId);
+      });
+    });
+  },
+
+  openNew() {
+    this.currentPerson = null;
+    this.isEditMode = false;
+    document.getElementById('people-edit-title').textContent = '担当者を追加';
+    document.getElementById('people-list-view').classList.add('hidden');
+    document.getElementById('people-edit-view').classList.remove('hidden');
+    this.clearForm();
+  },
+
+  openEdit(personId) {
+    const person = Store.getPersonById(personId);
+    if (!person) {
+      Utils.showToast('担当者が見つかりません', 'error');
+      return;
+    }
+    this.currentPerson = person;
+    this.isEditMode = true;
+    document.getElementById('people-edit-title').textContent = '担当者を編集';
+    document.getElementById('people-list-view').classList.add('hidden');
+    document.getElementById('people-edit-view').classList.remove('hidden');
+    this.populateForm(person);
+  },
+
+  backToList() {
+    document.getElementById('people-list-view').classList.remove('hidden');
+    document.getElementById('people-edit-view').classList.add('hidden');
+    this.renderList();
+  },
+
+  clearForm() {
+    document.getElementById('person-name').value = '';
+    document.getElementById('person-department').value = '';
+    document.getElementById('person-color').value = '#2563EB';
+    document.getElementById('person-color-text').value = '#2563EB';
+    document.getElementById('person-active').checked = true;
+    document.getElementById('person-note').value = '';
+    document.getElementById('person-id-display').textContent = '（新規）';
+  },
+
+  populateForm(person) {
+    document.getElementById('person-name').value = person['氏名'] || '';
+    document.getElementById('person-department').value = person['部署/区分'] || '';
+    const color = Utils.normalizeColor(person['作業者色(colorHex)']) || '#6B7280';
+    document.getElementById('person-color').value = color;
+    document.getElementById('person-color-text').value = color;
+    const isActive = person['有効(isActive)'] === true || person['有効(isActive)'] === 'TRUE';
+    document.getElementById('person-active').checked = isActive;
+    document.getElementById('person-note').value = person['備考'] || '';
+    document.getElementById('person-id-display').textContent = person.personId;
+  },
+
+  syncColorInputs(source) {
+    if (source === 'picker') {
+      const value = document.getElementById('person-color').value;
+      document.getElementById('person-color-text').value = value.toUpperCase();
+    } else {
+      const value = document.getElementById('person-color-text').value;
+      const normalized = Utils.normalizeColor(value);
+      if (normalized) {
+        document.getElementById('person-color').value = normalized;
+        document.getElementById('person-color-text').value = normalized;
+      }
+    }
+  },
+
+  async save() {
+    const name = document.getElementById('person-name').value.trim();
+    if (!name) {
+      Utils.showToast('氏名を入力してください', 'error');
+      return;
+    }
+
+    const colorText = document.getElementById('person-color-text').value;
+    const color = Utils.normalizeColor(colorText);
+    if (!color) {
+      Utils.showToast('有効な色を入力してください（例: #2563EB）', 'error');
+      return;
+    }
+
+    const payload = {
+      '氏名': name,
+      '部署/区分': document.getElementById('person-department').value.trim(),
+      '作業者色(colorHex)': color,
+      '有効(isActive)': document.getElementById('person-active').checked,
+      '備考': document.getElementById('person-note').value.trim()
+    };
+
+    try {
+      Utils.setLoading(true);
+      let result;
+      if (this.isEditMode && this.currentPerson) {
+        result = await API.updatePerson(
+          this.currentPerson.personId,
+          payload,
+          this.currentPerson.updatedAt
+        );
+        // Store を更新
+        Store.updatePersonInStore(result.personId, result);
+        Utils.showToast('担当者を更新しました', 'success');
+      } else {
+        result = await API.createPerson(payload);
+        Store.addPerson(result);
+        Utils.showToast('担当者を追加しました', 'success');
+      }
+      this.backToList();
+    } catch (error) {
+      console.error('Save person error:', error);
+      Utils.showToast(error.message || '保存に失敗しました', 'error');
+    } finally {
+      Utils.setLoading(false);
+    }
+  },
+
+  setupEventListeners() {
+    // 色ピッカー同期
+    document.getElementById('person-color')?.addEventListener('input', () => {
+      this.syncColorInputs('picker');
+    });
+    document.getElementById('person-color-text')?.addEventListener('change', () => {
+      this.syncColorInputs('text');
+    });
+  }
+};
+
+console.log('[DEBUG] PeopleModal defined');
+
+// ========================================
 // JobDetail - 工番別工程表
 // ========================================
 
@@ -1623,10 +1946,11 @@ const JobDetail = {
     processes.forEach(process => {
       const processSchedules = schedules.filter(s => s.processId === process.processId);
       const isMilestone = process['種別(type)'] === 'milestone';
+      const processColor = Utils.normalizeColor(process['工程色(colorHex)']) || '#6B7280';
 
       html += `
         <div class="job-process-row" data-process-id="${process.processId}">
-          <div class="job-process-name" style="background-color: ${process['工程色(colorHex)'] || '#6b7280'}20; border-left: 4px solid ${process['工程色(colorHex)'] || '#6b7280'}">
+          <div class="job-process-name" style="background-color: ${Utils.withAlpha(processColor, '20')}; border-left: 4px solid ${processColor}">
             ${isMilestone ? '★ ' : ''}${Utils.escapeHtml(process['工程名'])}
           </div>
           <div class="job-process-grid" data-process-id="${process.processId}" style="width: ${dates.length * this.config.cellWidth}px">
@@ -2238,7 +2562,7 @@ const WeeklyPlan = {
           </td>
           <td class="px-3 py-2">
             <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium"
-                  style="background-color: ${item.color}20; color: ${item.color}; border: 1px solid ${item.color}40">
+                  style="background-color: ${Utils.withAlpha(item.color, '20')}; color: ${Utils.normalizeColor(item.color) || '#6B7280'}; border: 1px solid ${Utils.withAlpha(item.color, '40')}">
               ${typeIcon} ${typeLabel}
             </span>
           </td>
@@ -2312,6 +2636,7 @@ const App = {
     Gantt.init();
     Modal.init();
     JobModal.init();
+    PeopleModal.setupEventListeners();
     JobDetail.init();
     ResourceView.init();
     WeeklyPlan.init();
@@ -2336,6 +2661,10 @@ const App = {
 
     document.getElementById('btn-refresh')?.addEventListener('click', () => {
       Store.loadBootstrapData();
+    });
+
+    document.getElementById('btn-people-manage')?.addEventListener('click', () => {
+      PeopleModal.open();
     });
 
     document.getElementById('color-mode-process')?.addEventListener('click', () => {

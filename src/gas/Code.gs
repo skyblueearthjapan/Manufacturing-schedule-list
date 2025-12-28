@@ -170,6 +170,18 @@ function api_searchExternalJobMaster(query, limit) {
   return searchExternalJobMaster(query, limit);
 }
 
+function api_createPerson(payload) {
+  return sanitizeForClient(createPerson(payload));
+}
+
+function api_updatePerson(personId, patch, expectedUpdatedAt) {
+  return sanitizeForClient(updatePerson(personId, patch, expectedUpdatedAt));
+}
+
+function api_getPeople(includeInactive) {
+  return sanitizeForClient(getAllPeople(includeInactive));
+}
+
 /**
  * テスト用：スプレッドシート接続確認
  * GASエディタで実行して確認してください

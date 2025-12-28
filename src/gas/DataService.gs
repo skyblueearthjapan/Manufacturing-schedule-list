@@ -250,6 +250,164 @@ function getPersonById(personId) {
   return people.find(p => p.personId === personId) || null;
 }
 
+/**
+ * 色を正規化（サーバー側）
+ * @param {string} input
+ * @returns {string}
+ */
+function normalizeColorServer(input) {
+  if (!input) return '#6B7280';
+
+  const str = String(input).trim();
+
+  // 既に#RRGGBB形式
+  if (/^#[0-9A-Fa-f]{6}$/i.test(str)) {
+    return str.toUpperCase();
+  }
+
+  // 日本語色名マッピング
+  const colorMap = {
+    '青': '#2563EB',
+    '赤': '#EF4444',
+    '緑': '#22C55E',
+    '黄': '#F59E0B',
+    '黄色': '#F59E0B',
+    '紫': '#A855F7',
+    '橙': '#F97316',
+    'オレンジ': '#F97316',
+    '黒': '#111827',
+    '灰': '#6B7280',
+    '灰色': '#6B7280',
+    'グレー': '#6B7280',
+    '白': '#FFFFFF',
+    'ピンク': '#EC4899',
+    '水色': '#06B6D4',
+    '茶': '#92400E',
+    '茶色': '#92400E'
+  };
+
+  return colorMap[str] || colorMap[str.toLowerCase()] || '#6B7280';
+}
+
+/**
+ * 担当者を新規作成
+ * @param {Object} payload
+ * @returns {Object}
+ */
+function createPerson(payload) {
+  const sheet = getSheet(CONFIG.SHEETS.PEOPLE);
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+
+  // 新しいpersonIdを生成（P.XX形式）
+  const existing = sheetDataToObjects(data);
+  let maxNum = 0;
+  existing.forEach(p => {
+    const match = String(p.personId).match(/^P\.(\d+)$/);
+    if (match) {
+      maxNum = Math.max(maxNum, parseInt(match[1]));
+    }
+  });
+  const newPersonId = `P.${String(maxNum + 1).padStart(2, '0')}`;
+
+  const now = new Date();
+  const user = Session.getActiveUser().getEmail() || 'system';
+
+  // 色を正規化
+  const colorHex = normalizeColorServer(payload['作業者色(colorHex)']);
+
+  const newPerson = {
+    personId: newPersonId,
+    '氏名': payload['氏名'] || '',
+    '部署/区分': payload['部署/区分'] || '',
+    '作業者色(colorHex)': colorHex,
+    '有効(isActive)': payload['有効(isActive)'] !== false,
+    '備考': payload['備考'] || '',
+    updatedAt: now,
+    updatedBy: user
+  };
+
+  // 行データを作成
+  const rowData = headers.map(header => newPerson[header] ?? '');
+  sheet.appendRow(rowData);
+
+  return {
+    ...newPerson,
+    updatedAt: formatDateTime(now)
+  };
+}
+
+/**
+ * 担当者を更新
+ * @param {string} personId
+ * @param {Object} patch
+ * @param {string} expectedUpdatedAt - 楽観的ロック用
+ * @returns {Object}
+ */
+function updatePerson(personId, patch, expectedUpdatedAt) {
+  const sheet = getSheet(CONFIG.SHEETS.PEOPLE);
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+
+  // 対象行を検索
+  const personIdIndex = headers.indexOf('personId');
+  const updatedAtIndex = headers.indexOf('updatedAt');
+
+  let targetRow = -1;
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][personIdIndex] === personId) {
+      targetRow = i + 1; // 1-based
+      break;
+    }
+  }
+
+  if (targetRow === -1) {
+    const error = new Error('担当者が見つかりません');
+    error.code = 404;
+    throw error;
+  }
+
+  // 楽観的ロック確認
+  if (expectedUpdatedAt && updatedAtIndex !== -1) {
+    const currentUpdatedAt = formatDateTime(data[targetRow - 1][updatedAtIndex]);
+    if (currentUpdatedAt !== expectedUpdatedAt) {
+      const error = new Error('他のユーザーによって更新されています。ページを再読み込みしてください。');
+      error.code = 409;
+      throw error;
+    }
+  }
+
+  const now = new Date();
+  const user = Session.getActiveUser().getEmail() || 'system';
+
+  // 色を正規化
+  if (patch['作業者色(colorHex)']) {
+    patch['作業者色(colorHex)'] = normalizeColorServer(patch['作業者色(colorHex)']);
+  }
+
+  // 更新データをマージ
+  const currentRow = data[targetRow - 1];
+  const updated = {};
+  headers.forEach((header, index) => {
+    if (patch.hasOwnProperty(header)) {
+      updated[header] = patch[header];
+    } else {
+      updated[header] = currentRow[index];
+    }
+  });
+  updated.updatedAt = now;
+  updated.updatedBy = user;
+
+  // 行を更新
+  const rowData = headers.map(header => updated[header] ?? '');
+  sheet.getRange(targetRow, 1, 1, rowData.length).setValues([rowData]);
+
+  return {
+    ...updated,
+    updatedAt: formatDateTime(now)
+  };
+}
+
 // ============================================
 // Schedule（工程期間）
 // ============================================

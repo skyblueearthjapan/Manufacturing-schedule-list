@@ -77,6 +77,14 @@
                     d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
             </svg>
           </button>
+
+          <!-- 担当者管理 -->
+          <button id="btn-people-manage" class="btn-icon" title="担当者管理">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+            </svg>
+          </button>
         </div>
       </div>
     </div>
@@ -471,6 +479,87 @@
       <div class="modal-footer">
         <button type="button" id="btn-job-modal-cancel" class="btn btn-secondary">キャンセル</button>
         <button type="button" id="btn-job-modal-save" class="btn btn-primary">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 担当者管理モーダル -->
+  <div id="modal-people" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content" style="max-width: 700px;">
+      <div class="modal-header">
+        <h3 class="text-lg font-semibold">担当者管理</h3>
+        <button id="people-modal-close" class="modal-close-btn" onclick="PeopleModal.close()">&times;</button>
+      </div>
+
+      <!-- 一覧ビュー -->
+      <div id="people-list-view">
+        <div class="modal-body">
+          <div class="flex justify-between items-center mb-4">
+            <p class="text-sm text-gray-600">担当者の追加・編集ができます</p>
+            <button onclick="PeopleModal.openNew()" class="btn btn-primary text-sm">
+              + 担当者を追加
+            </button>
+          </div>
+          <div id="people-list-container" class="max-h-96 overflow-y-auto border rounded">
+            <!-- JSで生成 -->
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" onclick="PeopleModal.close()" class="btn btn-secondary">閉じる</button>
+        </div>
+      </div>
+
+      <!-- 編集ビュー -->
+      <div id="people-edit-view" class="hidden">
+        <div class="modal-body">
+          <div class="flex items-center gap-2 mb-4">
+            <button onclick="PeopleModal.backToList()" class="text-gray-500 hover:text-gray-700">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+              </svg>
+            </button>
+            <h4 id="people-edit-title" class="text-md font-medium">担当者を編集</h4>
+            <span id="person-id-display" class="text-sm text-gray-500 ml-auto"></span>
+          </div>
+
+          <form id="person-form" class="space-y-4">
+            <div class="form-group">
+              <label class="form-label">氏名 <span class="text-red-500">*</span></label>
+              <input type="text" id="person-name" class="form-input" placeholder="山田 太郎" required>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">部署/区分</label>
+              <input type="text" id="person-department" class="form-input" placeholder="製造部">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">作業者色 <span class="text-red-500">*</span></label>
+              <div class="flex items-center gap-2">
+                <input type="color" id="person-color" class="w-12 h-10 rounded border cursor-pointer" value="#2563EB">
+                <input type="text" id="person-color-text" class="form-input flex-1 font-mono" placeholder="#2563EB" value="#2563EB">
+              </div>
+              <p class="text-xs text-gray-500 mt-1">色ピッカーで選択するか、#RRGGBB形式で入力してください</p>
+            </div>
+
+            <div class="form-group">
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" id="person-active" class="w-4 h-4 rounded border-gray-300" checked>
+                <span class="form-label mb-0">有効</span>
+              </label>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">備考</label>
+              <input type="text" id="person-note" class="form-input" placeholder="メモ">
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" onclick="PeopleModal.backToList()" class="btn btn-secondary">キャンセル</button>
+          <button type="button" onclick="PeopleModal.save()" class="btn btn-primary">保存</button>
+        </div>
       </div>
     </div>
   </div>

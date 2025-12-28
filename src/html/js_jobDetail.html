@@ -183,10 +183,11 @@ const JobDetail = {
     processes.forEach(process => {
       const processSchedules = schedules.filter(s => s.processId === process.processId);
       const isMilestone = process['種別(type)'] === 'milestone';
+      const processColor = Utils.normalizeColor(process['工程色(colorHex)']) || '#6B7280';
 
       html += `
         <div class="job-process-row">
-          <div class="job-process-name" style="background-color: ${process['工程色(colorHex)'] || '#6b7280'}20; border-left: 4px solid ${process['工程色(colorHex)'] || '#6b7280'}">
+          <div class="job-process-name" style="background-color: ${Utils.withAlpha(processColor, '20')}; border-left: 4px solid ${processColor}">
             ${isMilestone ? '★ ' : ''}${Utils.escapeHtml(process['工程名'])}
           </div>
           <div class="job-process-grid" style="width: ${dates.length * this.config.cellWidth}px">
