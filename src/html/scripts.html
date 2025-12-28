@@ -203,6 +203,10 @@ const API = {
 
   async createJob(payload) {
     return await this.call('api_createJob', payload);
+  },
+
+  async updateJob(jobId, patch) {
+    return await this.call('api_updateJob', jobId, patch);
   }
 };
 
@@ -317,6 +321,13 @@ const Store = {
     this.setState({ jobs });
   },
 
+  updateJobInStore(jobId, updates) {
+    const jobs = this.state.jobs.map(j =>
+      j.jobId === jobId ? { ...j, ...updates } : j
+    );
+    this.setState({ jobs });
+  },
+
   addSchedule(schedule) {
     const schedules = [...this.state.schedules, schedule];
     this.setState({ schedules });
@@ -388,11 +399,17 @@ console.log('[DEBUG] Store defined');
 const Gantt = {
   config: {
     cellWidth: 32,
-    rowHeight: 64,
+    baseRowHeight: 64,      // 1レーンの場合の行高さ
+    laneHeight: 28,         // 追加レーンあたりの高さ
+    barHeight: 24,          // バーの高さ
+    barTopPadding: 6,       // バー上部のパディング
     jobPaneWidth: 360
   },
 
   dates: [],
+
+  // 工番ごとのレーン数を保持
+  jobLaneCounts: {},
 
   // ドラッグ範囲選択の状態
   dragState: {
@@ -406,6 +423,44 @@ const Gantt = {
     this.setupEventListeners();
     this.attachGridEventListeners(); // イベント委譲は一度だけ設定
     Store.subscribe(() => this.render());
+  },
+
+  // スケジュールにレーンを割り当てる（重なり対応）
+  assignLanes(schedules) {
+    if (schedules.length === 0) return { items: [], laneCount: 1 };
+
+    // 開始日でソート
+    const items = [...schedules].sort((a, b) => a.start.localeCompare(b.start));
+    const laneEnds = []; // 各レーンの終了日を保持
+
+    for (const s of items) {
+      let placed = false;
+      for (let i = 0; i < laneEnds.length; i++) {
+        // そのレーンが空いている（前のスケジュールの終了日 < 今のスケジュールの開始日）
+        if (laneEnds[i] < s.start) {
+          s._lane = i;
+          laneEnds[i] = s.end;
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) {
+        // 新しいレーンを作成
+        s._lane = laneEnds.length;
+        laneEnds.push(s.end);
+      }
+    }
+
+    return {
+      items,
+      laneCount: Math.max(1, laneEnds.length)
+    };
+  },
+
+  // 工番の行の高さを計算
+  getRowHeight(laneCount) {
+    if (laneCount <= 1) return this.config.baseRowHeight;
+    return this.config.baseRowHeight + (laneCount - 1) * this.config.laneHeight;
   },
 
   setupEventListeners() {
@@ -474,17 +529,9 @@ const Gantt = {
 
     if (jobs.length === 0) {
       container.innerHTML = `
-        <div class="empty-job-pane flex flex-col items-center justify-center h-48 text-center cursor-pointer hover:bg-blue-50 transition-colors rounded-lg m-2 border-2 border-dashed border-gray-300 hover:border-blue-400"
-             onclick="JobModal.openNew()">
-          <div class="text-gray-400 text-sm mb-3">工番データがありません</div>
-          <button
-            type="button"
-            class="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
-            onclick="event.stopPropagation(); JobModal.openNew();"
-          >
-            ＋ 工番を追加
-          </button>
-          <div class="text-gray-400 text-xs mt-2">またはこのエリアをクリック</div>
+        <div class="empty-job-pane flex flex-col items-center justify-center h-48 text-center text-gray-400 text-sm m-2 border-2 border-dashed border-gray-300 rounded-lg">
+          <div>工番データがありません</div>
+          <div class="text-xs mt-2">上の「＋工番追加」から追加してください</div>
         </div>
       `;
       return;
@@ -494,9 +541,11 @@ const Gantt = {
     jobs.forEach((job) => {
       const shipDate = this.formatShortDate(job['出荷予定日']);
       const drawDate = this.formatShortDate(job['出図予定日']);
+      const laneCount = this.jobLaneCounts[job.jobId] || 1;
+      const rowHeight = this.getRowHeight(laneCount);
 
       html += `
-        <div class="job-info-block" data-job-id="${job.jobId}" onclick="Gantt.onJobClick('${job.jobId}')">
+        <div class="job-info-block" data-job-id="${job.jobId}" style="height: ${rowHeight}px; min-height: ${rowHeight}px;" onclick="Gantt.onJobClick('${job.jobId}')">
           <div class="job-info-content">
             <div class="job-info-row1">
               <div class="job-info-jobno">
@@ -507,6 +556,12 @@ const Gantt = {
                 <span class="label">[${Utils.escapeHtml(job['状態'] || '未着手')}]</span>
                 <span>${Utils.escapeHtml(job['重要メモ'] || '')}</span>
               </div>
+              <button type="button"
+                class="job-edit-btn ml-2 text-xs px-2 py-0.5 rounded border border-gray-300 text-gray-600 hover:bg-gray-100 hover:border-gray-400"
+                onclick="event.stopPropagation(); JobModal.openEdit(Store.getJobById('${job.jobId}'));"
+                title="工番を編集">
+                ✎
+              </button>
             </div>
             <div class="job-info-row2">
               <div class="job-info-customer">顧客：${Utils.escapeHtml(job['顧客名'] || '-')}</div>
@@ -558,9 +613,23 @@ const Gantt = {
       return;
     }
 
+    // まず全工番のレーン数を計算
+    this.jobLaneCounts = {};
+    const jobSchedulesWithLanes = {};
+
+    jobs.forEach(job => {
+      const schedules = Store.getSchedulesByJobId(job.jobId);
+      const { items, laneCount } = this.assignLanes(schedules);
+      this.jobLaneCounts[job.jobId] = laneCount;
+      jobSchedulesWithLanes[job.jobId] = items;
+    });
+
     let html = '';
     jobs.forEach(job => {
-      html += `<div class="gantt-grid-row" data-job-id="${job.jobId}">`;
+      const laneCount = this.jobLaneCounts[job.jobId] || 1;
+      const rowHeight = this.getRowHeight(laneCount);
+
+      html += `<div class="gantt-grid-row" data-job-id="${job.jobId}" style="height: ${rowHeight}px; min-height: ${rowHeight}px;">`;
       this.dates.forEach(date => {
         const isWeekend = Utils.isWeekend(date);
         const isToday = date === today;
@@ -579,7 +648,7 @@ const Gantt = {
         `;
       });
       html += '</div>';
-      html += this.renderBarsForJob(job.jobId);
+      html += this.renderBarsForJob(job.jobId, jobSchedulesWithLanes[job.jobId] || []);
     });
 
     container.innerHTML = html;
@@ -587,14 +656,13 @@ const Gantt = {
     // イベント委譲はinit()で一度だけ設定するため、ここでは呼ばない
   },
 
-  renderBarsForJob(jobId) {
-    const schedules = Store.getSchedulesByJobId(jobId);
-    if (schedules.length === 0) return '';
+  renderBarsForJob(jobId, schedulesWithLanes) {
+    if (schedulesWithLanes.length === 0) return '';
 
     const { displayStartDate } = Store.state;
     let html = '';
 
-    schedules.forEach(schedule => {
+    schedulesWithLanes.forEach(schedule => {
       const isMilestone = Store.isMilestone(schedule.processId);
       if (isMilestone) {
         html += this.renderMilestone(schedule, displayStartDate);
@@ -621,10 +689,14 @@ const Gantt = {
     const processName = process?.['工程名'] || '';
     const label = schedule.label || '';
 
+    // レーンに応じたtop位置を計算
+    const lane = schedule._lane || 0;
+    const top = this.config.barTopPadding + (lane * this.config.laneHeight);
+
     return `
       <div class="gantt-bar"
            data-schedule-id="${schedule.scheduleId}"
-           style="left: ${left}px; width: ${width}px; background-color: ${color};"
+           style="left: ${left}px; width: ${width}px; top: ${top}px; background-color: ${color};"
            title="${processName}${label ? ' - ' + label : ''}">
         <span class="bar-text">${Utils.escapeHtml(processName)}</span>
         ${label ? `<span class="gantt-bar-label">${Utils.escapeHtml(label)}</span>` : ''}
@@ -643,10 +715,14 @@ const Gantt = {
     const process = Store.getProcessById(schedule.processId);
     const processName = process?.['工程名'] || '';
 
+    // レーンに応じたtop位置を計算
+    const lane = schedule._lane || 0;
+    const top = this.config.barTopPadding + (lane * this.config.laneHeight);
+
     return `
       <div class="gantt-milestone"
            data-schedule-id="${schedule.scheduleId}"
-           style="left: ${left}px;"
+           style="left: ${left}px; top: ${top}px;"
            title="${processName}">
         ★
       </div>
@@ -1194,7 +1270,11 @@ const JobModal = {
 
       if (this.isEditMode) {
         const jobId = document.getElementById('job-job-id').value;
-        Utils.showToast('更新機能は今後実装予定です', 'info');
+        // 編集時は状態を保持
+        payload['状態'] = this.currentJob?.['状態'] || '未着手';
+        const result = await API.updateJob(jobId, payload);
+        Store.updateJobInStore(jobId, result);
+        Utils.showToast('工番を更新しました', 'success');
       } else {
         const result = await API.createJob(payload);
         Store.addJob(result);
@@ -1239,6 +1319,18 @@ const JobDetail = {
   init() {
     this.setupEventListeners();
     this.attachGridEventListeners(); // イベント委譲は一度だけ設定
+    this.setupScrollSync(); // 横スクロール同期
+  },
+
+  // 横スクロール同期：ボディのスクロールにヘッダを追従させる
+  setupScrollSync() {
+    const bodyScroll = document.getElementById('job-detail-body-scroll');
+    const headerScroll = document.getElementById('job-detail-header-scroll');
+    if (!bodyScroll || !headerScroll) return;
+
+    bodyScroll.addEventListener('scroll', () => {
+      headerScroll.scrollLeft = bodyScroll.scrollLeft;
+    });
   },
 
   setupEventListeners() {
@@ -1356,6 +1448,8 @@ const JobDetail = {
     if (!container) return;
 
     const today = Utils.getToday();
+    const gridWidth = dates.length * this.config.cellWidth;
+    const totalWidth = 140 + gridWidth; // 工程名幅 + グリッド幅
     let html = '';
 
     processes.forEach(process => {
@@ -1395,6 +1489,13 @@ const JobDetail = {
     });
 
     container.innerHTML = html;
+
+    // ボディとその親コンテナの幅を設定（横スクロール用）
+    container.style.minWidth = `${totalWidth}px`;
+    const ganttContainer = container.closest('.job-detail-gantt');
+    if (ganttContainer) {
+      ganttContainer.style.minWidth = `${totalWidth}px`;
+    }
   },
 
   renderBar(schedule, dates, process) {

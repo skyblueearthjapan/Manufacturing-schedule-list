@@ -101,8 +101,9 @@
         <div class="sticky top-0 z-30 bg-white border-b border-gray-300">
           <div class="flex">
             <!-- 左ヘッダ：固定 -->
-            <div class="w-[360px] shrink-0 border-r border-gray-300 bg-gray-100 px-3 py-2">
+            <div class="w-[360px] shrink-0 border-r border-gray-300 bg-gray-100 px-3 py-2 flex items-center justify-between">
               <div class="text-xs text-gray-600 font-semibold">工番情報</div>
+              <button type="button" class="btn btn-primary text-xs py-1 px-2" onclick="JobModal.openNew()">＋ 工番追加</button>
             </div>
 
             <!-- 右ヘッダ：横スクロール（ボディと連動） -->
@@ -280,19 +281,23 @@
         </div>
       </div>
 
-      <!-- ガントチャート -->
-      <div class="flex-1 overflow-auto">
-        <div class="job-detail-gantt">
-          <div class="job-detail-header">
-            <div class="job-process-name-header">工程</div>
-            <div class="job-date-header-scroll">
-              <div class="job-date-header" id="job-detail-date-header">
-                <!-- JSで生成 -->
-              </div>
+      <!-- ガントチャート（横スクロールはボディのみ、ヘッダは追従） -->
+      <div class="flex-1 flex flex-col overflow-hidden">
+        <!-- ヘッダ（スクロールバーなし、JSで追従） -->
+        <div class="job-detail-header shrink-0">
+          <div class="job-process-name-header">工程</div>
+          <div class="job-date-header-scroll" id="job-detail-header-scroll">
+            <div class="job-date-header" id="job-detail-date-header">
+              <!-- JSで生成 -->
             </div>
           </div>
-          <div class="job-detail-body" id="job-detail-body">
-            <!-- JSで生成 -->
+        </div>
+        <!-- ボディ（横スクロールあり） -->
+        <div class="flex-1 overflow-y-auto" id="job-detail-body-scroll">
+          <div class="job-detail-gantt">
+            <div class="job-detail-body" id="job-detail-body">
+              <!-- JSで生成 -->
+            </div>
           </div>
         </div>
       </div>

@@ -514,19 +514,16 @@
     white-space: nowrap;
   }
 
-  /* グリッド行の高さを工番情報ブロックに合わせる（h-16 = 64px） */
-  #view-master .gantt-grid-row {
-    height: 64px;
-    min-height: 64px;
-  }
+  /* グリッド行の高さはJSで動的に設定（レーン数に応じて変わる） */
+  /* #view-master .gantt-grid-row - height is set dynamically */
 
   #view-master .gantt-bar {
-    height: 32px;
-    top: 16px;
+    height: 24px;
+    /* top is set dynamically based on lane */
   }
 
   #view-master .gantt-milestone {
-    top: 20px;
+    /* top is set dynamically based on lane */
   }
 
   /* ========================================
@@ -933,6 +930,7 @@
      ======================================== */
   .job-detail-gantt {
     min-width: 100%;
+    display: inline-block; /* 横スクロール時に幅が縮まないように */
   }
 
   .job-detail-header {
@@ -957,7 +955,7 @@
 
   .job-date-header-scroll {
     flex: 1;
-    overflow-x: auto;
+    overflow: hidden; /* ボディのスクロールに追従するため非表示 */
   }
 
   .job-date-header {
@@ -1012,6 +1010,31 @@
   .job-detail-body {
     display: flex;
     flex-direction: column;
+  }
+
+  /* ボディスクロールコンテナ（横スクロール対応） */
+  #job-detail-body-scroll {
+    overflow-x: auto;
+    overflow-y: auto;
+  }
+
+  /* 横スクロールバーのカスタマイズ */
+  #job-detail-body-scroll::-webkit-scrollbar {
+    height: 10px;
+    width: 10px;
+  }
+
+  #job-detail-body-scroll::-webkit-scrollbar-track {
+    background: #f1f5f9;
+  }
+
+  #job-detail-body-scroll::-webkit-scrollbar-thumb {
+    background: #94a3b8;
+    border-radius: 5px;
+  }
+
+  #job-detail-body-scroll::-webkit-scrollbar-thumb:hover {
+    background: #64748b;
   }
 
   .job-process-row {
