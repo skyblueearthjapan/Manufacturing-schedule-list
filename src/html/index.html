@@ -379,12 +379,24 @@
   <!-- 工番作成モーダル -->
   <div id="modal-job" class="modal hidden">
     <div class="modal-backdrop"></div>
-    <div class="modal-content">
+    <div class="modal-content modal-content-wide">
       <div class="modal-header">
         <h3 id="job-modal-title" class="text-lg font-semibold">工番登録</h3>
         <button id="job-modal-close" class="modal-close-btn">&times;</button>
       </div>
       <div class="modal-body">
+        <!-- 工番マスター検索（新規登録時のみ表示） -->
+        <div id="job-master-search-area" class="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+          <label class="form-label text-blue-800">工番マスターから選択</label>
+          <div class="relative">
+            <input type="text" id="job-master-search" class="form-input" placeholder="工番・客先名・製品名で検索...">
+            <div id="job-master-results" class="absolute z-10 w-full bg-white border border-gray-300 rounded-lg shadow-lg mt-1 max-h-48 overflow-y-auto hidden">
+              <!-- 検索結果がここに表示される -->
+            </div>
+          </div>
+          <p class="text-xs text-gray-500 mt-1">選択すると下記フォームに自動入力されます</p>
+        </div>
+
         <form id="job-form">
           <!-- 工番 -->
           <div class="form-group">
@@ -434,7 +446,26 @@
             <input type="text" id="job-status-text" class="form-input" placeholder="例: 出荷先:後報">
           </div>
 
+          <!-- 担当者（横並び） -->
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label class="form-label">主担当者</label>
+              <select id="job-main-person" class="form-select">
+                <option value="">（未設定）</option>
+                <!-- JSで生成 -->
+              </select>
+            </div>
+            <div class="form-group flex-1">
+              <label class="form-label">副担当者</label>
+              <select id="job-sub-person" class="form-select">
+                <option value="">（未設定）</option>
+                <!-- JSで生成 -->
+              </select>
+            </div>
+          </div>
+
           <input type="hidden" id="job-job-id">
+          <input type="hidden" id="job-updated-at">
         </form>
       </div>
       <div class="modal-footer">

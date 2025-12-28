@@ -135,6 +135,18 @@ function api_createJob(payload) {
   return createJob(payload);
 }
 
+function api_updateJob(jobId, patch, expectedUpdatedAt) {
+  return updateJob(jobId, patch, expectedUpdatedAt);
+}
+
+function api_syncExternalJobMaster() {
+  return syncExternalJobMaster();
+}
+
+function api_searchExternalJobMaster(query, limit) {
+  return searchExternalJobMaster(query, limit);
+}
+
 /**
  * テスト用：スプレッドシート接続確認
  * GASエディタで実行して確認してください

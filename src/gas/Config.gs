@@ -7,6 +7,10 @@ const CONFIG = {
   // スプレッドシートID（デプロイ時に設定）
   SPREADSHEET_ID: '1tBwMSYpWtt9ozLh8bd7CE68HM1mITSpzTvr6Y4uOHRM',
 
+  // 外部スプレッドシートID（工番マスターの参照元）
+  EXTERNAL_MASTER_SPREADSHEET_ID: '1iu5HoaknlW1W1HheeYv0jqcRq-aY0SyEE2seQd2pHkQ',
+  EXTERNAL_MASTER_SHEET_NAME: '工番マスタ',
+
   // シート名
   SHEETS: {
     JOBS: 'Jobs',
@@ -14,7 +18,8 @@ const CONFIG = {
     PEOPLE: 'People',
     SCHEDULE: 'Schedule',
     ATTACHMENTS: 'Attachments',
-    TRIPS: 'Trips'
+    TRIPS: 'Trips',
+    EXTERNAL_JOB_MASTER: '外部_工番マスター'
   },
 
   // デフォルト表示日数

@@ -205,8 +205,16 @@ const API = {
     return await this.call('api_createJob', payload);
   },
 
-  async updateJob(jobId, patch) {
-    return await this.call('api_updateJob', jobId, patch);
+  async updateJob(jobId, patch, expectedUpdatedAt) {
+    return await this.call('api_updateJob', jobId, patch, expectedUpdatedAt);
+  },
+
+  async syncExternalJobMaster() {
+    return await this.call('api_syncExternalJobMaster');
+  },
+
+  async searchExternalJobMaster(query, limit = 20) {
+    return await this.call('api_searchExternalJobMaster', query, limit);
   }
 };
 
@@ -224,6 +232,7 @@ const Store = {
     schedules: [],
     attachments: [],
     trips: [],
+    jobMaster: [], // 外部工番マスター
     displayStartDate: null,
     displayDays: 120,
     colorMode: 'process',
@@ -278,6 +287,7 @@ const Store = {
         people: data.people || [],
         schedules: data.schedules || [],
         trips: data.trips || [],
+        jobMaster: data.jobMaster || [],
         lastFetchedAt: data.meta?.fetchedAt || new Date().toISOString(),
         isLoading: false
       });
@@ -372,11 +382,20 @@ const Store = {
   },
 
   getBarColor(schedule) {
-    if (this.state.colorMode === 'person') {
-      // 工番の担当者色を使用
-      const job = this.getJobById(schedule.jobId);
-      return this.getPersonColor(job?.mainPersonId);
+    // 優先順位: 工番の主担当者色 > colorModeによる色 > 工程色
+    const job = this.getJobById(schedule.jobId);
+
+    // 工番に主担当者が設定されている場合は、その色を優先
+    if (job?.mainPersonId) {
+      return this.getPersonColor(job.mainPersonId);
     }
+
+    // colorModeがpersonの場合は、スケジュールの担当者色
+    if (this.state.colorMode === 'person' && schedule.mainPersonId) {
+      return this.getPersonColor(schedule.mainPersonId);
+    }
+
+    // それ以外は工程色
     return this.getProcessColor(schedule.processId);
   },
 
@@ -1152,6 +1171,7 @@ console.log('[DEBUG] Modal defined');
 const JobModal = {
   currentJob: null,
   isEditMode: false,
+  searchDebounceTimer: null,
 
   init() {
     this.setupEventListeners();
@@ -1167,13 +1187,128 @@ const JobModal = {
         this.close();
       }
     });
+
+    // 工番マスター検索
+    const searchInput = document.getElementById('job-master-search');
+    if (searchInput) {
+      searchInput.addEventListener('input', (e) => this.onSearchInput(e.target.value));
+      searchInput.addEventListener('focus', () => this.showSearchResults());
+      // クリック外で閉じる
+      document.addEventListener('click', (e) => {
+        if (!e.target.closest('#job-master-search-area')) {
+          this.hideSearchResults();
+        }
+      });
+    }
+  },
+
+  // 担当者セレクトを生成
+  populatePersonSelects(mainPersonId = '', subPersonId = '') {
+    const people = Store.state.people;
+    const mainSelect = document.getElementById('job-main-person');
+    const subSelect = document.getElementById('job-sub-person');
+
+    if (!mainSelect || !subSelect) return;
+
+    let optionsHtml = '<option value="">（未設定）</option>';
+    people.forEach(person => {
+      const color = person['作業者色(colorHex)'] || '#6b7280';
+      optionsHtml += `<option value="${person.personId}" style="border-left: 4px solid ${color};">
+        ${Utils.escapeHtml(person['氏名'])} (${Utils.escapeHtml(person['部署/区分'] || '')})
+      </option>`;
+    });
+
+    mainSelect.innerHTML = optionsHtml;
+    subSelect.innerHTML = optionsHtml;
+
+    if (mainPersonId) mainSelect.value = mainPersonId;
+    if (subPersonId) subSelect.value = subPersonId;
+  },
+
+  // 工番マスター検索入力
+  onSearchInput(query) {
+    clearTimeout(this.searchDebounceTimer);
+    this.searchDebounceTimer = setTimeout(() => {
+      this.searchJobMaster(query);
+    }, 300);
+  },
+
+  // 工番マスター検索実行
+  searchJobMaster(query) {
+    const results = document.getElementById('job-master-results');
+    if (!results) return;
+
+    const jobMaster = Store.state.jobMaster;
+    if (!jobMaster || jobMaster.length === 0) {
+      results.innerHTML = '<div class="p-3 text-sm text-gray-500">工番マスターが未同期です</div>';
+      results.classList.remove('hidden');
+      return;
+    }
+
+    let filtered = jobMaster;
+    if (query && query.trim()) {
+      const lowerQuery = query.toLowerCase();
+      filtered = jobMaster.filter(item => {
+        const jobNo = String(item['工番'] || '').toLowerCase();
+        const customer = String(item['客先名'] || '').toLowerCase();
+        const product = String(item['製品名'] || '').toLowerCase();
+        return jobNo.includes(lowerQuery) ||
+               customer.includes(lowerQuery) ||
+               product.includes(lowerQuery);
+      });
+    }
+
+    // 上位20件に制限
+    filtered = filtered.slice(0, 20);
+
+    if (filtered.length === 0) {
+      results.innerHTML = '<div class="p-3 text-sm text-gray-500">該当する工番が見つかりません</div>';
+    } else {
+      let html = '';
+      filtered.forEach(item => {
+        html += `
+          <div class="job-master-result-item" onclick="JobModal.selectJobMasterItem('${Utils.escapeHtml(item['工番'] || '')}', '${Utils.escapeHtml(item['客先名'] || '')}', '${Utils.escapeHtml(item['製品名'] || '')}')">
+            <div class="job-master-result-jobno">${Utils.escapeHtml(item['工番'] || '-')}</div>
+            <div class="job-master-result-customer">${Utils.escapeHtml(item['客先名'] || '-')}</div>
+            <div class="job-master-result-product">${Utils.escapeHtml(item['製品名'] || '-')}</div>
+          </div>
+        `;
+      });
+      results.innerHTML = html;
+    }
+
+    results.classList.remove('hidden');
+  },
+
+  // 工番マスター選択
+  selectJobMasterItem(jobNo, customer, product) {
+    document.getElementById('job-jobno').value = jobNo;
+    document.getElementById('job-customer').value = customer;
+    document.getElementById('job-product').value = product;
+    this.hideSearchResults();
+    document.getElementById('job-master-search').value = '';
+    Utils.showToast('工番マスターから入力しました', 'info');
+  },
+
+  showSearchResults() {
+    const query = document.getElementById('job-master-search')?.value || '';
+    this.searchJobMaster(query);
+  },
+
+  hideSearchResults() {
+    const results = document.getElementById('job-master-results');
+    if (results) results.classList.add('hidden');
   },
 
   openNew() {
     this.isEditMode = false;
     this.currentJob = null;
     this.resetForm();
+    this.populatePersonSelects();
     document.getElementById('job-modal-title').textContent = '工番登録';
+    // 新規時はマスター検索エリアを表示
+    const searchArea = document.getElementById('job-master-search-area');
+    if (searchArea) searchArea.classList.remove('hidden');
     this.open();
   },
 
@@ -1181,6 +1316,7 @@ const JobModal = {
     this.isEditMode = true;
     this.currentJob = job;
     this.resetForm();
+    this.populatePersonSelects(job.mainPersonId || '', job.subPersonId || '');
 
     document.getElementById('job-jobno').value = job['工番'] || '';
     document.getElementById('job-customer').value = job['顧客名'] || '';
@@ -1191,15 +1327,23 @@ const JobModal = {
     document.getElementById('job-draw-date').value = job['出図予定日'] || '';
     document.getElementById('job-status-text').value = job['重要メモ'] || '';
     document.getElementById('job-job-id').value = job.jobId || '';
+    document.getElementById('job-updated-at').value = job.updatedAt || '';
 
     document.getElementById('job-modal-title').textContent = '工番編集';
+    // 編集時はマスター検索エリアを非表示
+    const searchArea = document.getElementById('job-master-search-area');
+    if (searchArea) searchArea.classList.add('hidden');
     this.open();
   },
 
   open() {
     document.getElementById('modal-job').classList.remove('hidden');
     setTimeout(() => {
-      document.getElementById('job-jobno')?.focus();
+      if (!this.isEditMode) {
+        document.getElementById('job-master-search')?.focus();
+      } else {
+        document.getElementById('job-jobno')?.focus();
+      }
     }, 100);
   },
 
@@ -1207,11 +1351,16 @@ const JobModal = {
     document.getElementById('modal-job').classList.add('hidden');
     this.currentJob = null;
     this.isEditMode = false;
+    this.hideSearchResults();
   },
 
   resetForm() {
     document.getElementById('job-form').reset();
     document.getElementById('job-job-id').value = '';
+    document.getElementById('job-updated-at').value = '';
+    const searchInput = document.getElementById('job-master-search');
+    if (searchInput) searchInput.value = '';
+    this.hideSearchResults();
   },
 
   validate() {
@@ -1223,6 +1372,8 @@ const JobModal = {
     const shipDate = document.getElementById('job-ship-date').value;
     const drawDate = document.getElementById('job-draw-date').value;
     const statusText = document.getElementById('job-status-text').value.trim();
+    const mainPersonId = document.getElementById('job-main-person')?.value || '';
+    const subPersonId = document.getElementById('job-sub-person')?.value || '';
 
     if (!jobno) {
       Utils.showToast('工番を入力してください', 'error');
@@ -1257,6 +1408,8 @@ const JobModal = {
       '出荷予定日': shipDate,
       '出図予定日': drawDate,
       '重要メモ': statusText,
+      'mainPersonId': mainPersonId,
+      'subPersonId': subPersonId,
       '状態': '未着手'
     };
   },
@@ -1270,9 +1423,10 @@ const JobModal = {
 
       if (this.isEditMode) {
         const jobId = document.getElementById('job-job-id').value;
+        const expectedUpdatedAt = document.getElementById('job-updated-at').value;
         // 編集時は状態を保持
         payload['状態'] = this.currentJob?.['状態'] || '未着手';
-        const result = await API.updateJob(jobId, payload);
+        const result = await API.updateJob(jobId, payload, expectedUpdatedAt);
         Store.updateJobInStore(jobId, result);
         Utils.showToast('工番を更新しました', 'success');
       } else {
@@ -1286,7 +1440,11 @@ const JobModal = {
     } catch (error) {
       Utils.setLoading(false);
       console.error('Save job failed:', error);
-      Utils.showToast('保存に失敗しました: ' + error.message, 'error');
+      if (error.message?.includes('他のユーザー')) {
+        Utils.showToast('他のユーザーが更新しました。再読み込みしてください。', 'error');
+      } else {
+        Utils.showToast('保存に失敗しました: ' + error.message, 'error');
+      }
     }
   }
 };

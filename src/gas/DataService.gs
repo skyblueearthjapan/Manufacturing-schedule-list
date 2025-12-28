@@ -89,6 +89,8 @@ function createJob(payload) {
 
   // ID採番
   const jobId = Utilities.getUuid();
+  const now = new Date();
+  const currentUser = Session.getActiveUser().getEmail() || 'system';
 
   // 新規行データ作成
   const newRow = headers.map(header => {
@@ -105,6 +107,10 @@ function createJob(payload) {
       case '出図実績日': return payload['出図実績日'] || '';
       case '状態': return payload['状態'] || '未着手';
       case '重要メモ': return payload['重要メモ'] || '';
+      case 'mainPersonId': return payload['mainPersonId'] || '';
+      case 'subPersonId': return payload['subPersonId'] || '';
+      case 'updatedAt': return now;
+      case 'updatedBy': return currentUser;
       default: return '';
     }
   });
@@ -115,8 +121,80 @@ function createJob(payload) {
     jobId,
     ...payload,
     出荷予定日: formatDate(payload['出荷予定日']),
-    出図予定日: formatDate(payload['出図予定日'])
+    出図予定日: formatDate(payload['出図予定日']),
+    updatedAt: formatDateTime(now),
+    updatedBy: currentUser
   };
+}
+
+/**
+ * Job更新
+ * @param {string} jobId
+ * @param {Object} patch
+ * @param {string} expectedUpdatedAt - 競合検知用（任意）
+ * @returns {Object}
+ */
+function updateJob(jobId, patch, expectedUpdatedAt) {
+  const sheet = getSheet(CONFIG.SHEETS.JOBS);
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+
+  // 対象行を検索
+  const jobIdIndex = headers.indexOf('jobId');
+  const updatedAtIndex = headers.indexOf('updatedAt');
+
+  let targetRowIndex = -1;
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][jobIdIndex] === jobId) {
+      targetRowIndex = i;
+      break;
+    }
+  }
+
+  if (targetRowIndex === -1) {
+    throw new Error('指定された工番が見つかりません');
+  }
+
+  // 競合検知（updatedAt列がある場合のみ）
+  if (updatedAtIndex !== -1 && expectedUpdatedAt) {
+    const currentUpdatedAt = formatDateTime(data[targetRowIndex][updatedAtIndex]);
+    if (currentUpdatedAt && currentUpdatedAt !== expectedUpdatedAt) {
+      const error = new Error('他のユーザーが更新しました。最新データを取得してください。');
+      error.code = 409;
+      throw error;
+    }
+  }
+
+  // 更新
+  const now = new Date();
+  const currentUser = Session.getActiveUser().getEmail() || 'system';
+
+  headers.forEach((header, colIndex) => {
+    if (patch.hasOwnProperty(header)) {
+      sheet.getRange(targetRowIndex + 1, colIndex + 1).setValue(patch[header]);
+    }
+  });
+
+  // updatedAt/By更新（列があれば）
+  if (updatedAtIndex !== -1) {
+    sheet.getRange(targetRowIndex + 1, updatedAtIndex + 1).setValue(now);
+  }
+  const updatedByIndex = headers.indexOf('updatedBy');
+  if (updatedByIndex !== -1) {
+    sheet.getRange(targetRowIndex + 1, updatedByIndex + 1).setValue(currentUser);
+  }
+
+  // 更新後データを返す
+  const updatedData = sheet.getRange(targetRowIndex + 1, 1, 1, headers.length).getValues()[0];
+  const result = {};
+  headers.forEach((header, index) => {
+    result[header] = updatedData[index];
+  });
+  result.updatedAt = formatDateTime(now);
+  result.出荷予定日 = formatDate(result['出荷予定日']);
+  result.出図予定日 = formatDate(result['出図予定日']);
+
+  return result;
 }
 
 // ============================================
@@ -451,6 +529,7 @@ function getBootstrapData(rangeStart, days = CONFIG.DEFAULT_DISPLAY_DAYS) {
     schedules: getSchedules(start, end),
     attachments: [], // 初期は空、必要時に取得
     trips: getTrips(start, end),
+    jobMaster: getExternalJobMaster(), // 外部工番マスター
     meta: {
       rangeStart: start,
       rangeEnd: end,
@@ -458,4 +537,105 @@ function getBootstrapData(rangeStart, days = CONFIG.DEFAULT_DISPLAY_DAYS) {
       fetchedAt: new Date().toISOString()
     }
   };
+}
+
+// ============================================
+// External Job Master（外部工番マスター）
+// ============================================
+
+/**
+ * 外部スプレッドシートから工番マスターを同期
+ * 本アプリ側の「外部_工番マスター」シートに丸ごとコピー
+ * @returns {Object} 同期結果
+ */
+function syncExternalJobMaster() {
+  try {
+    // 外部スプレッドシートを開く
+    const externalSs = SpreadsheetApp.openById(CONFIG.EXTERNAL_MASTER_SPREADSHEET_ID);
+    const externalSheet = externalSs.getSheetByName(CONFIG.EXTERNAL_MASTER_SHEET_NAME);
+
+    if (!externalSheet) {
+      throw new Error(`外部シート "${CONFIG.EXTERNAL_MASTER_SHEET_NAME}" が見つかりません`);
+    }
+
+    // 外部データを取得
+    const externalData = externalSheet.getDataRange().getValues();
+    if (externalData.length < 1) {
+      throw new Error('外部工番マスターにデータがありません');
+    }
+
+    // 本アプリ側のシートを取得（なければ作成）
+    const ss = getSpreadsheet();
+    let localSheet = ss.getSheetByName(CONFIG.SHEETS.EXTERNAL_JOB_MASTER);
+
+    if (!localSheet) {
+      localSheet = ss.insertSheet(CONFIG.SHEETS.EXTERNAL_JOB_MASTER);
+    }
+
+    // 既存データをクリアして新データを書き込み
+    localSheet.clearContents();
+    localSheet.getRange(1, 1, externalData.length, externalData[0].length).setValues(externalData);
+
+    const syncResult = {
+      success: true,
+      rowCount: externalData.length - 1, // ヘッダー除く
+      syncedAt: new Date().toISOString()
+    };
+
+    Logger.log('外部工番マスター同期完了: ' + syncResult.rowCount + '件');
+    return syncResult;
+
+  } catch (error) {
+    Logger.log('外部工番マスター同期エラー: ' + error.message);
+    throw error;
+  }
+}
+
+/**
+ * 外部工番マスターを取得
+ * @returns {Object[]}
+ */
+function getExternalJobMaster() {
+  try {
+    const ss = getSpreadsheet();
+    const sheet = ss.getSheetByName(CONFIG.SHEETS.EXTERNAL_JOB_MASTER);
+
+    if (!sheet) {
+      // シートがない場合は空配列を返す（初回同期前）
+      return [];
+    }
+
+    const data = sheet.getDataRange().getValues();
+    return sheetDataToObjects(data);
+  } catch (error) {
+    Logger.log('外部工番マスター取得エラー: ' + error.message);
+    return [];
+  }
+}
+
+/**
+ * 外部工番マスターを検索
+ * @param {string} query - 検索クエリ（工番/客先名/製品名に部分一致）
+ * @param {number} limit - 最大件数
+ * @returns {Object[]}
+ */
+function searchExternalJobMaster(query, limit = 20) {
+  const allData = getExternalJobMaster();
+
+  if (!query || query.trim() === '') {
+    return allData.slice(0, limit);
+  }
+
+  const lowerQuery = query.toLowerCase();
+  const results = allData.filter(item => {
+    const jobNo = String(item['工番'] || '').toLowerCase();
+    const customer = String(item['客先名'] || '').toLowerCase();
+    const product = String(item['製品名'] || '').toLowerCase();
+
+    return jobNo.includes(lowerQuery) ||
+           customer.includes(lowerQuery) ||
+           product.includes(lowerQuery);
+  });
+
+  return results.slice(0, limit);
 }
