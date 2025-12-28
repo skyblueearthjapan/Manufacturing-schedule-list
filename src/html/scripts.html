@@ -214,12 +214,22 @@ const Utils = {
   },
 
   /**
-   * 色が有効かどうかをチェック
+   * 色が有効かどうかをチェック（normalizeColorで変換可能か）
    * @param {string} input
    * @returns {boolean}
    */
   isValidColor(input) {
     return this.normalizeColor(input) !== null;
+  },
+
+  /**
+   * 厳密な#RRGGBB形式かどうかをチェック
+   * @param {string} input
+   * @returns {boolean}
+   */
+  isValidHexColor(input) {
+    if (!input || typeof input !== 'string') return false;
+    return /^#[0-9A-Fa-f]{6}$/.test(input.trim());
   }
 };
 
@@ -501,7 +511,8 @@ const Store = {
   getProcessColor(processId) {
     const process = this.getProcessById(processId);
     const raw = process?.['工程色(colorHex)'];
-    return Utils.normalizeColor(raw) || '#6B7280';
+    // 有効なHex色のみ使用、それ以外はフォールバック
+    return Utils.isValidHexColor(raw) ? raw.toUpperCase() : '#6B7280';
   },
 
   getPersonColor(personId) {
@@ -511,20 +522,7 @@ const Store = {
   },
 
   getBarColor(schedule) {
-    // 優先順位: 工番の主担当者色 > colorModeによる色 > 工程色
-    const job = this.getJobById(schedule.jobId);
-
-    // 工番に主担当者が設定されている場合は、その色を優先
-    if (job?.mainPersonId) {
-      return this.getPersonColor(job.mainPersonId);
-    }
-
-    // colorModeがpersonの場合は、スケジュールの担当者色
-    if (this.state.colorMode === 'person' && schedule.mainPersonId) {
-      return this.getPersonColor(schedule.mainPersonId);
-    }
-
-    // それ以外は工程色
+    // 常に工程色を使用（担当者色ロジックは撤去）
     return this.getProcessColor(schedule.processId);
   },
 
