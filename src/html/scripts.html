@@ -692,6 +692,21 @@ const Gantt = {
       const laneCount = this.jobLaneCounts[job.jobId] || 1;
       const rowHeight = this.getRowHeight(laneCount);
 
+      // 担当者名を取得
+      const mainPerson = job.mainPersonId ? Store.getPersonById(job.mainPersonId) : null;
+      const subPerson = job.subPersonId ? Store.getPersonById(job.subPersonId) : null;
+      const mainPersonName = mainPerson?.['氏名'] || '';
+      const subPersonName = subPerson?.['氏名'] || '';
+
+      // 担当者表示文字列を作成
+      let personDisplay = '';
+      if (mainPersonName || subPersonName) {
+        const parts = [];
+        if (mainPersonName) parts.push(`主）${mainPersonName}`);
+        if (subPersonName) parts.push(`副）${subPersonName}`);
+        personDisplay = `担当：${parts.join(' ')}`;
+      }
+
       html += `
         <div class="job-info-block" data-job-id="${job.jobId}" style="height: ${rowHeight}px; min-height: ${rowHeight}px;" onclick="Gantt.onJobClick('${job.jobId}')">
           <div class="job-info-content">
@@ -720,6 +735,7 @@ const Gantt = {
               <div class="job-info-qty">台数：${job['台数'] || '-'}</div>
               <div class="job-info-ship-date">出荷予定：${shipDate || '-'}</div>
             </div>
+            ${personDisplay ? `<div class="job-info-row4 text-xs text-gray-500 mt-0.5">${Utils.escapeHtml(personDisplay)}</div>` : ''}
           </div>
         </div>
       `;
