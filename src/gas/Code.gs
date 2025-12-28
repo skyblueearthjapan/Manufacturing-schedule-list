@@ -103,8 +103,21 @@ function doPost(e) {
  * クライアントサイドから呼び出し可能なAPI（google.script.run用）
  */
 
+function api_ping() {
+  return { ok: true, at: new Date().toISOString(), version: '2025-12-28-v1' };
+}
+
 function api_getBootstrapData(rangeStart, days) {
-  return getBootstrapData(rangeStart, days);
+  Logger.log('[api_getBootstrapData] called: rangeStart=%s, days=%s', rangeStart, days);
+  try {
+    const result = getBootstrapData(rangeStart, days);
+    Logger.log('[api_getBootstrapData] success: jobs=%s, schedules=%s',
+      result?.jobs?.length || 0, result?.schedules?.length || 0);
+    return result;
+  } catch (e) {
+    Logger.log('[api_getBootstrapData] error: %s', e.message);
+    throw e;
+  }
 }
 
 function api_getSchedules(rangeStart, rangeEnd, filters) {
