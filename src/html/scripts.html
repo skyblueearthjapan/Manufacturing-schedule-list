@@ -809,8 +809,9 @@ const Gantt = {
           ></button>
         `;
       });
-      html += '</div>';
+      // バーは必ず row の内部に配置（row外に出すと全工番に重複表示される）
       html += this.renderBarsForJob(job.jobId, jobSchedulesWithLanes[job.jobId] || []);
+      html += '</div>';
     });
 
     container.innerHTML = html;
