@@ -522,6 +522,14 @@ function getBootstrapData(rangeStart, days = CONFIG.DEFAULT_DISPLAY_DAYS) {
   endDate.setDate(endDate.getDate() + days);
   const end = formatDate(endDate);
 
+  // 外部工番マスターは取得失敗しても続行
+  let jobMaster = [];
+  try {
+    jobMaster = getExternalJobMaster();
+  } catch (e) {
+    Logger.log('外部工番マスター取得をスキップ: ' + e.message);
+  }
+
   return {
     jobs: getAllJobs(),
     processes: getAllProcesses(),
@@ -529,7 +537,7 @@ function getBootstrapData(rangeStart, days = CONFIG.DEFAULT_DISPLAY_DAYS) {
     schedules: getSchedules(start, end),
     attachments: [], // 初期は空、必要時に取得
     trips: getTrips(start, end),
-    jobMaster: getExternalJobMaster(), // 外部工番マスター
+    jobMaster: jobMaster,
     meta: {
       rangeStart: start,
       rangeEnd: end,
