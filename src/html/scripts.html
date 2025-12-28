@@ -2689,9 +2689,15 @@ const App = {
       this.setColorMode('person');
     });
 
-    document.querySelectorAll('.nav-tab').forEach(tab => {
+    const navTabs = document.querySelectorAll('.nav-tab');
+    console.log('[DEBUG] Found nav-tabs:', navTabs.length);
+    navTabs.forEach(tab => {
+      console.log('[DEBUG] Nav tab:', tab.id, 'data-view:', tab.dataset.view);
       tab.addEventListener('click', (e) => {
-        this.switchView(e.target.dataset.view);
+        // e.currentTarget を使用（e.target だと子要素が取れる可能性がある）
+        const view = e.currentTarget.dataset.view;
+        console.log('[DEBUG] Nav tab clicked:', view);
+        this.switchView(view);
       });
     });
 
