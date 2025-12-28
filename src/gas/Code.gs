@@ -103,8 +103,17 @@ function doPost(e) {
  * クライアントサイドから呼び出し可能なAPI（google.script.run用）
  */
 
+/**
+ * DateオブジェクトをISO文字列に変換（google.script.run対応）
+ * @param {*} obj
+ * @returns {*}
+ */
+function sanitizeForClient(obj) {
+  return JSON.parse(JSON.stringify(obj));
+}
+
 function api_ping() {
-  return { ok: true, at: new Date().toISOString(), version: '2025-12-28-v1' };
+  return { ok: true, at: new Date().toISOString(), version: '2025-12-28-v2' };
 }
 
 function api_getBootstrapData(rangeStart, days) {
@@ -113,7 +122,8 @@ function api_getBootstrapData(rangeStart, days) {
     const result = getBootstrapData(rangeStart, days);
     Logger.log('[api_getBootstrapData] success: jobs=%s, schedules=%s',
       result?.jobs?.length || 0, result?.schedules?.length || 0);
-    return result;
+    // Dateオブジェクトをシリアライズしてからクライアントへ返す
+    return sanitizeForClient(result);
   } catch (e) {
     Logger.log('[api_getBootstrapData] error: %s', e.message);
     throw e;
