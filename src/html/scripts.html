@@ -362,7 +362,9 @@ const Store = {
 
   getBarColor(schedule) {
     if (this.state.colorMode === 'person') {
-      return this.getPersonColor(schedule.mainPersonId);
+      // 工番の担当者色を使用
+      const job = this.getJobById(schedule.jobId);
+      return this.getPersonColor(job?.mainPersonId);
     }
     return this.getProcessColor(schedule.processId);
   },
@@ -392,8 +394,17 @@ const Gantt = {
 
   dates: [],
 
+  // ドラッグ範囲選択の状態
+  dragState: {
+    isDragging: false,
+    startJobId: null,
+    startDate: null,
+    endDate: null
+  },
+
   init() {
     this.setupEventListeners();
+    this.attachGridEventListeners(); // イベント委譲は一度だけ設定
     Store.subscribe(() => this.render());
   },
 
@@ -573,7 +584,7 @@ const Gantt = {
 
     container.innerHTML = html;
     container.style.minWidth = `${gridWidth}px`;
-    this.attachGridEventListeners();
+    // イベント委譲はinit()で一度だけ設定するため、ここでは呼ばない
   },
 
   renderBarsForJob(jobId) {
@@ -643,21 +654,111 @@ const Gantt = {
   },
 
   attachGridEventListeners() {
-    document.querySelectorAll('#gantt-grid .gantt-bar, #gantt-grid .gantt-milestone').forEach(el => {
-      el.addEventListener('click', (e) => {
+    const grid = document.getElementById('gantt-grid');
+    if (!grid) return;
+
+    // イベント委譲：#gantt-gridに1回だけリスナーを設定
+
+    // バー・マイルストーンのクリック
+    grid.addEventListener('click', (e) => {
+      const bar = e.target.closest('.gantt-bar, .gantt-milestone');
+      if (bar) {
         e.stopPropagation();
-        const scheduleId = e.currentTarget.dataset.scheduleId;
+        const scheduleId = bar.dataset.scheduleId;
         this.onBarClick(scheduleId);
-      });
+        return;
+      }
     });
 
-    document.querySelectorAll('#gantt-grid .gantt-grid-cell').forEach(cell => {
-      cell.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const jobId = cell.dataset.jobId;
-        const date = cell.dataset.date;
-        this.onCellClick(jobId, date);
-      });
+    // ドラッグ範囲選択：mousedown
+    grid.addEventListener('mousedown', (e) => {
+      // 左クリック以外は無視
+      if (e.button !== 0) return;
+      // バー上でのドラッグは無視
+      if (e.target.closest('.gantt-bar, .gantt-milestone')) return;
+
+      const cell = e.target.closest('.gantt-grid-cell');
+      if (!cell) return;
+
+      e.preventDefault();
+      this.dragState.isDragging = true;
+      this.dragState.startJobId = cell.dataset.jobId;
+      this.dragState.startDate = cell.dataset.date;
+      this.dragState.endDate = cell.dataset.date;
+
+      this.highlightRange();
+    });
+
+    // ドラッグ範囲選択：mousemove
+    grid.addEventListener('mousemove', (e) => {
+      if (!this.dragState.isDragging) return;
+
+      const cell = e.target.closest('.gantt-grid-cell');
+      if (!cell) return;
+
+      // 同じjobId（同じ行）のみ範囲選択可能
+      if (cell.dataset.jobId !== this.dragState.startJobId) return;
+
+      this.dragState.endDate = cell.dataset.date;
+      this.highlightRange();
+    });
+
+    // ドラッグ範囲選択：mouseup
+    grid.addEventListener('mouseup', (e) => {
+      if (!this.dragState.isDragging) return;
+
+      const { startJobId, startDate, endDate } = this.dragState;
+
+      // 範囲確定
+      const rangeStart = startDate <= endDate ? startDate : endDate;
+      const rangeEnd = startDate <= endDate ? endDate : startDate;
+
+      // リセット
+      this.clearHighlight();
+      this.dragState.isDragging = false;
+      this.dragState.startJobId = null;
+      this.dragState.startDate = null;
+      this.dragState.endDate = null;
+
+      // モーダルを開く
+      Modal.openNew(startJobId, rangeStart, rangeEnd);
+    });
+
+    // ドラッグキャンセル：マウスがグリッド外に出た場合
+    grid.addEventListener('mouseleave', (e) => {
+      if (this.dragState.isDragging) {
+        this.clearHighlight();
+        this.dragState.isDragging = false;
+        this.dragState.startJobId = null;
+        this.dragState.startDate = null;
+        this.dragState.endDate = null;
+      }
+    });
+  },
+
+  // 選択範囲をハイライト
+  highlightRange() {
+    this.clearHighlight();
+
+    const { startJobId, startDate, endDate } = this.dragState;
+    if (!startJobId || !startDate || !endDate) return;
+
+    const rangeStart = startDate <= endDate ? startDate : endDate;
+    const rangeEnd = startDate <= endDate ? endDate : startDate;
+
+    const cells = document.querySelectorAll(`#gantt-grid .gantt-grid-cell[data-job-id="${startJobId}"]`);
+    cells.forEach(cell => {
+      const date = cell.dataset.date;
+      if (date >= rangeStart && date <= rangeEnd) {
+        cell.classList.add('selected-range');
+      }
+    });
+  },
+
+  // ハイライトをクリア
+  clearHighlight() {
+    document.querySelectorAll('#gantt-grid .selected-range').forEach(cell => {
+      cell.classList.remove('selected-range');
     });
   },
 
@@ -753,7 +854,30 @@ const Modal = {
     document.getElementById('btn-modal-delete').classList.add('hidden');
 
     this.populateProcessSelect();
-    this.populatePeopleSelect();
+    this.open();
+  },
+
+  // JobDetailからの呼び出し用：工程を事前選択
+  openNewWithProcess(jobId, processId, startDate, endDate) {
+    this.isEditMode = false;
+    this.currentSchedule = null;
+
+    const job = Store.getJobById(jobId);
+    if (!job) {
+      Utils.showToast('工番が見つかりません', 'error');
+      return;
+    }
+
+    this.resetForm();
+    document.getElementById('entry-job').value = job['工番'] || '';
+    document.getElementById('entry-job-id').value = jobId;
+    document.getElementById('entry-start').value = startDate;
+    document.getElementById('entry-end').value = endDate;
+    document.getElementById('modal-title').textContent = '工程登録';
+    document.getElementById('btn-modal-delete').classList.add('hidden');
+
+    this.populateProcessSelect(processId); // 工程を事前選択
+    this.validateProcess(); // マイルストーンチェック等を実行
     this.open();
   },
 
@@ -779,7 +903,6 @@ const Modal = {
     document.getElementById('entry-updated-at').value = schedule.updatedAt || '';
 
     this.populateProcessSelect(schedule.processId);
-    this.populatePeopleSelect(schedule.mainPersonId, schedule.subPersonId);
 
     document.getElementById('modal-title').textContent = '工程編集';
     document.getElementById('btn-modal-delete').classList.remove('hidden');
@@ -816,26 +939,6 @@ const Modal = {
     select.innerHTML = html;
   },
 
-  populatePeopleSelect(mainPersonId = '', subPersonId = '') {
-    const mainSelect = document.getElementById('entry-main-person');
-    const subSelect = document.getElementById('entry-sub-person');
-    const people = Store.state.people;
-
-    let mainHtml = '<option value="">選択してください</option>';
-    let subHtml = '<option value="">なし</option>';
-
-    people.forEach(person => {
-      const mainSelected = person.personId === mainPersonId ? 'selected' : '';
-      const subSelected = person.personId === subPersonId ? 'selected' : '';
-      const dept = person['部署/区分'] ? `（${person['部署/区分']}）` : '';
-      mainHtml += `<option value="${person.personId}" ${mainSelected}>${Utils.escapeHtml(person['氏名'])}${dept}</option>`;
-      subHtml += `<option value="${person.personId}" ${subSelected}>${Utils.escapeHtml(person['氏名'])}${dept}</option>`;
-    });
-
-    mainSelect.innerHTML = mainHtml;
-    subSelect.innerHTML = subHtml;
-  },
-
   validateProcess() {
     const processId = document.getElementById('entry-process').value;
 
@@ -848,16 +951,10 @@ const Modal = {
     const process = Store.getProcessById(processId);
     if (!process) return;
 
+    // マイルストーンの場合は終了日を開始日に合わせる
     if (process['種別(type)'] === 'milestone') {
       const start = document.getElementById('entry-start').value;
       document.getElementById('entry-end').value = start;
-    }
-
-    const subSelect = document.getElementById('entry-sub-person');
-    const allowsSub = process['副担当許可'] === true || process['副担当許可'] === 'TRUE';
-    subSelect.disabled = !allowsSub;
-    if (!allowsSub) {
-      subSelect.value = '';
     }
   },
 
@@ -866,8 +963,6 @@ const Modal = {
     const processId = document.getElementById('entry-process').value;
     const start = document.getElementById('entry-start').value;
     const end = document.getElementById('entry-end').value;
-    const mainPersonId = document.getElementById('entry-main-person').value;
-    const subPersonId = document.getElementById('entry-sub-person').value;
     const label = document.getElementById('entry-label').value;
     const status = document.getElementById('entry-status').value;
     const memo = document.getElementById('entry-memo').value;
@@ -893,18 +988,6 @@ const Modal = {
         Utils.showToast('マイルストーン工程は開始日と終了日を同じにしてください', 'error');
         return null;
       }
-
-      const requiresMain = process['主担当必須'] === true || process['主担当必須'] === 'TRUE';
-      if (requiresMain && !mainPersonId) {
-        Utils.showToast('主担当を選択してください', 'error');
-        return null;
-      }
-
-      const requiresSub = process['副担当必須'] === true || process['副担当必須'] === 'TRUE';
-      if (requiresSub && !subPersonId) {
-        Utils.showToast('副担当を選択してください', 'error');
-        return null;
-      }
     }
 
     return {
@@ -912,8 +995,6 @@ const Modal = {
       processId,
       start,
       end,
-      mainPersonId,
-      subPersonId: subPersonId || '',
       label,
       status,
       memo
@@ -941,6 +1022,11 @@ const Modal = {
 
       Utils.setLoading(false);
       this.close();
+
+      // JobDetailが開いている場合は再描画
+      if (JobDetail.currentJobId) {
+        JobDetail.render();
+      }
     } catch (error) {
       Utils.setLoading(false);
       console.error('Save failed:', error);
@@ -968,6 +1054,11 @@ const Modal = {
       Utils.setLoading(false);
       Utils.showToast('削除しました', 'success');
       this.close();
+
+      // JobDetailが開いている場合は再描画
+      if (JobDetail.currentJobId) {
+        JobDetail.render();
+      }
     } catch (error) {
       Utils.setLoading(false);
       console.error('Delete failed:', error);
@@ -1137,8 +1228,17 @@ const JobDetail = {
     rowHeight: 32
   },
 
+  // ドラッグ範囲選択の状態
+  dragState: {
+    isDragging: false,
+    startProcessId: null,
+    startDate: null,
+    endDate: null
+  },
+
   init() {
     this.setupEventListeners();
+    this.attachGridEventListeners(); // イベント委譲は一度だけ設定
   },
 
   setupEventListeners() {
@@ -1263,11 +1363,11 @@ const JobDetail = {
       const isMilestone = process['種別(type)'] === 'milestone';
 
       html += `
-        <div class="job-process-row">
+        <div class="job-process-row" data-process-id="${process.processId}">
           <div class="job-process-name" style="background-color: ${process['工程色(colorHex)'] || '#6b7280'}20; border-left: 4px solid ${process['工程色(colorHex)'] || '#6b7280'}">
             ${isMilestone ? '★ ' : ''}${Utils.escapeHtml(process['工程名'])}
           </div>
-          <div class="job-process-grid" style="width: ${dates.length * this.config.cellWidth}px">
+          <div class="job-process-grid" data-process-id="${process.processId}" style="width: ${dates.length * this.config.cellWidth}px">
       `;
 
       dates.forEach(date => {
@@ -1277,7 +1377,7 @@ const JobDetail = {
         if (isWeekend) classes += ' weekend';
         if (isToday) classes += ' today';
 
-        html += `<div class="${classes}" style="width: ${this.config.cellWidth}px"></div>`;
+        html += `<div class="${classes}" data-date="${date}" style="width: ${this.config.cellWidth}px"></div>`;
       });
 
       processSchedules.forEach(schedule => {
@@ -1367,6 +1467,112 @@ const JobDetail = {
     this.config.displayStartDate = document.getElementById('job-detail-start').value;
     this.config.displayDays = parseInt(document.getElementById('job-detail-days').value, 10);
     this.render();
+  },
+
+  // イベント委譲：#job-detail-bodyに1回だけリスナーを設定
+  attachGridEventListeners() {
+    const body = document.getElementById('job-detail-body');
+    if (!body) return;
+
+    // ドラッグ範囲選択：mousedown
+    body.addEventListener('mousedown', (e) => {
+      // 左クリック以外は無視
+      if (e.button !== 0) return;
+      // バー上でのドラッグは無視
+      if (e.target.closest('.job-bar, .job-milestone')) return;
+
+      const cell = e.target.closest('.job-grid-cell');
+      if (!cell) return;
+
+      // 親の .job-process-grid から processId を取得
+      const grid = cell.closest('.job-process-grid');
+      if (!grid) return;
+
+      e.preventDefault();
+      this.dragState.isDragging = true;
+      this.dragState.startProcessId = grid.dataset.processId;
+      this.dragState.startDate = cell.dataset.date;
+      this.dragState.endDate = cell.dataset.date;
+
+      this.highlightRange();
+    });
+
+    // ドラッグ範囲選択：mousemove
+    body.addEventListener('mousemove', (e) => {
+      if (!this.dragState.isDragging) return;
+
+      const cell = e.target.closest('.job-grid-cell');
+      if (!cell) return;
+
+      // 同じ工程行のみ範囲選択可能
+      const grid = cell.closest('.job-process-grid');
+      if (!grid || grid.dataset.processId !== this.dragState.startProcessId) return;
+
+      this.dragState.endDate = cell.dataset.date;
+      this.highlightRange();
+    });
+
+    // ドラッグ範囲選択：mouseup
+    body.addEventListener('mouseup', (e) => {
+      if (!this.dragState.isDragging) return;
+
+      const { startProcessId, startDate, endDate } = this.dragState;
+      const jobId = this.currentJobId;
+
+      // 範囲確定
+      const rangeStart = startDate <= endDate ? startDate : endDate;
+      const rangeEnd = startDate <= endDate ? endDate : startDate;
+
+      // リセット
+      this.clearHighlight();
+      this.dragState.isDragging = false;
+      this.dragState.startProcessId = null;
+      this.dragState.startDate = null;
+      this.dragState.endDate = null;
+
+      // モーダルを開く（工程を事前選択）
+      Modal.openNewWithProcess(jobId, startProcessId, rangeStart, rangeEnd);
+    });
+
+    // ドラッグキャンセル：マウスがグリッド外に出た場合
+    body.addEventListener('mouseleave', (e) => {
+      if (this.dragState.isDragging) {
+        this.clearHighlight();
+        this.dragState.isDragging = false;
+        this.dragState.startProcessId = null;
+        this.dragState.startDate = null;
+        this.dragState.endDate = null;
+      }
+    });
+  },
+
+  // 選択範囲をハイライト
+  highlightRange() {
+    this.clearHighlight();
+
+    const { startProcessId, startDate, endDate } = this.dragState;
+    if (!startProcessId || !startDate || !endDate) return;
+
+    const rangeStart = startDate <= endDate ? startDate : endDate;
+    const rangeEnd = startDate <= endDate ? endDate : startDate;
+
+    const grid = document.querySelector(`#job-detail-body .job-process-grid[data-process-id="${startProcessId}"]`);
+    if (!grid) return;
+
+    const cells = grid.querySelectorAll('.job-grid-cell');
+    cells.forEach(cell => {
+      const date = cell.dataset.date;
+      if (date >= rangeStart && date <= rangeEnd) {
+        cell.classList.add('selected-range');
+      }
+    });
+  },
+
+  // ハイライトをクリア
+  clearHighlight() {
+    document.querySelectorAll('#job-detail-body .selected-range').forEach(cell => {
+      cell.classList.remove('selected-range');
+    });
   },
 
   print() {
