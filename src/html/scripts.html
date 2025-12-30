@@ -62,6 +62,19 @@ const Utils = {
     return new Date(dateStr).getDate();
   },
 
+  formatShortDate(dateStr) {
+    if (!dateStr) return '';
+    const match = dateStr.match(/(\d{4})-(\d{2})-(\d{2})/);
+    if (match) {
+      return `${parseInt(match[2])}/${parseInt(match[3])}`;
+    }
+    const match2 = dateStr.match(/(\d{1,2})\/(\d{1,2})/);
+    if (match2) {
+      return `${match2[1]}/${match2[2]}`;
+    }
+    return dateStr;
+  },
+
   generateDateRange(startDate, days) {
     const dates = [];
     for (let i = 0; i < days; i++) {
@@ -2397,7 +2410,7 @@ const ResourceView = {
 console.log('[DEBUG] ResourceView defined');
 
 // ========================================
-// WeeklyPlan - 今週の予定
+// WeeklyPlan - 今週の予定（週刊重要工程形式）
 // ========================================
 
 const WeeklyPlan = {
@@ -2450,22 +2463,125 @@ const WeeklyPlan = {
     this.render();
   },
 
-  render() {
+  /**
+   * 重要工程かどうかを判定
+   * - 種別(type) === 'milestone' の工程は重要
+   * - 重要(isImportant) === true の工程も重要
+   * - 将来的には ProcessMaster の重要フラグで判定
+   */
+  isImportantProcess(process) {
+    if (!process) return false;
+    // milestone は重要工程として扱う（★立会、出荷、据付など）
+    if (process['種別(type)'] === 'milestone') return true;
+    // 重要フラグがあればそれも使用
+    if (process['重要(isImportant)'] === true || process['重要(isImportant)'] === 'TRUE') return true;
+    return false;
+  },
+
+  /**
+   * 週間データを構築（重要工程のみ抽出）
+   */
+  buildImportantWeekRows() {
+    const { schedules, jobs, processes } = Store.state;
     const weekEnd = this.getWeekEnd(this.weekStart);
-    const { schedules, trips, people, jobs, processes } = Store.state;
+    const dates = Utils.generateDateRange(this.weekStart, 7);
 
+    // 重要工程の processId を収集
+    const importantProcessIds = new Set(
+      processes.filter(p => this.isImportantProcess(p)).map(p => p.processId)
+    );
+
+    // この週にかかるスケジュールを抽出（重要工程のみ）
     const weekSchedules = schedules.filter(s =>
-      s.end >= this.weekStart && s.start <= weekEnd
+      s.end >= this.weekStart &&
+      s.start <= weekEnd &&
+      importantProcessIds.has(s.processId)
     );
 
-    const weekTrips = trips.filter(t =>
-      t.end >= this.weekStart && t.start <= weekEnd
-    );
+    // jobId ごとにグループ化
+    const jobScheduleMap = new Map();
+    weekSchedules.forEach(schedule => {
+      if (!jobScheduleMap.has(schedule.jobId)) {
+        jobScheduleMap.set(schedule.jobId, []);
+      }
+      jobScheduleMap.get(schedule.jobId).push(schedule);
+    });
 
-    const dailyItems = this.buildDailyItems(weekSchedules, weekTrips, this.weekStart);
+    // 重要工程がある工番だけを rows として構築
+    const rows = [];
+    jobScheduleMap.forEach((jobSchedules, jobId) => {
+      const job = Store.getJobById(jobId);
+      if (!job) return;
 
+      // 曜日ごとの工程名を収集
+      const dayCells = dates.map(date => {
+        const dayProcesses = [];
+        jobSchedules.forEach(schedule => {
+          if (date >= schedule.start && date <= schedule.end) {
+            const process = Store.getProcessById(schedule.processId);
+            if (process) {
+              dayProcesses.push({
+                name: process['工程名'] || '',
+                color: Utils.normalizeColor(process['工程色(colorHex)']) || '#6B7280',
+                label: schedule.label || ''
+              });
+            }
+          }
+        });
+        return dayProcesses;
+      });
+
+      rows.push({
+        jobId,
+        job,
+        dayCells
+      });
+    });
+
+    // 工番順でソート（出荷予定日が近い順）
+    rows.sort((a, b) => {
+      const dateA = a.job['出荷予定日'] || '9999-12-31';
+      const dateB = b.job['出荷予定日'] || '9999-12-31';
+      return dateA.localeCompare(dateB);
+    });
+
+    return { rows, dates };
+  },
+
+  /**
+   * 工番情報セル（3行固定）を生成
+   */
+  buildJobInfoCell(job) {
+    const jobNo = job['工番'] || '';
+    const product = job['設備/製品名'] || '';
+    const qty = job['台数'] || '';
+    const customer = job['顧客名'] || '';
+    const drawDate = job['出図予定日'] ? Utils.formatShortDate(job['出図予定日']) : '';
+    const shipDate = job['出荷予定日'] ? Utils.formatShortDate(job['出荷予定日']) : '';
+
+    // 1行目: 工番 製品名（台数）
+    const line1 = `${jobNo}　${product}${qty ? '（' + qty + '）' : ''}`;
+
+    // 2行目: 顧客名
+    const line2 = customer ? `顧客：${customer}` : '';
+
+    // 3行目: 出図/出荷予定日
+    let line3Parts = [];
+    if (drawDate) line3Parts.push(`出図：${drawDate}`);
+    if (shipDate) line3Parts.push(`出荷：${shipDate}`);
+    const line3 = line3Parts.join('　');
+
+    return `
+      <div class="job-line1">${Utils.escapeHtml(line1)}</div>
+      ${line2 ? `<div class="job-line2">${Utils.escapeHtml(line2)}</div>` : ''}
+      ${line3 ? `<div class="job-line3">${Utils.escapeHtml(line3)}</div>` : ''}
+    `;
+  },
+
+  render() {
     this.updateHeader();
-    this.renderTable(dailyItems);
+    this.renderDateRow();
+    this.renderTable();
   },
 
   updateHeader() {
@@ -2481,144 +2597,99 @@ const WeeklyPlan = {
     document.getElementById('weekly-start-date').value = this.weekStart;
   },
 
-  buildDailyItems(schedules, trips, weekStart) {
-    const items = [];
-    const dates = Utils.generateDateRange(weekStart, 7);
+  renderDateRow() {
+    const dates = Utils.generateDateRange(this.weekStart, 7);
+    const today = Utils.getToday();
+    const dateRow = document.getElementById('weekly-date-row');
+    if (!dateRow) return;
 
-    schedules.forEach(schedule => {
-      const job = Store.getJobById(schedule.jobId);
-      const process = Store.getProcessById(schedule.processId);
-      const mainPerson = Store.getPersonById(schedule.mainPersonId);
-      const isMilestone = process?.['種別(type)'] === 'milestone';
+    let html = '<th></th>'; // 工番情報列の空セル
+    dates.forEach((date, index) => {
+      const isWeekend = index >= 5; // 土日
+      const isToday = date === today;
+      const weekendClass = isWeekend ? 'weekend' : '';
+      const todayClass = isToday ? 'today' : '';
 
-      dates.forEach(date => {
-        if (date >= schedule.start && date <= schedule.end) {
-          items.push({
-            type: isMilestone ? 'milestone' : 'schedule',
-            date: date,
-            personName: mainPerson?.['氏名'] || '-',
-            personId: schedule.mainPersonId,
-            jobNo: job?.['工番'] || '-',
-            processName: process?.['工程名'] || '-',
-            content: schedule.label || '',
-            location: job?.['納入先'] || '',
-            color: process?.['工程色(colorHex)'] || '#6b7280'
-          });
-        }
-      });
+      html += `<th class="${weekendClass} ${todayClass}">${Utils.getMonth(date)}/${Utils.getDay(date)}</th>`;
     });
 
-    trips.forEach(trip => {
-      const person = Store.getPersonById(trip.personId);
-      const job = trip.jobId ? Store.getJobById(trip.jobId) : null;
-
-      dates.forEach(date => {
-        if (date >= trip.start && date <= trip.end) {
-          items.push({
-            type: 'trip',
-            date: date,
-            personName: person?.['氏名'] || '-',
-            personId: trip.personId,
-            jobNo: job?.['工番'] || '-',
-            processName: '出張',
-            content: trip['用件'] || '',
-            location: trip['行先'] || '',
-            color: '#f59e0b'
-          });
-        }
-      });
-    });
-
-    items.sort((a, b) => {
-      if (a.date !== b.date) return a.date.localeCompare(b.date);
-      return a.personName.localeCompare(b.personName);
-    });
-
-    return items;
+    dateRow.innerHTML = html;
   },
 
-  renderTable(items) {
+  renderTable() {
     const tbody = document.getElementById('weekly-tbody');
     if (!tbody) return;
 
+    const { rows, dates } = this.buildImportantWeekRows();
     const today = Utils.getToday();
 
-    if (items.length === 0) {
+    if (rows.length === 0) {
       tbody.innerHTML = `
-        <tr>
-          <td colspan="7" class="text-center text-gray-500 py-8">
-            この週の予定はありません
-          </td>
+        <tr class="weekly-empty-row">
+          <td colspan="8">この週に重要工程（★）がある工番はありません</td>
         </tr>
       `;
       return;
     }
 
     let html = '';
-    let currentDate = '';
+    rows.forEach(row => {
+      html += '<tr>';
 
-    items.forEach((item, index) => {
-      const isNewDate = item.date !== currentDate;
-      currentDate = item.date;
+      // 工番情報セル（3行固定）
+      html += `<td class="weekly-job-cell">${this.buildJobInfoCell(row.job)}</td>`;
 
-      const isToday = item.date === today;
-      const rowClass = isToday ? 'bg-blue-50' : (index % 2 === 0 ? 'bg-white' : 'bg-gray-50');
+      // 曜日セル（月〜日）
+      row.dayCells.forEach((dayProcesses, index) => {
+        const date = dates[index];
+        const isWeekend = index >= 5;
+        const isToday = date === today;
+        let cellClass = 'weekly-day-cell';
+        if (isWeekend) cellClass += ' weekend';
+        if (isToday) cellClass += ' today';
 
-      const typeIcon = item.type === 'trip' ? '🚗' : (item.type === 'milestone' ? '★' : '📋');
-      const typeLabel = item.type === 'trip' ? '出張' : (item.type === 'milestone' ? '立会等' : '工程');
+        let cellContent = '';
+        if (dayProcesses.length > 0) {
+          // 同日に複数の重要工程がある場合は "/" で区切る
+          if (dayProcesses.length === 1) {
+            const p = dayProcesses[0];
+            cellContent = `<span class="weekly-process-tag" style="background-color: ${p.color};" title="${p.name}${p.label ? ' - ' + p.label : ''}">${Utils.escapeHtml(p.name)}</span>`;
+          } else {
+            // 複数の場合：名前を "/" で結合、色は最初の工程の色を使用
+            const names = dayProcesses.map(p => p.name).join(' / ');
+            const firstColor = dayProcesses[0].color;
+            cellContent = `<span class="weekly-process-tag" style="background-color: ${firstColor};" title="${names}">${Utils.escapeHtml(names)}</span>`;
+          }
+        }
 
-      html += `
-        <tr class="${rowClass} hover:bg-gray-100 transition-colors">
-          <td class="px-3 py-2 text-sm font-medium ${isToday ? 'text-blue-600' : ''}">
-            ${isNewDate ? `
-              <div>${Utils.getMonth(item.date)}/${Utils.getDay(item.date)}</div>
-              <div class="text-xs text-gray-500">${Utils.getDayOfWeek(item.date)}</div>
-            ` : ''}
-          </td>
-          <td class="px-3 py-2">
-            <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium"
-                  style="background-color: ${Utils.withAlpha(item.color, '20')}; color: ${Utils.normalizeColor(item.color) || '#6B7280'}; border: 1px solid ${Utils.withAlpha(item.color, '40')}">
-              ${typeIcon} ${typeLabel}
-            </span>
-          </td>
-          <td class="px-3 py-2 text-sm">${Utils.escapeHtml(item.personName)}</td>
-          <td class="px-3 py-2 text-sm font-mono">${Utils.escapeHtml(item.jobNo)}</td>
-          <td class="px-3 py-2 text-sm">${Utils.escapeHtml(item.processName)}</td>
-          <td class="px-3 py-2 text-sm">${Utils.escapeHtml(item.content)}</td>
-          <td class="px-3 py-2 text-sm text-gray-600">${Utils.escapeHtml(item.location)}</td>
-        </tr>
-      `;
+        html += `<td class="${cellClass}">${cellContent}</td>`;
+      });
+
+      html += '</tr>';
     });
 
     tbody.innerHTML = html;
   },
 
   exportCSV() {
-    const weekEnd = this.getWeekEnd(this.weekStart);
-    const { schedules, trips } = Store.state;
+    const { rows, dates } = this.buildImportantWeekRows();
 
-    const weekSchedules = schedules.filter(s =>
-      s.end >= this.weekStart && s.start <= weekEnd
-    );
+    const headers = ['工番', '製品名', '顧客名', '出荷予定日', '月', '火', '水', '木', '金', '土', '日'];
+    const csvRows = rows.map(row => {
+      const job = row.job;
+      const dayCells = row.dayCells.map(dayProcesses =>
+        dayProcesses.map(p => p.name).join(' / ')
+      );
+      return [
+        job['工番'] || '',
+        job['設備/製品名'] || '',
+        job['顧客名'] || '',
+        job['出荷予定日'] || '',
+        ...dayCells
+      ];
+    });
 
-    const weekTrips = trips.filter(t =>
-      t.end >= this.weekStart && t.start <= weekEnd
-    );
-
-    const items = this.buildDailyItems(weekSchedules, weekTrips, this.weekStart);
-
-    const headers = ['日付', '種別', '作業者', '工番', '工程', '内容/ラベル', '場所/備考'];
-    const rows = items.map(item => [
-      item.date,
-      item.type === 'trip' ? '出張' : (item.type === 'milestone' ? '立会等' : '工程'),
-      item.personName,
-      item.jobNo,
-      item.processName,
-      item.content,
-      item.location
-    ]);
-
-    const csv = [headers, ...rows]
+    const csv = [headers, ...csvRows]
       .map(row => row.map(cell => `"${(cell || '').replace(/"/g, '""')}"`).join(','))
       .join('\n');
 
@@ -2628,7 +2699,7 @@ const WeeklyPlan = {
 
     const a = document.createElement('a');
     a.href = url;
-    a.download = `週次予定_${this.weekStart}.csv`;
+    a.download = `週刊重要工程_${this.weekStart}.csv`;
     a.click();
 
     URL.revokeObjectURL(url);

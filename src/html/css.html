@@ -1249,4 +1249,125 @@
       font-size: 9px;
     }
   }
+
+  /* ========================================
+     WeeklyPlan - 週刊重要工程テーブル
+     ======================================== */
+  .weekly-important-table {
+    border-collapse: collapse;
+    table-layout: fixed;
+  }
+
+  .weekly-th-job {
+    width: 280px;
+    min-width: 280px;
+    padding: 12px 16px;
+    text-align: left;
+    font-size: 12px;
+    font-weight: 600;
+    color: #374151;
+    border-bottom: 2px solid #e5e7eb;
+    border-right: 1px solid #e5e7eb;
+    background: linear-gradient(to bottom, #f8fafc, #f1f5f9);
+  }
+
+  .weekly-th-day {
+    width: calc((100% - 280px) / 7);
+    min-width: 100px;
+    padding: 8px 4px;
+    text-align: center;
+    font-size: 13px;
+    font-weight: 600;
+    color: #374151;
+    border-bottom: 2px solid #e5e7eb;
+    border-right: 1px solid #e5e7eb;
+    background: linear-gradient(to bottom, #f8fafc, #f1f5f9);
+  }
+
+  .weekly-th-day:last-child {
+    border-right: none;
+  }
+
+  .weekly-th-day.weekend {
+    background: linear-gradient(to bottom, #fef9c3, #fef3c7);
+    color: #92400e;
+  }
+
+  #weekly-date-row th {
+    padding: 4px;
+    text-align: center;
+    font-weight: 500;
+    border-bottom: 1px solid #e5e7eb;
+    border-right: 1px solid #e5e7eb;
+  }
+
+  #weekly-date-row th:last-child {
+    border-right: none;
+  }
+
+  .weekly-job-cell {
+    padding: 10px 12px;
+    vertical-align: top;
+    border-bottom: 1px solid #e5e7eb;
+    border-right: 1px solid #e5e7eb;
+    background: #f8fafc;
+    font-size: 11px;
+    line-height: 1.4;
+  }
+
+  .weekly-job-cell .job-line1 {
+    font-weight: 600;
+    color: #0f172a;
+    margin-bottom: 2px;
+  }
+
+  .weekly-job-cell .job-line2 {
+    color: #475569;
+    margin-bottom: 2px;
+  }
+
+  .weekly-job-cell .job-line3 {
+    color: #64748b;
+    font-size: 10px;
+  }
+
+  .weekly-day-cell {
+    padding: 8px 6px;
+    vertical-align: middle;
+    text-align: center;
+    border-bottom: 1px solid #e5e7eb;
+    border-right: 1px solid #e5e7eb;
+    font-size: 11px;
+    color: #1f2937;
+    min-height: 60px;
+  }
+
+  .weekly-day-cell:last-child {
+    border-right: none;
+  }
+
+  .weekly-day-cell.weekend {
+    background-color: #fef9c3;
+  }
+
+  .weekly-day-cell.today {
+    background-color: #dbeafe;
+  }
+
+  .weekly-process-tag {
+    display: inline-block;
+    padding: 3px 8px;
+    margin: 2px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    color: white;
+    white-space: nowrap;
+  }
+
+  .weekly-empty-row td {
+    text-align: center;
+    padding: 24px;
+    color: #9ca3af;
+  }
 </style>

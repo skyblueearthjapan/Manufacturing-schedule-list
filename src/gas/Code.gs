@@ -113,7 +113,7 @@ function sanitizeForClient(obj) {
 }
 
 function api_ping() {
-  return { ok: true, at: new Date().toISOString(), version: '2025-12-28-v5' };
+  return { ok: true, at: new Date().toISOString(), version: '2025-12-30-v1' };
 }
 
 function api_getBootstrapData(rangeStart, days) {

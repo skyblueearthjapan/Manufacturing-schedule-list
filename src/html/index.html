@@ -171,7 +171,7 @@
       </div>
     </div>
 
-    <!-- WeeklyPlanView（今週の予定） -->
+    <!-- WeeklyPlanView（今週の予定 - 週刊重要工程形式） -->
     <div id="view-weekly" class="view-container hidden">
       <div class="weekly-container p-4">
         <!-- ヘッダー -->
@@ -203,18 +203,23 @@
           </button>
         </div>
 
-        <!-- テーブル -->
+        <!-- 週間重要工程テーブル -->
         <div class="bg-white rounded-lg shadow overflow-hidden">
-          <table class="w-full">
+          <table class="w-full weekly-important-table">
             <thead class="bg-gray-100">
               <tr>
-                <th class="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase w-20">日付</th>
-                <th class="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase w-24">種別</th>
-                <th class="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase w-28">作業者</th>
-                <th class="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase w-24">工番</th>
-                <th class="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase w-32">工程</th>
-                <th class="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase">内容/ラベル</th>
-                <th class="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase w-40">場所/備考</th>
+                <th class="weekly-th-job">工番情報</th>
+                <th class="weekly-th-day">月</th>
+                <th class="weekly-th-day">火</th>
+                <th class="weekly-th-day">水</th>
+                <th class="weekly-th-day">木</th>
+                <th class="weekly-th-day">金</th>
+                <th class="weekly-th-day weekend">土</th>
+                <th class="weekly-th-day weekend">日</th>
+              </tr>
+              <tr id="weekly-date-row" class="bg-gray-50 text-xs text-gray-500">
+                <th></th>
+                <!-- JSで日付を埋める -->
               </tr>
             </thead>
             <tbody id="weekly-tbody">
