@@ -211,6 +211,12 @@ function getAllProcesses(includeInactive = false) {
   const data = sheet.getDataRange().getValues();
   let processes = sheetDataToObjects(data);
 
+  // isWeekly を boolean に正規化
+  processes = processes.map(p => ({
+    ...p,
+    isWeekly: p['重要（isWeekly）'] === true || p['重要（isWeekly）'] === 'TRUE' || p['重要（isWeekly）'] === 'true'
+  }));
+
   if (!includeInactive) {
     processes = processes.filter(p => p['有効(isActive)'] === true || p['有効(isActive)'] === 'TRUE');
   }

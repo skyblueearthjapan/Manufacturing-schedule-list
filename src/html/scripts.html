@@ -544,6 +544,29 @@ const Store = {
     return process?.['種別(type)'] === 'milestone';
   },
 
+  /**
+   * 工程が重要工程（isWeekly）かどうかを判定
+   */
+  isImportantProcess(processId) {
+    const process = this.getProcessById(processId);
+    return process?.isWeekly === true;
+  },
+
+  /**
+   * 工程の表示名を取得（isWeekly=true なら ★ を付ける）
+   * ★の二重付与を防止
+   */
+  getProcessDisplayName(processId) {
+    const process = this.getProcessById(processId);
+    if (!process) return '';
+    const name = process['工程名'] || '';
+    // isWeekly=true かつ、まだ★が付いていなければ★を付ける
+    if (process.isWeekly && !name.startsWith('★')) {
+      return `★${name}`;
+    }
+    return name;
+  },
+
   hasAttachments(jobId) {
     return this.state.attachments.some(a => a.jobId === jobId);
   }
@@ -861,8 +884,7 @@ const Gantt = {
     const left = Math.max(0, startOffset) * this.config.cellWidth;
     const width = Math.min(duration, this.dates.length - startOffset) * this.config.cellWidth - 4;
     const color = Store.getBarColor(schedule);
-    const process = Store.getProcessById(schedule.processId);
-    const processName = process?.['工程名'] || '';
+    const processName = Store.getProcessDisplayName(schedule.processId);
     const label = schedule.label || '';
 
     // レーンに応じたtop位置を計算
@@ -888,8 +910,7 @@ const Gantt = {
     }
 
     const left = startOffset * this.config.cellWidth + (this.config.cellWidth / 2) - 12;
-    const process = Store.getProcessById(schedule.processId);
-    const processName = process?.['工程名'] || '';
+    const processName = Store.getProcessDisplayName(schedule.processId);
 
     // レーンに応じたtop位置を計算
     const lane = schedule._lane || 0;
@@ -1184,8 +1205,8 @@ const Modal = {
     let html = '<option value="">選択してください</option>';
     processes.forEach(process => {
       const selected = process.processId === selectedId ? 'selected' : '';
-      const type = process['種別(type)'] === 'milestone' ? '★' : '';
-      html += `<option value="${process.processId}" ${selected}>${type}${Utils.escapeHtml(process['工程名'])}</option>`;
+      const displayName = Store.getProcessDisplayName(process.processId);
+      html += `<option value="${process.processId}" ${selected}>${Utils.escapeHtml(displayName)}</option>`;
     });
     html += '<option value="__new__">＋ 新しい工程を追加</option>';
     select.innerHTML = html;
@@ -1975,11 +1996,12 @@ const JobDetail = {
       const processSchedules = schedules.filter(s => s.processId === process.processId);
       const isMilestone = process['種別(type)'] === 'milestone';
       const processColor = Utils.normalizeColor(process['工程色(colorHex)']) || '#6B7280';
+      const processDisplayName = Store.getProcessDisplayName(process.processId);
 
       html += `
         <div class="job-process-row" data-process-id="${process.processId}">
           <div class="job-process-name" style="background-color: ${Utils.withAlpha(processColor, '20')}; border-left: 4px solid ${processColor}">
-            ${isMilestone ? '★ ' : ''}${Utils.escapeHtml(process['工程名'])}
+            ${Utils.escapeHtml(processDisplayName)}
           </div>
           <div class="job-process-grid" data-process-id="${process.processId}" style="width: ${dates.length * this.config.cellWidth}px">
       `;
@@ -2358,7 +2380,7 @@ const ResourceView = {
     const job = Store.getJobById(schedule.jobId);
     const process = Store.getProcessById(schedule.processId);
     const jobNo = job?.['工番'] || '';
-    const processName = process?.['工程名'] || '';
+    const processName = Store.getProcessDisplayName(schedule.processId);
     const isMilestone = process?.['種別(type)'] === 'milestone';
 
     if (isMilestone) {
@@ -2465,17 +2487,12 @@ const WeeklyPlan = {
 
   /**
    * 重要工程かどうかを判定
-   * - 種別(type) === 'milestone' の工程は重要
-   * - 重要(isImportant) === true の工程も重要
-   * - 将来的には ProcessMaster の重要フラグで判定
+   * ProcessMaster の isWeekly フラグで判定
    */
   isImportantProcess(process) {
     if (!process) return false;
-    // milestone は重要工程として扱う（★立会、出荷、据付など）
-    if (process['種別(type)'] === 'milestone') return true;
-    // 重要フラグがあればそれも使用
-    if (process['重要(isImportant)'] === true || process['重要(isImportant)'] === 'TRUE') return true;
-    return false;
+    // isWeekly が true の工程のみを重要工程として扱う
+    return process.isWeekly === true;
   },
 
   /**
@@ -2521,7 +2538,7 @@ const WeeklyPlan = {
             const process = Store.getProcessById(schedule.processId);
             if (process) {
               dayProcesses.push({
-                name: process['工程名'] || '',
+                name: Store.getProcessDisplayName(schedule.processId),
                 color: Utils.normalizeColor(process['工程色(colorHex)']) || '#6B7280',
                 label: schedule.label || ''
               });
