@@ -1213,6 +1213,38 @@ function getAllWorkerJobAssigns(activeOnly = true) {
 // ============================================
 
 /**
+ * TopMemo用ヘッダーを正規化（日本語説明文を除去）
+ * 例: "memoId（または固定で自動生成）" → "memoId"
+ * @param {string} header - 元のヘッダー名
+ * @returns {string} - 正規化されたヘッダー名
+ */
+function normalizeTopMemoHeader(header) {
+  if (!header || typeof header !== 'string') return header;
+  // 括弧以降を削除、または最初の英単語を抽出
+  const match = header.match(/^([a-zA-Z]+)/);
+  return match ? match[1] : header;
+}
+
+/**
+ * TopMemoシートデータをオブジェクト配列に変換（ヘッダー正規化対応）
+ * @param {Array[]} data - シートデータ（[headers, ...rows]）
+ * @returns {Object[]}
+ */
+function topMemoSheetDataToObjects(data) {
+  if (!data || data.length < 2) return [];
+  const rawHeaders = data[0];
+  const headers = rawHeaders.map(h => normalizeTopMemoHeader(h));
+
+  return data.slice(1).map(row => {
+    const obj = {};
+    headers.forEach((header, index) => {
+      obj[header] = row[index];
+    });
+    return obj;
+  });
+}
+
+/**
  * TopMemoを取得（scope=globalに正規化）
  * @param {string} scope - 入力されてもglobalに強制
  * @returns {Object[]}
@@ -1221,7 +1253,8 @@ function getTopMemos(scope = 'global') {
   try {
     const sheet = getSheet(CONFIG.SHEETS.TOP_MEMO);
     const data = sheet.getDataRange().getValues();
-    let memos = sheetDataToObjects(data);
+    // 日本語説明付きヘッダーに対応するため専用関数を使用
+    let memos = topMemoSheetDataToObjects(data);
 
     // boolean変換・正規化
     memos = memos.map(m => ({
@@ -1247,6 +1280,22 @@ function getTopMemos(scope = 'global') {
 }
 
 /**
+ * TopMemo用ヘッダーからカラムインデックスを取得（正規化対応）
+ * @param {string[]} headers - 元のヘッダー配列
+ * @param {string} fieldName - 検索するフィールド名
+ * @returns {number} - カラムインデックス（-1: 見つからない）
+ */
+function findTopMemoColumnIndex(headers, fieldName) {
+  for (let i = 0; i < headers.length; i++) {
+    const normalized = normalizeTopMemoHeader(headers[i]);
+    if (normalized === fieldName) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+/**
  * TopMemoを作成または更新（Upsert）
  * @param {Object} payload - { memoId?, title, body, isActive?, sortOrder? }
  * @returns {Object}
@@ -1265,7 +1314,7 @@ function upsertTopMemo(payload) {
 
     // デフォルトのsortOrderを算出（既存最大+10）
     let maxOrder = 0;
-    const sortOrderCol = headers.indexOf('sortOrder');
+    const sortOrderCol = findTopMemoColumnIndex(headers, 'sortOrder');
     if (sortOrderCol !== -1) {
       for (let i = 1; i < data.length; i++) {
         const order = Number(data[i][sortOrderCol]) || 0;
@@ -1274,9 +1323,10 @@ function upsertTopMemo(payload) {
     }
     const sortOrder = payload.sortOrder !== undefined ? payload.sortOrder : maxOrder + 10;
 
-    // 新規行データ作成
+    // 新規行データ作成（正規化されたヘッダーでマッチング）
     const newRow = headers.map(header => {
-      switch (header) {
+      const normalizedHeader = normalizeTopMemoHeader(header);
+      switch (normalizedHeader) {
         case 'memoId': return memoId;
         case 'scope': return 'global'; // 常にglobal
         case 'title': return payload.title || '';
@@ -1306,7 +1356,7 @@ function upsertTopMemo(payload) {
   }
 
   // 既存メモの更新
-  const memoIdCol = headers.indexOf('memoId');
+  const memoIdCol = findTopMemoColumnIndex(headers, 'memoId');
   if (memoIdCol === -1) {
     throw new Error('memoIdカラムが見つかりません');
   }
@@ -1328,7 +1378,7 @@ function upsertTopMemo(payload) {
 
   updatableFields.forEach(field => {
     if (payload.hasOwnProperty(field)) {
-      const colIndex = headers.indexOf(field);
+      const colIndex = findTopMemoColumnIndex(headers, field);
       if (colIndex !== -1) {
         sheet.getRange(rowIndex, colIndex + 1).setValue(payload[field]);
       }
@@ -1336,8 +1386,8 @@ function upsertTopMemo(payload) {
   });
 
   // updatedAt, updatedBy を更新
-  const updatedAtCol = headers.indexOf('updatedAt');
-  const updatedByCol = headers.indexOf('updatedBy');
+  const updatedAtCol = findTopMemoColumnIndex(headers, 'updatedAt');
+  const updatedByCol = findTopMemoColumnIndex(headers, 'updatedBy');
   if (updatedAtCol !== -1) {
     sheet.getRange(rowIndex, updatedAtCol + 1).setValue(now);
   }
@@ -1369,8 +1419,8 @@ function reorderTopMemos(orderPayload) {
   const data = sheet.getDataRange().getValues();
   const headers = data[0];
 
-  const memoIdCol = headers.indexOf('memoId');
-  const sortOrderCol = headers.indexOf('sortOrder');
+  const memoIdCol = findTopMemoColumnIndex(headers, 'memoId');
+  const sortOrderCol = findTopMemoColumnIndex(headers, 'sortOrder');
 
   if (memoIdCol === -1 || sortOrderCol === -1) {
     throw new Error('必要なカラムが見つかりません');
@@ -1400,8 +1450,8 @@ function setTopMemoActive(memoId, isActive) {
   const data = sheet.getDataRange().getValues();
   const headers = data[0];
 
-  const memoIdCol = headers.indexOf('memoId');
-  const isActiveCol = headers.indexOf('isActive');
+  const memoIdCol = findTopMemoColumnIndex(headers, 'memoId');
+  const isActiveCol = findTopMemoColumnIndex(headers, 'isActive');
 
   if (memoIdCol === -1 || isActiveCol === -1) {
     throw new Error('必要なカラムが見つかりません');
@@ -1424,8 +1474,8 @@ function setTopMemoActive(memoId, isActive) {
   // updatedAt, updatedBy も更新
   const now = new Date();
   const currentUser = Session.getActiveUser().getEmail() || 'system';
-  const updatedAtCol = headers.indexOf('updatedAt');
-  const updatedByCol = headers.indexOf('updatedBy');
+  const updatedAtCol = findTopMemoColumnIndex(headers, 'updatedAt');
+  const updatedByCol = findTopMemoColumnIndex(headers, 'updatedBy');
   if (updatedAtCol !== -1) {
     sheet.getRange(rowIndex, updatedAtCol + 1).setValue(now);
   }
