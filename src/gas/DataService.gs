@@ -1226,22 +1226,65 @@ function normalizeTopMemoHeader(header) {
 }
 
 /**
- * TopMemoシートデータをオブジェクト配列に変換（ヘッダー正規化対応）
- * @param {Array[]} data - シートデータ（[headers, ...rows]）
- * @returns {Object[]}
+ * TopMemoシートからヘッダー行のインデックスを検出
+ * "memoId"で始まる行を探す
+ * @param {Array[]} data - シートデータ
+ * @returns {number} - ヘッダー行インデックス（0始まり）、見つからない場合は-1
+ */
+function findTopMemoHeaderRowIndex(data) {
+  for (let i = 0; i < data.length; i++) {
+    const firstCell = normalizeTopMemoHeader(data[i][0]);
+    if (firstCell === 'memoId') {
+      return i;
+    }
+  }
+  return -1;
+}
+
+/**
+ * TopMemoシートデータをオブジェクト配列に変換（ヘッダー行自動検出対応）
+ * @param {Array[]} data - シートデータ
+ * @returns {{ headerRowIndex: number, objects: Object[] }}
  */
 function topMemoSheetDataToObjects(data) {
-  if (!data || data.length < 2) return [];
-  const rawHeaders = data[0];
+  if (!data || data.length < 2) return { headerRowIndex: -1, objects: [] };
+
+  // ヘッダー行を自動検出
+  const headerRowIndex = findTopMemoHeaderRowIndex(data);
+  if (headerRowIndex === -1) {
+    Logger.log('TopMemo: ヘッダー行が見つかりません');
+    return { headerRowIndex: -1, objects: [] };
+  }
+
+  const rawHeaders = data[headerRowIndex];
   const headers = rawHeaders.map(h => normalizeTopMemoHeader(h));
 
-  return data.slice(1).map(row => {
+  // ヘッダー行の次の行からデータ開始（説明行をスキップ）
+  // 説明行は英字で始まらない行なのでスキップ
+  let dataStartIndex = headerRowIndex + 1;
+
+  // 説明行（日本語で始まる行）をスキップ
+  while (dataStartIndex < data.length) {
+    const firstCell = data[dataStartIndex][0];
+    // memoIdカラムの値がUUIDっぽいか、または空でないデータ行かを判定
+    if (firstCell && typeof firstCell === 'string' &&
+        (firstCell.match(/^[a-f0-9-]{36}$/i) || // UUID
+         firstCell.match(/^[A-Z0-9]+$/) ||       // 英数字ID（例: TOP）
+         !firstCell.match(/^[ぁ-んァ-ン一-龥]/))) { // 日本語で始まらない
+      break;
+    }
+    dataStartIndex++;
+  }
+
+  const objects = data.slice(dataStartIndex).map(row => {
     const obj = {};
     headers.forEach((header, index) => {
       obj[header] = row[index];
     });
     return obj;
-  });
+  }).filter(obj => obj.memoId); // memoIdが空の行は除外
+
+  return { headerRowIndex, dataStartIndex, objects };
 }
 
 /**
@@ -1253,8 +1296,9 @@ function getTopMemos(scope = 'global') {
   try {
     const sheet = getSheet(CONFIG.SHEETS.TOP_MEMO);
     const data = sheet.getDataRange().getValues();
-    // 日本語説明付きヘッダーに対応するため専用関数を使用
-    let memos = topMemoSheetDataToObjects(data);
+    // ヘッダー行自動検出対応
+    const { objects } = topMemoSheetDataToObjects(data);
+    let memos = objects;
 
     // boolean変換・正規化
     memos = memos.map(m => ({
@@ -1303,7 +1347,13 @@ function findTopMemoColumnIndex(headers, fieldName) {
 function upsertTopMemo(payload) {
   const sheet = getSheet(CONFIG.SHEETS.TOP_MEMO);
   const data = sheet.getDataRange().getValues();
-  const headers = data[0];
+
+  // ヘッダー行を自動検出
+  const headerRowIndex = findTopMemoHeaderRowIndex(data);
+  if (headerRowIndex === -1) {
+    throw new Error('TopMemoシートのヘッダー行が見つかりません');
+  }
+  const headers = data[headerRowIndex];
 
   const now = new Date();
   const currentUser = Session.getActiveUser().getEmail() || 'system';
@@ -1316,7 +1366,7 @@ function upsertTopMemo(payload) {
     let maxOrder = 0;
     const sortOrderCol = findTopMemoColumnIndex(headers, 'sortOrder');
     if (sortOrderCol !== -1) {
-      for (let i = 1; i < data.length; i++) {
+      for (let i = headerRowIndex + 1; i < data.length; i++) {
         const order = Number(data[i][sortOrderCol]) || 0;
         if (order > maxOrder) maxOrder = order;
       }
@@ -1362,7 +1412,7 @@ function upsertTopMemo(payload) {
   }
 
   let rowIndex = -1;
-  for (let i = 1; i < data.length; i++) {
+  for (let i = headerRowIndex + 1; i < data.length; i++) {
     if (data[i][memoIdCol] === payload.memoId) {
       rowIndex = i + 1; // シートは1始まり
       break;
@@ -1417,7 +1467,13 @@ function upsertTopMemo(payload) {
 function reorderTopMemos(orderPayload) {
   const sheet = getSheet(CONFIG.SHEETS.TOP_MEMO);
   const data = sheet.getDataRange().getValues();
-  const headers = data[0];
+
+  // ヘッダー行を自動検出
+  const headerRowIndex = findTopMemoHeaderRowIndex(data);
+  if (headerRowIndex === -1) {
+    throw new Error('TopMemoシートのヘッダー行が見つかりません');
+  }
+  const headers = data[headerRowIndex];
 
   const memoIdCol = findTopMemoColumnIndex(headers, 'memoId');
   const sortOrderCol = findTopMemoColumnIndex(headers, 'sortOrder');
@@ -1428,7 +1484,7 @@ function reorderTopMemos(orderPayload) {
 
   // 各メモのsortOrderを更新
   orderPayload.forEach(item => {
-    for (let i = 1; i < data.length; i++) {
+    for (let i = headerRowIndex + 1; i < data.length; i++) {
       if (data[i][memoIdCol] === item.memoId) {
         sheet.getRange(i + 1, sortOrderCol + 1).setValue(item.sortOrder);
         break;
@@ -1448,7 +1504,13 @@ function reorderTopMemos(orderPayload) {
 function setTopMemoActive(memoId, isActive) {
   const sheet = getSheet(CONFIG.SHEETS.TOP_MEMO);
   const data = sheet.getDataRange().getValues();
-  const headers = data[0];
+
+  // ヘッダー行を自動検出
+  const headerRowIndex = findTopMemoHeaderRowIndex(data);
+  if (headerRowIndex === -1) {
+    throw new Error('TopMemoシートのヘッダー行が見つかりません');
+  }
+  const headers = data[headerRowIndex];
 
   const memoIdCol = findTopMemoColumnIndex(headers, 'memoId');
   const isActiveCol = findTopMemoColumnIndex(headers, 'isActive');
@@ -1458,7 +1520,7 @@ function setTopMemoActive(memoId, isActive) {
   }
 
   let rowIndex = -1;
-  for (let i = 1; i < data.length; i++) {
+  for (let i = headerRowIndex + 1; i < data.length; i++) {
     if (data[i][memoIdCol] === memoId) {
       rowIndex = i + 1;
       break;
