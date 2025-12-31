@@ -1964,7 +1964,7 @@
   }
 
   /* ========================================
-     上部メモパネル (TopMemoPanel)
+     上部メモパネル (TopMemoPanel) - 複数メモ対応
      ======================================== */
   .top-memo-panel {
     background: #fffef5;
@@ -1973,7 +1973,10 @@
   }
 
   .top-memo-tab {
-    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 8px 0 0;
   }
 
   .top-memo-toggle-btn {
@@ -1987,7 +1990,6 @@
     font-size: 13px;
     font-weight: 600;
     color: #374151;
-    width: 100%;
     text-align: left;
   }
 
@@ -2000,31 +2002,157 @@
     height: 16px;
     transition: transform 0.2s ease;
     stroke: #6b7280;
+    flex-shrink: 0;
   }
 
   .top-memo-panel.expanded .top-memo-arrow {
     transform: rotate(180deg);
   }
 
-  .top-memo-title {
+  .top-memo-label {
     font-weight: 600;
     color: #1f2937;
   }
 
+  .top-memo-count {
+    background: #e5e7eb;
+    color: #4b5563;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 1px 6px;
+    border-radius: 10px;
+    margin-left: 4px;
+  }
+
+  .top-memo-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .top-memo-action-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    background: transparent;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 11px;
+    color: #4b5563;
+    transition: all 0.2s;
+  }
+
+  .top-memo-action-btn:hover {
+    background: #f3f4f6;
+    border-color: #9ca3af;
+  }
+
+  .top-memo-action-btn svg {
+    width: 14px;
+    height: 14px;
+  }
+
   .top-memo-body {
-    padding: 0 12px 12px 12px;
-    max-height: 200px;
+    padding: 8px 12px 12px 12px;
+    max-height: 260px;
     overflow-y: auto;
   }
 
-  .top-memo-content {
-    white-space: pre-wrap;
-    line-height: 1.6;
-    color: #374151;
-    font-size: 12px;
-    padding: 8px 12px;
+  .top-memo-cards {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .top-memo-card {
     background: white;
     border: 1px solid #e5e7eb;
-    border-radius: 4px;
+    border-radius: 6px;
+    padding: 8px 12px;
+    min-width: 200px;
+    max-width: 400px;
+    flex: 1 1 280px;
+    position: relative;
+  }
+
+  .top-memo-card:hover {
+    border-color: #d1d5db;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  }
+
+  .top-memo-card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 4px;
+  }
+
+  .top-memo-card-title {
+    font-weight: 600;
+    font-size: 12px;
+    color: #1f2937;
+  }
+
+  .top-memo-card-actions {
+    display: flex;
+    gap: 2px;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+
+  .top-memo-card:hover .top-memo-card-actions {
+    opacity: 1;
+  }
+
+  .top-memo-card-btn {
+    padding: 2px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: #9ca3af;
+    border-radius: 3px;
+    transition: all 0.2s;
+  }
+
+  .top-memo-card-btn:hover {
+    background: #f3f4f6;
+    color: #4b5563;
+  }
+
+  .top-memo-card-btn.delete:hover {
+    background: #fef2f2;
+    color: #ef4444;
+  }
+
+  .top-memo-card-btn svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .top-memo-card-body {
+    white-space: pre-wrap;
+    line-height: 1.5;
+    color: #4b5563;
+    font-size: 11px;
+    max-height: 80px;
+    overflow: hidden;
+  }
+
+  .top-memo-card-meta {
+    margin-top: 6px;
+    font-size: 10px;
+    color: #9ca3af;
+  }
+
+  .top-memo-empty {
+    text-align: center;
+    padding: 20px;
+    color: #6b7280;
+  }
+
+  .top-memo-empty p {
+    margin-bottom: 12px;
   }
 </style>

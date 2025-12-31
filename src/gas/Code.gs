@@ -207,6 +207,19 @@ function api_createProcess(payload) {
   return sanitizeForClient(createProcess(payload));
 }
 
+// TopMemo API
+function api_upsertTopMemo(payload) {
+  return sanitizeForClient(upsertTopMemo(payload));
+}
+
+function api_reorderTopMemos(orderPayload) {
+  return sanitizeForClient(reorderTopMemos(orderPayload));
+}
+
+function api_setTopMemoActive(memoId, isActive) {
+  return sanitizeForClient(setTopMemoActive(memoId, isActive));
+}
+
 /**
  * テスト用：スプレッドシート接続確認
  * GASエディタで実行して確認してください

@@ -357,6 +357,19 @@ const API = {
 
   async updatePerson(personId, patch, expectedUpdatedAt) {
     return await this.call('api_updatePerson', personId, patch, expectedUpdatedAt);
+  },
+
+  // TopMemo API
+  async upsertTopMemo(payload) {
+    return await this.call('api_upsertTopMemo', payload);
+  },
+
+  async reorderTopMemos(orderPayload) {
+    return await this.call('api_reorderTopMemos', orderPayload);
+  },
+
+  async setTopMemoActive(memoId, isActive) {
+    return await this.call('api_setTopMemoActive', memoId, isActive);
   }
 };
 
@@ -878,10 +891,14 @@ const Store = {
     this.setState({ trips });
   },
 
-  // TopMemo関連のStore操作
-  getTopMemo(scope = 'master') {
-    // 指定scopeの最初のメモを返す（現状は1件のみ対応）
-    return this.state.topMemos.find(m => m.scope === scope) || null;
+  // TopMemo関連のStore操作（複数メモ対応・scope=global固定）
+  getTopMemos() {
+    // 全メモを返す（sortOrder順）
+    return [...this.state.topMemos].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+  },
+
+  getTopMemoById(memoId) {
+    return this.state.topMemos.find(m => m.memoId === memoId) || null;
   },
 
   toggleTopMemoExpanded() {
@@ -892,10 +909,27 @@ const Store = {
     this.setState({ topMemoExpanded: expanded });
   },
 
-  updateTopMemoInStore(memoId, updates) {
-    const topMemos = this.state.topMemos.map(m =>
-      m.memoId === memoId ? { ...m, ...updates } : m
-    );
+  setTopMemos(topMemos) {
+    this.setState({ topMemos });
+  },
+
+  addOrReplaceTopMemo(memo) {
+    // memoIdで既存を探し、あれば置換、なければ追加
+    const idx = this.state.topMemos.findIndex(m => m.memoId === memo.memoId);
+    let topMemos;
+    if (idx >= 0) {
+      topMemos = [...this.state.topMemos];
+      topMemos[idx] = { ...topMemos[idx], ...memo };
+    } else {
+      topMemos = [...this.state.topMemos, memo];
+    }
+    // sortOrder順でソート
+    topMemos.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+    this.setState({ topMemos });
+  },
+
+  removeTopMemo(memoId) {
+    const topMemos = this.state.topMemos.filter(m => m.memoId !== memoId);
     this.setState({ topMemos });
   },
 
@@ -1875,21 +1909,23 @@ const Modal = {
 console.log('[DEBUG] Modal defined');
 
 // ========================================
-// TopMemoPanel - 上部メモパネル
+// TopMemoPanel - 上部メモパネル（複数メモ対応）
 // ========================================
 
 const TopMemoPanel = {
   _panelEl: null,
   _bodyEl: null,
-  _contentEl: null,
-  _titleEl: null,
+  _cardsEl: null,
+  _emptyEl: null,
+  _countEl: null,
   _toggleBtn: null,
 
   init() {
     this._panelEl = document.getElementById('top-memo-panel');
     this._bodyEl = document.getElementById('top-memo-body');
-    this._contentEl = document.getElementById('top-memo-content');
-    this._titleEl = document.getElementById('top-memo-title');
+    this._cardsEl = document.getElementById('top-memo-cards');
+    this._emptyEl = document.getElementById('top-memo-empty');
+    this._countEl = document.getElementById('top-memo-count');
     this._toggleBtn = document.getElementById('top-memo-toggle');
 
     if (!this._panelEl) {
@@ -1905,61 +1941,191 @@ const TopMemoPanel = {
 
   setupEventListeners() {
     this._toggleBtn?.addEventListener('click', () => this.toggle());
+
+    // 追加ボタン
+    document.getElementById('top-memo-add')?.addEventListener('click', () => this.openEditModal(null));
+    document.getElementById('top-memo-add-empty')?.addEventListener('click', () => this.openEditModal(null));
+
+    // モーダル
+    document.getElementById('top-memo-modal-close')?.addEventListener('click', () => this.closeEditModal());
+    document.getElementById('btn-top-memo-cancel')?.addEventListener('click', () => this.closeEditModal());
+    document.getElementById('btn-top-memo-save')?.addEventListener('click', () => this.saveFromModal());
+    document.querySelector('#modal-top-memo .modal-backdrop')?.addEventListener('click', () => this.closeEditModal());
   },
 
   render() {
-    const memo = Store.getTopMemo('master');
+    const memos = Store.getTopMemos();
+    const expanded = Store.state.topMemoExpanded;
 
-    if (!memo) {
-      // メモがない場合はパネルを非表示
-      this._panelEl?.classList.add('hidden');
-      this.updateGanttHeight(false);
-      return;
-    }
-
-    // パネルを表示
-    this._panelEl?.classList.remove('hidden');
-
-    // タイトル設定
-    if (this._titleEl) {
-      this._titleEl.textContent = memo.title || '下記以外';
-    }
-
-    // 本文設定（改行を保持）
-    if (this._contentEl) {
-      this._contentEl.textContent = memo.body || '';
+    // メモ件数を更新
+    if (this._countEl) {
+      this._countEl.textContent = memos.length;
     }
 
     // 展開状態の反映
-    const expanded = Store.state.topMemoExpanded;
     this._panelEl?.classList.toggle('expanded', expanded);
     this._bodyEl?.classList.toggle('hidden', !expanded);
 
-    // ガントチャートの高さ調整
-    this.updateGanttHeight(expanded);
+    // カードを描画
+    if (this._cardsEl) {
+      if (memos.length === 0) {
+        this._cardsEl.innerHTML = '';
+        this._cardsEl.classList.add('hidden');
+        this._emptyEl?.classList.remove('hidden');
+      } else {
+        this._emptyEl?.classList.add('hidden');
+        this._cardsEl.classList.remove('hidden');
+        this._cardsEl.innerHTML = memos.map(memo => this.renderCard(memo)).join('');
+
+        // カードのイベントリスナーを設定
+        this._cardsEl.querySelectorAll('.top-memo-card-btn.edit').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            const memoId = e.currentTarget.dataset.memoId;
+            this.openEditModal(memoId);
+          });
+        });
+        this._cardsEl.querySelectorAll('.top-memo-card-btn.delete').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            const memoId = e.currentTarget.dataset.memoId;
+            this.deleteMemo(memoId);
+          });
+        });
+      }
+    }
+
+    // 全画面対応：各ビューの高さ調整
+    this.updateAllViewHeights(expanded);
+  },
+
+  renderCard(memo) {
+    const updatedAt = memo.updatedAt ? new Date(memo.updatedAt).toLocaleString('ja-JP', {
+      month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit'
+    }) : '';
+    const updatedBy = memo.updatedBy || '';
+
+    return `
+      <div class="top-memo-card" data-memo-id="${memo.memoId}">
+        <div class="top-memo-card-header">
+          <div class="top-memo-card-title">${Utils.escapeHtml(memo.title || '無題')}</div>
+          <div class="top-memo-card-actions">
+            <button class="top-memo-card-btn edit" data-memo-id="${memo.memoId}" title="編集">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+                <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+              </svg>
+            </button>
+            <button class="top-memo-card-btn delete" data-memo-id="${memo.memoId}" title="非表示">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div class="top-memo-card-body">${Utils.escapeHtml(memo.body || '')}</div>
+        <div class="top-memo-card-meta">${updatedAt} ${updatedBy}</div>
+      </div>
+    `;
   },
 
   toggle() {
     Store.toggleTopMemoExpanded();
   },
 
-  updateGanttHeight(expanded) {
-    const viewMaster = document.getElementById('view-master');
-    const ganttVScroll = document.getElementById('gantt-v-scroll');
+  updateAllViewHeights(expanded) {
+    // 全てのビューの高さを調整
+    const views = ['view-master', 'view-resource', 'view-weekly', 'view-travel'];
 
-    if (!viewMaster || !ganttVScroll) return;
+    requestAnimationFrame(() => {
+      const panelHeight = expanded ? (this._panelEl?.offsetHeight || 0) : 0;
 
-    if (expanded) {
-      viewMaster.classList.add('top-memo-expanded');
-      // パネルの高さを取得して直接ガントの高さを調整
-      // requestAnimationFrameで描画後の正確な高さを取得
-      requestAnimationFrame(() => {
-        const panelHeight = this._panelEl?.offsetHeight || 0;
-        ganttVScroll.style.height = `calc(100vh - 64px - ${panelHeight}px)`;
+      views.forEach(viewId => {
+        const viewEl = document.getElementById(viewId);
+        if (!viewEl) return;
+
+        // ガントスクロールコンテナを探す
+        const scrollContainer = viewEl.querySelector('[id$="-v-scroll"], .resource-container, .weekly-view, .travel-plan-container');
+        if (scrollContainer) {
+          if (expanded && panelHeight > 0) {
+            scrollContainer.style.height = `calc(100vh - 64px - ${panelHeight}px)`;
+          } else {
+            scrollContainer.style.height = '';
+          }
+        }
       });
+    });
+  },
+
+  // モーダル関連
+  openEditModal(memoId) {
+    const modal = document.getElementById('modal-top-memo');
+    const titleEl = document.getElementById('top-memo-modal-title');
+    const idInput = document.getElementById('top-memo-edit-id');
+    const titleInput = document.getElementById('top-memo-edit-title');
+    const bodyInput = document.getElementById('top-memo-edit-body');
+
+    if (memoId) {
+      // 編集
+      const memo = Store.getTopMemoById(memoId);
+      if (!memo) return;
+      titleEl.textContent = 'メモ編集';
+      idInput.value = memoId;
+      titleInput.value = memo.title || '';
+      bodyInput.value = memo.body || '';
     } else {
-      viewMaster.classList.remove('top-memo-expanded');
-      ganttVScroll.style.height = '';  // デフォルトに戻す
+      // 新規
+      titleEl.textContent = '新規メモ';
+      idInput.value = '';
+      titleInput.value = '';
+      bodyInput.value = '';
+    }
+
+    modal?.classList.remove('hidden');
+  },
+
+  closeEditModal() {
+    document.getElementById('modal-top-memo')?.classList.add('hidden');
+  },
+
+  async saveFromModal() {
+    const idInput = document.getElementById('top-memo-edit-id');
+    const titleInput = document.getElementById('top-memo-edit-title');
+    const bodyInput = document.getElementById('top-memo-edit-body');
+
+    const memoId = idInput.value || null;
+    const title = titleInput.value.trim();
+    const body = bodyInput.value;
+
+    if (!title) {
+      Utils.showToast('見出しを入力してください', 'error');
+      return;
+    }
+
+    try {
+      const payload = { title, body };
+      if (memoId) {
+        payload.memoId = memoId;
+      }
+
+      const result = await API.upsertTopMemo(payload);
+      Store.addOrReplaceTopMemo(result);
+      this.closeEditModal();
+      Utils.showToast(memoId ? 'メモを更新しました' : 'メモを作成しました', 'success');
+    } catch (error) {
+      console.error('[TopMemoPanel] 保存エラー:', error);
+      Utils.showToast('保存に失敗しました', 'error');
+    }
+  },
+
+  async deleteMemo(memoId) {
+    if (!confirm('このメモを非表示にしますか？')) return;
+
+    try {
+      await API.setTopMemoActive(memoId, false);
+      Store.removeTopMemo(memoId);
+      Utils.showToast('メモを非表示にしました', 'success');
+    } catch (error) {
+      console.error('[TopMemoPanel] 削除エラー:', error);
+      Utils.showToast('操作に失敗しました', 'error');
     }
   }
 };

@@ -1209,31 +1209,32 @@ function getAllWorkerJobAssigns(activeOnly = true) {
 }
 
 // ============================================
-// TopMemo（上部メモ）
+// TopMemo（上部メモ）- scope=global固定／複数メモ対応
 // ============================================
 
 /**
- * TopMemoを取得
- * @param {string} scope - 表示場所 ('master', 'weekly', 'travel', 'global')
+ * TopMemoを取得（scope=globalに正規化）
+ * @param {string} scope - 入力されてもglobalに強制
  * @returns {Object[]}
  */
-function getTopMemos(scope = 'master') {
+function getTopMemos(scope = 'global') {
   try {
     const sheet = getSheet(CONFIG.SHEETS.TOP_MEMO);
     const data = sheet.getDataRange().getValues();
     let memos = sheetDataToObjects(data);
 
-    // boolean変換
+    // boolean変換・正規化
     memos = memos.map(m => ({
       ...m,
+      scope: 'global', // 常にglobalに正規化
       isActive: m.isActive === true || m.isActive === 'TRUE' || m.isActive === 'true',
       isOpenDefault: m.isOpenDefault === true || m.isOpenDefault === 'TRUE' || m.isOpenDefault === 'true',
       sortOrder: Number(m.sortOrder) || 0,
       updatedAt: formatDateTime(m.updatedAt)
     }));
 
-    // scope一致 かつ isActive=true のものをフィルタ
-    memos = memos.filter(m => m.scope === scope && m.isActive === true);
+    // isActive=true のものをフィルタ（scopeは全て'global'なのでフィルタ不要）
+    memos = memos.filter(m => m.isActive === true);
 
     // sortOrder昇順でソート
     memos.sort((a, b) => a.sortOrder - b.sortOrder);
@@ -1246,17 +1247,65 @@ function getTopMemos(scope = 'master') {
 }
 
 /**
- * TopMemoを更新
- * @param {string} memoId - メモID
- * @param {Object} updates - 更新内容
+ * TopMemoを作成または更新（Upsert）
+ * @param {Object} payload - { memoId?, title, body, isActive?, sortOrder? }
  * @returns {Object}
  */
-function updateTopMemo(memoId, updates) {
+function upsertTopMemo(payload) {
   const sheet = getSheet(CONFIG.SHEETS.TOP_MEMO);
   const data = sheet.getDataRange().getValues();
   const headers = data[0];
 
-  // 該当行を検索
+  const now = new Date();
+  const currentUser = Session.getActiveUser().getEmail() || 'system';
+
+  // memoIdがない場合は新規作成
+  if (!payload.memoId) {
+    const memoId = Utilities.getUuid();
+
+    // デフォルトのsortOrderを算出（既存最大+10）
+    let maxOrder = 0;
+    const sortOrderCol = headers.indexOf('sortOrder');
+    if (sortOrderCol !== -1) {
+      for (let i = 1; i < data.length; i++) {
+        const order = Number(data[i][sortOrderCol]) || 0;
+        if (order > maxOrder) maxOrder = order;
+      }
+    }
+    const sortOrder = payload.sortOrder !== undefined ? payload.sortOrder : maxOrder + 10;
+
+    // 新規行データ作成
+    const newRow = headers.map(header => {
+      switch (header) {
+        case 'memoId': return memoId;
+        case 'scope': return 'global'; // 常にglobal
+        case 'title': return payload.title || '';
+        case 'body': return payload.body || '';
+        case 'isOpenDefault': return payload.isOpenDefault !== undefined ? payload.isOpenDefault : false;
+        case 'isActive': return payload.isActive !== undefined ? payload.isActive : true;
+        case 'sortOrder': return sortOrder;
+        case 'updatedAt': return now;
+        case 'updatedBy': return currentUser;
+        default: return '';
+      }
+    });
+
+    sheet.appendRow(newRow);
+
+    return {
+      memoId,
+      scope: 'global',
+      title: payload.title || '',
+      body: payload.body || '',
+      isOpenDefault: payload.isOpenDefault || false,
+      isActive: payload.isActive !== undefined ? payload.isActive : true,
+      sortOrder,
+      updatedAt: now.toISOString(),
+      updatedBy: currentUser
+    };
+  }
+
+  // 既存メモの更新
   const memoIdCol = headers.indexOf('memoId');
   if (memoIdCol === -1) {
     throw new Error('memoIdカラムが見つかりません');
@@ -1264,27 +1313,24 @@ function updateTopMemo(memoId, updates) {
 
   let rowIndex = -1;
   for (let i = 1; i < data.length; i++) {
-    if (data[i][memoIdCol] === memoId) {
+    if (data[i][memoIdCol] === payload.memoId) {
       rowIndex = i + 1; // シートは1始まり
       break;
     }
   }
 
   if (rowIndex === -1) {
-    throw new Error(`メモが見つかりません: ${memoId}`);
+    throw new Error(`メモが見つかりません: ${payload.memoId}`);
   }
-
-  const now = new Date();
-  const currentUser = Session.getActiveUser().getEmail() || 'system';
 
   // 更新対象カラムを書き込み
   const updatableFields = ['title', 'body', 'isOpenDefault', 'isActive', 'sortOrder'];
 
   updatableFields.forEach(field => {
-    if (updates.hasOwnProperty(field)) {
+    if (payload.hasOwnProperty(field)) {
       const colIndex = headers.indexOf(field);
       if (colIndex !== -1) {
-        sheet.getRange(rowIndex, colIndex + 1).setValue(updates[field]);
+        sheet.getRange(rowIndex, colIndex + 1).setValue(payload[field]);
       }
     }
   });
@@ -1301,11 +1347,93 @@ function updateTopMemo(memoId, updates) {
 
   // 更新後のデータを返す
   return {
-    memoId,
-    ...updates,
+    memoId: payload.memoId,
+    scope: 'global',
+    title: payload.title,
+    body: payload.body,
+    isOpenDefault: payload.isOpenDefault,
+    isActive: payload.isActive,
+    sortOrder: payload.sortOrder,
     updatedAt: now.toISOString(),
     updatedBy: currentUser
   };
+}
+
+/**
+ * TopMemoの並び順を一括更新
+ * @param {Array} orderPayload - [{ memoId, sortOrder }, ...]
+ * @returns {Object}
+ */
+function reorderTopMemos(orderPayload) {
+  const sheet = getSheet(CONFIG.SHEETS.TOP_MEMO);
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+
+  const memoIdCol = headers.indexOf('memoId');
+  const sortOrderCol = headers.indexOf('sortOrder');
+
+  if (memoIdCol === -1 || sortOrderCol === -1) {
+    throw new Error('必要なカラムが見つかりません');
+  }
+
+  // 各メモのsortOrderを更新
+  orderPayload.forEach(item => {
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][memoIdCol] === item.memoId) {
+        sheet.getRange(i + 1, sortOrderCol + 1).setValue(item.sortOrder);
+        break;
+      }
+    }
+  });
+
+  return { success: true, updated: orderPayload.length };
+}
+
+/**
+ * TopMemoのisActiveを更新（論理削除/復活）
+ * @param {string} memoId
+ * @param {boolean} isActive
+ * @returns {Object}
+ */
+function setTopMemoActive(memoId, isActive) {
+  const sheet = getSheet(CONFIG.SHEETS.TOP_MEMO);
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+
+  const memoIdCol = headers.indexOf('memoId');
+  const isActiveCol = headers.indexOf('isActive');
+
+  if (memoIdCol === -1 || isActiveCol === -1) {
+    throw new Error('必要なカラムが見つかりません');
+  }
+
+  let rowIndex = -1;
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][memoIdCol] === memoId) {
+      rowIndex = i + 1;
+      break;
+    }
+  }
+
+  if (rowIndex === -1) {
+    throw new Error(`メモが見つかりません: ${memoId}`);
+  }
+
+  sheet.getRange(rowIndex, isActiveCol + 1).setValue(isActive);
+
+  // updatedAt, updatedBy も更新
+  const now = new Date();
+  const currentUser = Session.getActiveUser().getEmail() || 'system';
+  const updatedAtCol = headers.indexOf('updatedAt');
+  const updatedByCol = headers.indexOf('updatedBy');
+  if (updatedAtCol !== -1) {
+    sheet.getRange(rowIndex, updatedAtCol + 1).setValue(now);
+  }
+  if (updatedByCol !== -1) {
+    sheet.getRange(rowIndex, updatedByCol + 1).setValue(currentUser);
+  }
+
+  return { memoId, isActive, updatedAt: now.toISOString(), updatedBy: currentUser };
 }
 
 // ============================================
@@ -1332,10 +1460,10 @@ function getBootstrapData(rangeStart, days = CONFIG.DEFAULT_DISPLAY_DAYS) {
     Logger.log('外部工番マスター取得をスキップ: ' + e.message);
   }
 
-  // TopMemoは取得失敗しても続行
+  // TopMemoは取得失敗しても続行（scope=global固定）
   let topMemos = [];
   try {
-    topMemos = getTopMemos('master');
+    topMemos = getTopMemos('global');
   } catch (e) {
     Logger.log('TopMemo取得をスキップ: ' + e.message);
   }
