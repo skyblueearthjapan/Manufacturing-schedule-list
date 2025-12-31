@@ -1105,6 +1105,48 @@ function addDaysServer(dateStr, days) {
 }
 
 // ============================================
+// WorkerJobAssign（作業者別担当工番）
+// ============================================
+
+/**
+ * 全WorkerJobAssignを取得
+ * @param {boolean} activeOnly - 有効のみ（デフォルトtrue）
+ * @returns {Object[]}
+ */
+function getAllWorkerJobAssigns(activeOnly = true) {
+  try {
+    const sheet = getSheet(CONFIG.SHEETS.WORKER_JOB_ASSIGN);
+    const data = sheet.getDataRange().getValues();
+    let assigns = sheetDataToObjects(data);
+
+    // isActiveをboolean化
+    assigns = assigns.map(a => ({
+      ...a,
+      isActive: a.isActive === true || a.isActive === 'TRUE' || a.isActive === 'true' || a.isActive === ''
+    }));
+
+    // 有効のみフィルタ
+    if (activeOnly) {
+      assigns = assigns.filter(a => a.isActive !== false);
+    }
+
+    // priority（小さい順）→ jobCode 順でソート
+    assigns.sort((a, b) => {
+      const priorityA = Number(a.priority) || 9999;
+      const priorityB = Number(b.priority) || 9999;
+      if (priorityA !== priorityB) return priorityA - priorityB;
+      return String(a.jobCode || '').localeCompare(String(b.jobCode || ''));
+    });
+
+    return assigns;
+  } catch (e) {
+    // シートがない場合は空配列を返す
+    Logger.log('WorkerJobAssign取得エラー（シートなしの可能性）: ' + e.message);
+    return [];
+  }
+}
+
+// ============================================
 // Bootstrap（初期データ一括取得）
 // ============================================
 
@@ -1136,6 +1178,7 @@ function getBootstrapData(rangeStart, days = CONFIG.DEFAULT_DISPLAY_DAYS) {
     attachments: [], // 初期は空、必要時に取得
     trips: getTrips(start, end),
     jobMaster: jobMaster,
+    workerJobAssign: getAllWorkerJobAssigns(),
     meta: {
       rangeStart: start,
       rangeEnd: end,

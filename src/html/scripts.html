@@ -367,6 +367,7 @@ const Store = {
     attachments: [],
     trips: [],
     jobMaster: [], // 外部工番マスター
+    workerJobAssign: [], // 作業者別担当工番
     displayStartDate: null,
     displayDays: 120,
     colorMode: 'process',
@@ -426,6 +427,7 @@ const Store = {
         schedules: data.schedules || [],
         trips: data.trips || [],
         jobMaster: data.jobMaster || [],
+        workerJobAssign: data.workerJobAssign || [],
         lastFetchedAt: data.meta?.fetchedAt || new Date().toISOString(),
         isLoading: false
       });
@@ -2432,6 +2434,278 @@ const ResourceView = {
 console.log('[DEBUG] ResourceView defined');
 
 // ========================================
+// WorkerJobAssignView - 作業者別担当工番カード表示
+// ========================================
+
+const WorkerJobAssignView = {
+  // フィルター状態
+  filters: {
+    activeOnly: true,
+    mainOnly: false,
+    searchQuery: ''
+  },
+
+  init() {
+    Store.subscribe((state) => {
+      if (state.currentView === 'resource') {
+        this.render();
+      }
+    });
+  },
+
+  /**
+   * メインレンダリング
+   */
+  render() {
+    const container = document.getElementById('view-resource');
+    if (!container) return;
+
+    const { workerJobAssign, people } = Store.state;
+
+    // 作業者情報をマップ化（部署など取得用）
+    const peopleMap = {};
+    people.forEach(p => { peopleMap[p.personId] = p; });
+
+    // フィルタリング
+    let filtered = this.applyFilters(workerJobAssign);
+
+    // personIdでグルーピング
+    const grouped = this.groupByPerson(filtered, peopleMap);
+
+    // HTML生成
+    container.innerHTML = this.renderContainer(grouped, peopleMap);
+
+    // イベントハンドラーを設定
+    this.setupEventHandlers();
+  },
+
+  /**
+   * フィルター適用
+   */
+  applyFilters(assigns) {
+    let result = [...assigns];
+
+    // 有効のみフィルタ（isActive=false を除外）
+    if (this.filters.activeOnly) {
+      result = result.filter(a => a.isActive !== false);
+    }
+
+    // 主担当のみフィルタ
+    if (this.filters.mainOnly) {
+      result = result.filter(a => a.role === 'main');
+    }
+
+    // 検索フィルタ
+    if (this.filters.searchQuery.trim()) {
+      const q = this.filters.searchQuery.toLowerCase();
+      result = result.filter(a => {
+        const jobCode = String(a.jobCode || '').toLowerCase();
+        const customerName = String(a.customerName || '').toLowerCase();
+        const productName = String(a.productName || '').toLowerCase();
+        return jobCode.includes(q) || customerName.includes(q) || productName.includes(q);
+      });
+    }
+
+    return result;
+  },
+
+  /**
+   * personIdでグルーピング
+   */
+  groupByPerson(assigns, peopleMap) {
+    const groups = {};
+    assigns.forEach(a => {
+      const personId = a.personId;
+      if (!groups[personId]) {
+        groups[personId] = {
+          personId,
+          personName: a.personName || peopleMap[personId]?.['氏名'] || '不明',
+          dept: peopleMap[personId]?.['部署/区分'] || '',
+          color: peopleMap[personId]?.['作業者色(colorHex)'] || '#6b7280',
+          assigns: []
+        };
+      }
+      groups[personId].assigns.push(a);
+    });
+    return groups;
+  },
+
+  /**
+   * コンテナHTML生成
+   */
+  renderContainer(grouped, peopleMap) {
+    const personIds = Object.keys(grouped);
+
+    // 部署→氏名順でソート
+    personIds.sort((a, b) => {
+      const deptA = grouped[a].dept || '';
+      const deptB = grouped[b].dept || '';
+      if (deptA !== deptB) return deptA.localeCompare(deptB);
+      return grouped[a].personName.localeCompare(grouped[b].personName);
+    });
+
+    return `
+      <div class="wja-container">
+        <!-- フィルターバー -->
+        <div class="wja-filter-bar">
+          <div class="wja-filter-left">
+            <label class="wja-toggle">
+              <input type="checkbox" id="wja-filter-active" ${this.filters.activeOnly ? 'checked' : ''}>
+              <span>有効のみ</span>
+            </label>
+            <label class="wja-toggle">
+              <input type="checkbox" id="wja-filter-main" ${this.filters.mainOnly ? 'checked' : ''}>
+              <span>主担当のみ</span>
+            </label>
+          </div>
+          <div class="wja-filter-right">
+            <input type="text" id="wja-search" class="wja-search-input"
+                   placeholder="工番・顧客・製品で検索..."
+                   value="${Utils.escapeHtml(this.filters.searchQuery)}">
+          </div>
+        </div>
+
+        <!-- カード一覧 -->
+        <div class="wja-body">
+          ${personIds.length === 0 ? this.renderEmpty() : personIds.map(pid => this.renderPersonSection(grouped[pid])).join('')}
+        </div>
+      </div>
+    `;
+  },
+
+  /**
+   * 空の場合の表示
+   */
+  renderEmpty() {
+    return `
+      <div class="wja-empty">
+        <div class="wja-empty-icon">📋</div>
+        <div class="wja-empty-text">該当する担当工番がありません</div>
+      </div>
+    `;
+  },
+
+  /**
+   * 作業者セクション生成
+   */
+  renderPersonSection(group) {
+    const { personId, personName, dept, color, assigns } = group;
+
+    return `
+      <div class="wja-person-section">
+        <div class="wja-person-header" style="border-left: 4px solid ${color}">
+          <span class="wja-person-dept">${Utils.escapeHtml(dept)}</span>
+          <span class="wja-person-name">${Utils.escapeHtml(personName)}</span>
+          <span class="wja-person-count">${assigns.length}件</span>
+        </div>
+        <div class="wja-card-grid">
+          ${assigns.map(a => this.renderCard(a)).join('')}
+        </div>
+      </div>
+    `;
+  },
+
+  /**
+   * 工番カード生成
+   */
+  renderCard(assign) {
+    const jobCode = assign.jobCode || '';
+    const customerName = assign.customerName || '';
+    const productName = assign.productName || '';
+    const mainProcessName = assign.mainProcessName || '';
+    const role = assign.role || 'main';
+    const memo = assign.memo || '';
+    const jobId = assign.jobId || '';
+
+    // roleバッジ
+    const roleBadge = role === 'main'
+      ? '<span class="wja-role-badge wja-role-main">主</span>'
+      : '<span class="wja-role-badge wja-role-sub">副</span>';
+
+    return `
+      <div class="wja-card" data-job-id="${Utils.escapeHtml(jobId)}" data-job-code="${Utils.escapeHtml(jobCode)}">
+        <div class="wja-card-row1">
+          <span class="wja-card-jobcode">${Utils.escapeHtml(jobCode)}</span>
+          ${roleBadge}
+        </div>
+        <div class="wja-card-row2">${Utils.escapeHtml(customerName) || '—'}</div>
+        <div class="wja-card-row3">${Utils.escapeHtml(productName) || '—'}</div>
+        ${mainProcessName || memo ? `<div class="wja-card-row4">${Utils.escapeHtml(mainProcessName)}${memo ? ' / ' + Utils.escapeHtml(memo) : ''}</div>` : ''}
+      </div>
+    `;
+  },
+
+  /**
+   * イベントハンドラー設定
+   */
+  setupEventHandlers() {
+    // 有効のみトグル
+    const activeCheckbox = document.getElementById('wja-filter-active');
+    if (activeCheckbox) {
+      activeCheckbox.addEventListener('change', (e) => {
+        this.filters.activeOnly = e.target.checked;
+        this.render();
+      });
+    }
+
+    // 主担当のみトグル
+    const mainCheckbox = document.getElementById('wja-filter-main');
+    if (mainCheckbox) {
+      mainCheckbox.addEventListener('change', (e) => {
+        this.filters.mainOnly = e.target.checked;
+        this.render();
+      });
+    }
+
+    // 検索入力
+    const searchInput = document.getElementById('wja-search');
+    if (searchInput) {
+      let debounceTimer;
+      searchInput.addEventListener('input', (e) => {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+          this.filters.searchQuery = e.target.value;
+          this.render();
+          // 再レンダリング後にフォーカスを維持
+          const newInput = document.getElementById('wja-search');
+          if (newInput) {
+            newInput.focus();
+            newInput.setSelectionRange(newInput.value.length, newInput.value.length);
+          }
+        }, 300);
+      });
+    }
+
+    // カードクリック → 工番別工程表へ遷移
+    document.querySelectorAll('.wja-card').forEach(card => {
+      card.addEventListener('click', (e) => {
+        const jobId = card.dataset.jobId;
+        const jobCode = card.dataset.jobCode;
+        if (jobId) {
+          this.openJobDetail(jobId, jobCode);
+        }
+      });
+    });
+  },
+
+  /**
+   * 工番別工程表を開く
+   */
+  openJobDetail(jobId, jobCode) {
+    console.log('[WorkerJobAssignView] Opening job detail:', jobId, jobCode);
+    // 既存のJobDetailを開く処理を呼び出す
+    if (typeof JobDetail !== 'undefined' && JobDetail.open) {
+      JobDetail.open(jobId);
+    } else {
+      console.warn('JobDetail.open is not available');
+      Utils.showToast(`工番 ${jobCode} の詳細を開く機能は準備中です`, 'info');
+    }
+  }
+};
+
+console.log('[DEBUG] WorkerJobAssignView defined');
+
+// ========================================
 // WeeklyPlan - 今週の予定（週刊重要工程形式）
 // ========================================
 
@@ -3645,7 +3919,7 @@ const App = {
         Gantt.render();
         break;
       case 'resource':
-        ResourceView.render();
+        WorkerJobAssignView.render();
         break;
       case 'weekly':
         WeeklyPlan.render();

@@ -19,7 +19,8 @@ const CONFIG = {
     SCHEDULE: 'Schedule',
     ATTACHMENTS: 'Attachments',
     TRIPS: 'Trips',
-    EXTERNAL_JOB_MASTER: '外部_工番マスター'
+    EXTERNAL_JOB_MASTER: '外部_工番マスター',
+    WORKER_JOB_ASSIGN: 'WorkerJobAssign'
   },
 
   // デフォルト表示日数
