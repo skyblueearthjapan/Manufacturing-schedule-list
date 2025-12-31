@@ -390,7 +390,8 @@ const ChangeBuffer = {
   // 設定
   config: {
     idleAutoSaveMs: 5000,  // アイドル自動保存（5秒）
-    enableIdleAutoSave: true
+    enableIdleAutoSave: true,
+    storageKey: 'pendingChanges_v1'  // localStorage キー
   },
 
   // アイドルタイマー
@@ -398,6 +399,74 @@ const ChangeBuffer = {
 
   // リスナー（UI更新用）
   _listeners: [],
+
+  // ========================================
+  // localStorage 永続化
+  // ========================================
+
+  /**
+   * pendingChanges を localStorage に保存
+   */
+  _saveToStorage() {
+    try {
+      if (this.pendingChanges.length > 0) {
+        const data = {
+          version: 1,
+          savedAt: new Date().toISOString(),
+          changes: this.pendingChanges
+        };
+        localStorage.setItem(this.config.storageKey, JSON.stringify(data));
+        console.log(`[ChangeBuffer] Saved ${this.pendingChanges.length} changes to localStorage`);
+      } else {
+        this._clearStorage();
+      }
+    } catch (e) {
+      console.warn('[ChangeBuffer] Failed to save to localStorage:', e);
+    }
+  },
+
+  /**
+   * localStorage からロード
+   * @returns {Array|null} 復元した変更配列、なければnull
+   */
+  _loadFromStorage() {
+    try {
+      const raw = localStorage.getItem(this.config.storageKey);
+      if (!raw) return null;
+
+      const data = JSON.parse(raw);
+      if (data && data.version === 1 && Array.isArray(data.changes) && data.changes.length > 0) {
+        console.log(`[ChangeBuffer] Found ${data.changes.length} saved changes from ${data.savedAt}`);
+        return data;
+      }
+    } catch (e) {
+      console.warn('[ChangeBuffer] Failed to load from localStorage:', e);
+    }
+    return null;
+  },
+
+  /**
+   * localStorage をクリア
+   */
+  _clearStorage() {
+    try {
+      localStorage.removeItem(this.config.storageKey);
+      console.log('[ChangeBuffer] Cleared localStorage');
+    } catch (e) {
+      console.warn('[ChangeBuffer] Failed to clear localStorage:', e);
+    }
+  },
+
+  /**
+   * 保存済み変更を復元
+   * @param {Array} changes - 復元する変更配列
+   */
+  restoreFromStorage(changes) {
+    if (!Array.isArray(changes)) return;
+    this.pendingChanges = changes;
+    this._notify();
+    console.log(`[ChangeBuffer] Restored ${changes.length} changes from storage`);
+  },
 
   /**
    * 変更を追加
@@ -433,6 +502,7 @@ const ChangeBuffer = {
     }
 
     this._notify();
+    this._saveToStorage();  // localStorage に保存
     this._resetIdleTimer();
   },
 
@@ -444,6 +514,7 @@ const ChangeBuffer = {
       c => !(c.entityType === entityType && c.id === id)
     );
     this._notify();
+    this._saveToStorage();  // localStorage を更新
   },
 
   /**
@@ -453,6 +524,7 @@ const ChangeBuffer = {
     this.pendingChanges = [];
     this.lastSaveError = null;
     this._notify();
+    this._clearStorage();  // localStorage をクリア
   },
 
   /**
@@ -609,7 +681,82 @@ const ChangeBuffer = {
       }, { passive: true });
     });
 
+    // localStorage から未保存変更をチェック
+    this._checkStoredChanges();
+
     console.log('[ChangeBuffer] Initialized');
+  },
+
+  /**
+   * 保存済み変更の確認と復元
+   */
+  _checkStoredChanges() {
+    const stored = this._loadFromStorage();
+    if (!stored) return;
+
+    const { changes, savedAt } = stored;
+    const savedDate = new Date(savedAt);
+    const timeAgo = this._formatTimeAgo(savedDate);
+
+    // 復元確認ダイアログを表示
+    setTimeout(() => {
+      this._showRestoreDialog(changes, timeAgo);
+    }, 500);  // 初期化完了後に表示
+  },
+
+  /**
+   * 復元確認ダイアログを表示
+   */
+  _showRestoreDialog(changes, timeAgo) {
+    // ダイアログ作成
+    const overlay = document.createElement('div');
+    overlay.className = 'restore-dialog-overlay';
+    overlay.innerHTML = `
+      <div class="restore-dialog">
+        <div class="restore-dialog-header">
+          <h3>未保存の変更があります</h3>
+        </div>
+        <div class="restore-dialog-body">
+          <p>${timeAgo}に編集された <strong>${changes.length}件</strong> の未保存変更が見つかりました。</p>
+          <p>復元しますか？</p>
+        </div>
+        <div class="restore-dialog-footer">
+          <button class="restore-dialog-btn restore-dialog-btn-discard">破棄する</button>
+          <button class="restore-dialog-btn restore-dialog-btn-restore">復元する</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    // ボタンイベント
+    overlay.querySelector('.restore-dialog-btn-restore').addEventListener('click', () => {
+      this.restoreFromStorage(changes);
+      overlay.remove();
+      Utils.showToast(`${changes.length}件の変更を復元しました`, 'success');
+    });
+
+    overlay.querySelector('.restore-dialog-btn-discard').addEventListener('click', () => {
+      this._clearStorage();
+      overlay.remove();
+      Utils.showToast('未保存の変更を破棄しました', 'info');
+    });
+  },
+
+  /**
+   * 時間差を日本語表現
+   */
+  _formatTimeAgo(date) {
+    const now = new Date();
+    const diff = now - date;
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+
+    if (days > 0) return `${days}日前`;
+    if (hours > 0) return `${hours}時間前`;
+    if (minutes > 0) return `${minutes}分前`;
+    return '数秒前';
   }
 };
 
@@ -633,12 +780,13 @@ const SaveBar = {
     // 保存バーを作成
     this._container = document.createElement('div');
     this._container.id = 'save-bar';
-    this._container.className = 'save-bar hidden';
+    this._container.className = 'save-bar save-bar-idle';  // 初期状態はidle
     this._container.innerHTML = `
+      <span class="save-bar-icon">✓</span>
       <span class="save-bar-status">
-        <span class="save-bar-count">未保存: 0</span>
+        <span class="save-bar-count">保存済み</span>
       </span>
-      <button class="save-bar-btn" onclick="SaveBar.save()">
+      <button class="save-bar-btn hidden" onclick="SaveBar.save()">
         <span class="save-bar-btn-text">保存</span>
         <span class="save-bar-spinner hidden">⏳</span>
       </button>
@@ -647,12 +795,18 @@ const SaveBar = {
       </button>
     `;
 
-    // ヘッダーに追加
-    const header = document.querySelector('header .flex.items-center.space-x-3');
-    if (header) {
-      header.insertBefore(this._container, header.firstChild);
+    // 専用コンテナに追加
+    const container = document.getElementById('save-bar-container');
+    if (container) {
+      container.appendChild(this._container);
     } else {
-      document.body.appendChild(this._container);
+      // フォールバック: ヘッダーに追加
+      const header = document.querySelector('header .flex.items-center.space-x-3');
+      if (header) {
+        header.insertBefore(this._container, header.firstChild);
+      } else {
+        document.body.appendChild(this._container);
+      }
     }
 
     // ChangeBufferの状態変更を購読
@@ -669,42 +823,51 @@ const SaveBar = {
 
     const { count, isDirty, isSaving, lastSaveError } = state;
 
-    // 表示/非表示
-    if (isDirty || isSaving || lastSaveError) {
-      this._container.classList.remove('hidden');
-    } else {
-      this._container.classList.add('hidden');
-    }
+    // 状態クラスをリセット
+    this._container.classList.remove('save-bar-idle', 'save-bar-dirty', 'save-bar-saving', 'save-bar-error');
 
-    // カウント更新
+    // 要素取得
+    const iconEl = this._container.querySelector('.save-bar-icon');
     const countEl = this._container.querySelector('.save-bar-count');
-    if (countEl) {
-      countEl.textContent = `未保存: ${count}`;
-    }
-
-    // 保存中表示
+    const btn = this._container.querySelector('.save-bar-btn');
     const btnText = this._container.querySelector('.save-bar-btn-text');
     const spinner = this._container.querySelector('.save-bar-spinner');
-    const btn = this._container.querySelector('.save-bar-btn');
+    const retryBtn = this._container.querySelector('.save-bar-retry');
 
-    if (isSaving) {
+    // 状態別の表示更新
+    if (lastSaveError) {
+      // エラー状態
+      this._container.classList.add('save-bar-error');
+      if (iconEl) iconEl.textContent = '⚠';
+      if (countEl) countEl.textContent = `保存失敗`;
+      btn?.classList.add('hidden');
+      retryBtn?.classList.remove('hidden');
+    } else if (isSaving) {
+      // 保存中
+      this._container.classList.add('save-bar-saving');
+      if (iconEl) iconEl.textContent = '⏳';
+      if (countEl) countEl.textContent = '保存中...';
+      btn?.classList.add('hidden');
       btnText?.classList.add('hidden');
       spinner?.classList.remove('hidden');
-      btn?.setAttribute('disabled', 'true');
-    } else {
+      retryBtn?.classList.add('hidden');
+    } else if (isDirty) {
+      // 未保存あり
+      this._container.classList.add('save-bar-dirty');
+      if (iconEl) iconEl.textContent = '●';
+      if (countEl) countEl.textContent = `未保存: ${count}件`;
+      btn?.classList.remove('hidden');
       btnText?.classList.remove('hidden');
       spinner?.classList.add('hidden');
       btn?.removeAttribute('disabled');
-    }
-
-    // エラー表示
-    const retryBtn = this._container.querySelector('.save-bar-retry');
-    if (lastSaveError) {
-      retryBtn?.classList.remove('hidden');
-      this._container.classList.add('save-bar-error');
-    } else {
       retryBtn?.classList.add('hidden');
-      this._container.classList.remove('save-bar-error');
+    } else {
+      // アイドル状態（保存済み）
+      this._container.classList.add('save-bar-idle');
+      if (iconEl) iconEl.textContent = '✓';
+      if (countEl) countEl.textContent = '保存済み';
+      btn?.classList.add('hidden');
+      retryBtn?.classList.add('hidden');
     }
   },
 
@@ -1061,6 +1224,42 @@ const Store = {
       }
 
       this.setState({ jobs });
+    }
+
+    // TopMemo の差分反映
+    if (results.topMemo) {
+      let topMemos = [...this.state.topMemos];
+
+      // upserted: 更新または追加（tempId → realId マッピング対応）
+      if (results.topMemo.upserted) {
+        results.topMemo.upserted.forEach(saved => {
+          if (saved._tempId) {
+            const tempIdx = topMemos.findIndex(m => m.memoId === saved._tempId);
+            if (tempIdx >= 0) {
+              topMemos[tempIdx] = { ...saved };
+              delete topMemos[tempIdx]._tempId;
+              console.log(`[Store] TopMemo tempId ${saved._tempId} → ${saved.memoId}`);
+              return;
+            }
+          }
+          const idx = topMemos.findIndex(m => m.memoId === saved.memoId);
+          if (idx >= 0) {
+            topMemos[idx] = { ...topMemos[idx], ...saved };
+          } else {
+            topMemos.push(saved);
+          }
+        });
+      }
+
+      // deleted: 削除
+      if (results.topMemo.deleted) {
+        const deletedIds = results.topMemo.deleted.map(d => d.memoId || d);
+        topMemos = topMemos.filter(m => !deletedIds.includes(m.memoId));
+      }
+
+      // sortOrder順でソート
+      topMemos.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+      this.setState({ topMemos });
     }
 
     console.log('[Store] Diff update complete');
@@ -2086,12 +2285,15 @@ const TopMemoPanel = {
     document.getElementById('modal-top-memo')?.classList.add('hidden');
   },
 
-  async saveFromModal() {
+  /**
+   * モーダルから保存（A+C+B統合：即UI反映→ChangeBuffer経由で保存）
+   */
+  saveFromModal() {
     const idInput = document.getElementById('top-memo-edit-id');
     const titleInput = document.getElementById('top-memo-edit-title');
     const bodyInput = document.getElementById('top-memo-edit-body');
 
-    const memoId = idInput.value || null;
+    const existingId = idInput.value || null;
     const title = titleInput.value.trim();
     const body = bodyInput.value;
 
@@ -2100,33 +2302,53 @@ const TopMemoPanel = {
       return;
     }
 
-    try {
-      const payload = { title, body };
-      if (memoId) {
-        payload.memoId = memoId;
-      }
+    // A: 即時UI反映（楽観的更新）
+    const isNew = !existingId;
+    const memoId = isNew ? `temp_${Utils.generateId()}` : existingId;
 
-      const result = await API.upsertTopMemo(payload);
-      Store.addOrReplaceTopMemo(result);
-      this.closeEditModal();
-      Utils.showToast(memoId ? 'メモを更新しました' : 'メモを作成しました', 'success');
-    } catch (error) {
-      console.error('[TopMemoPanel] 保存エラー:', error);
-      Utils.showToast('保存に失敗しました', 'error');
-    }
+    const optimisticMemo = {
+      memoId,
+      scope: 'global',
+      title,
+      body,
+      isActive: true,
+      sortOrder: isNew ? (this._getMaxSortOrder() + 10) : (Store.getTopMemoById(existingId)?.sortOrder || 0),
+      updatedAt: new Date().toISOString(),
+      updatedBy: 'user'
+    };
+
+    // Store に即反映
+    Store.addOrReplaceTopMemo(optimisticMemo);
+
+    // ChangeBuffer に追加（B: 自動保存対応）
+    ChangeBuffer.add('topMemo', 'upsert', memoId, { title, body }, 'topMemo');
+
+    this.closeEditModal();
+    console.log(`[TopMemoPanel] ${isNew ? '新規作成' : '更新'}: ${memoId}`);
   },
 
-  async deleteMemo(memoId) {
+  /**
+   * メモ削除（A+C+B統合：即UI反映→ChangeBuffer経由で保存）
+   */
+  deleteMemo(memoId) {
     if (!confirm('このメモを非表示にしますか？')) return;
 
-    try {
-      await API.setTopMemoActive(memoId, false);
-      Store.removeTopMemo(memoId);
-      Utils.showToast('メモを非表示にしました', 'success');
-    } catch (error) {
-      console.error('[TopMemoPanel] 削除エラー:', error);
-      Utils.showToast('操作に失敗しました', 'error');
-    }
+    // A: 即時UI反映（楽観的削除）
+    Store.removeTopMemo(memoId);
+
+    // ChangeBuffer に追加（B: 自動保存対応）
+    ChangeBuffer.add('topMemo', 'delete', memoId, { isActive: false }, 'topMemo');
+
+    console.log(`[TopMemoPanel] 削除: ${memoId}`);
+  },
+
+  /**
+   * 現在の最大sortOrderを取得
+   */
+  _getMaxSortOrder() {
+    const memos = Store.getTopMemos();
+    if (memos.length === 0) return 0;
+    return Math.max(...memos.map(m => m.sortOrder || 0));
   }
 };
 

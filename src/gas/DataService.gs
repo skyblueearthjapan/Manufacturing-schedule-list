@@ -1595,19 +1595,20 @@ function searchExternalJobMaster(query, limit = 20) {
 /**
  * 複数の変更を一括保存
  * @param {Object} payload - { changes: [...], clientRevision: string, user: string }
- * @returns {Object} - { ok: boolean, results: { schedule: {...}, trip: {...}, job: {...} } }
+ * @returns {Object} - { ok: boolean, results: { schedule: {...}, trip: {...}, job: {...}, topMemo: {...} } }
  */
 function api_saveBatch(payload) {
   const { changes, clientRevision, user } = payload;
 
   if (!changes || !Array.isArray(changes) || changes.length === 0) {
-    return { ok: true, results: { schedule: {}, trip: {}, job: {} } };
+    return { ok: true, results: { schedule: {}, trip: {}, job: {}, topMemo: {} } };
   }
 
   const results = {
     schedule: { upserted: [], deleted: [] },
     trip: { upserted: [], deleted: [], locked: [], unlocked: [] },
-    job: { upserted: [] }
+    job: { upserted: [] },
+    topMemo: { upserted: [], deleted: [] }
   };
 
   const errors = [];
@@ -1675,6 +1676,30 @@ function api_saveBatch(payload) {
               saved = updateJob(id, changePayload);
             }
             results.job.upserted.push(saved);
+          }
+          break;
+
+        case 'topMemo':
+          if (op === 'upsert') {
+            // TopMemoは upsertTopMemo を使用（memoIdがあれば更新、なければ新規）
+            const memoPayload = { ...changePayload };
+            if (!isNewRecord(id)) {
+              memoPayload.memoId = id;
+            }
+            let saved = upsertTopMemo(memoPayload);
+            if (isNewRecord(id)) {
+              saved._tempId = id;
+            }
+            results.topMemo.upserted.push(saved);
+          } else if (op === 'delete' || op === 'setActive') {
+            // setActive=false は論理削除
+            const isActive = op === 'setActive' ? (changePayload.isActive !== false) : false;
+            const updated = setTopMemoActive(id, isActive);
+            if (!isActive) {
+              results.topMemo.deleted.push(id);
+            } else {
+              results.topMemo.upserted.push(updated);
+            }
           }
           break;
 

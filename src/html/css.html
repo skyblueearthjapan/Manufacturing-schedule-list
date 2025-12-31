@@ -1915,19 +1915,44 @@
   }
 
   /* ========================================
-     SaveBar（保存ステータスバー）
+     SaveBar（保存ステータスバー）- 常時表示・状態別スタイル
      ======================================== */
   .save-bar {
     display: flex;
     align-items: center;
     gap: 8px;
     padding: 4px 12px;
-    background: linear-gradient(135deg, #fef3c7, #fde68a);
-    border: 1px solid #f59e0b;
     border-radius: 6px;
     font-size: 12px;
+    transition: all 0.3s ease;
+  }
+
+  .save-bar.hidden {
+    display: none;
+  }
+
+  /* アイドル状態（保存済み）- 控えめな表示 */
+  .save-bar.save-bar-idle {
+    background: linear-gradient(135deg, #f0fdf4, #dcfce7);
+    border: 1px solid #86efac;
+    color: #166534;
+  }
+
+  .save-bar.save-bar-idle .save-bar-icon {
+    color: #22c55e;
+  }
+
+  /* 未保存あり - 目立つ黄色 */
+  .save-bar.save-bar-dirty {
+    background: linear-gradient(135deg, #fef3c7, #fde68a);
+    border: 1px solid #f59e0b;
     color: #92400e;
     animation: saveBarPulse 2s ease-in-out infinite;
+  }
+
+  .save-bar.save-bar-dirty .save-bar-icon {
+    color: #f59e0b;
+    font-size: 10px;
   }
 
   @keyframes saveBarPulse {
@@ -1935,15 +1960,33 @@
     50% { opacity: 0.85; }
   }
 
-  .save-bar.hidden {
-    display: none;
+  /* 保存中 - 青系 */
+  .save-bar.save-bar-saving {
+    background: linear-gradient(135deg, #dbeafe, #bfdbfe);
+    border: 1px solid #3b82f6;
+    color: #1e40af;
   }
 
-  .save-bar-error {
+  .save-bar.save-bar-saving .save-bar-icon {
+    animation: spin 1s linear infinite;
+  }
+
+  /* エラー - 赤 */
+  .save-bar.save-bar-error {
     background: linear-gradient(135deg, #fee2e2, #fecaca);
-    border-color: #ef4444;
+    border: 1px solid #ef4444;
     color: #dc2626;
     animation: none;
+  }
+
+  .save-bar.save-bar-error .save-bar-icon {
+    color: #ef4444;
+  }
+
+  /* アイコン */
+  .save-bar-icon {
+    font-size: 12px;
+    font-weight: bold;
   }
 
   .save-bar-status {
@@ -2002,6 +2045,111 @@
 
   .save-bar-retry:hover {
     background: #dc2626;
+  }
+
+  /* ========================================
+     復元確認ダイアログ
+     ======================================== */
+  .restore-dialog-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    animation: fadeIn 0.2s ease-out;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  .restore-dialog {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+    max-width: 400px;
+    width: 90%;
+    overflow: hidden;
+    animation: slideUp 0.3s ease-out;
+  }
+
+  @keyframes slideUp {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .restore-dialog-header {
+    padding: 16px 20px;
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    color: white;
+  }
+
+  .restore-dialog-header h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  .restore-dialog-body {
+    padding: 20px;
+    font-size: 14px;
+    color: #374151;
+    line-height: 1.6;
+  }
+
+  .restore-dialog-body p {
+    margin: 0 0 8px;
+  }
+
+  .restore-dialog-body strong {
+    color: #b45309;
+    font-weight: 600;
+  }
+
+  .restore-dialog-footer {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    padding: 16px 20px;
+    background: #f9fafb;
+    border-top: 1px solid #e5e7eb;
+  }
+
+  .restore-dialog-btn {
+    padding: 8px 20px;
+    border: none;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .restore-dialog-btn-discard {
+    background: #e5e7eb;
+    color: #374151;
+  }
+
+  .restore-dialog-btn-discard:hover {
+    background: #d1d5db;
+  }
+
+  .restore-dialog-btn-restore {
+    background: #f59e0b;
+    color: white;
+  }
+
+  .restore-dialog-btn-restore:hover {
+    background: #d97706;
   }
 
   /* ========================================
