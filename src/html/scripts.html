@@ -1104,6 +1104,9 @@ const Gantt = {
   // 工番ごとのレーン数を保持
   jobLaneCounts: {},
 
+  // 工番ごとのスケジュール（レーン情報付き）を保持
+  _jobSchedulesWithLanes: {},
+
   // ドラッグ範囲選択の状態
   dragState: {
     isDragging: false,
@@ -1174,10 +1177,26 @@ const Gantt = {
     const gridWidth = this.dates.length * this.config.cellWidth;
     document.documentElement.style.setProperty('--grid-width', `${gridWidth}px`);
 
+    // 先にレーン数を計算（renderJobPane/renderGrid両方で使用）
+    this.calculateLaneCounts(jobs);
+
     this.renderDateHeader();
     this.renderJobPane(jobs);
     this.renderGrid(jobs);
     this.updateTodayLinePosition();
+  },
+
+  // 全工番のレーン数を事前計算（行の高さ同期のため）
+  calculateLaneCounts(jobs) {
+    this.jobLaneCounts = {};
+    this._jobSchedulesWithLanes = {};
+
+    jobs.forEach(job => {
+      const schedules = Store.getSchedulesByJobId(job.jobId);
+      const { items, laneCount } = this.assignLanes(schedules);
+      this.jobLaneCounts[job.jobId] = laneCount;
+      this._jobSchedulesWithLanes[job.jobId] = items;
+    });
   },
 
   renderDateHeader() {
@@ -1322,16 +1341,7 @@ const Gantt = {
       return;
     }
 
-    // まず全工番のレーン数を計算
-    this.jobLaneCounts = {};
-    const jobSchedulesWithLanes = {};
-
-    jobs.forEach(job => {
-      const schedules = Store.getSchedulesByJobId(job.jobId);
-      const { items, laneCount } = this.assignLanes(schedules);
-      this.jobLaneCounts[job.jobId] = laneCount;
-      jobSchedulesWithLanes[job.jobId] = items;
-    });
+    // レーン数は calculateLaneCounts() で事前計算済み（this.jobLaneCounts, this._jobSchedulesWithLanes）
 
     let html = '';
     jobs.forEach(job => {
@@ -1357,7 +1367,7 @@ const Gantt = {
         `;
       });
       // バーは必ず row の内部に配置（row外に出すと全工番に重複表示される）
-      html += this.renderBarsForJob(job.jobId, jobSchedulesWithLanes[job.jobId] || []);
+      html += this.renderBarsForJob(job.jobId, this._jobSchedulesWithLanes[job.jobId] || []);
       html += '</div>';
     });
 
