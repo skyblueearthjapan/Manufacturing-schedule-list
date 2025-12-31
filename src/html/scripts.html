@@ -2932,11 +2932,14 @@ console.log('[DEBUG] TripModal defined');
 const TravelPlan = {
   config: {
     cellWidth: 70,  // 日付列幅（32→70に拡大：カード3行が読めるように）
-    rowHeight: 72
+    rowHeight: 72,
+    maxExpandDays: 6,  // 現場カード自動拡大の最大日数
+    cardPadding: 24    // カード内パディング（左右10px×2 + 余白）
   },
   dates: [],
   displayStartDate: null,
   displayDays: 90,
+  _measureCanvas: null,  // テキスト幅計測用Canvas
 
   init() {
     this.displayStartDate = Utils.getToday();
@@ -2995,6 +2998,39 @@ const TravelPlan = {
 
   addNewTrip() {
     TripModal.open(null);
+  },
+
+  /**
+   * テキスト幅を計測（Canvas使用）
+   * @param {string} text - 計測するテキスト
+   * @param {string} font - フォント指定（例: '11px sans-serif'）
+   * @returns {number} ピクセル幅
+   */
+  measureTextWidth(text, font = '11px sans-serif') {
+    if (!this._measureCanvas) {
+      this._measureCanvas = document.createElement('canvas');
+    }
+    const ctx = this._measureCanvas.getContext('2d');
+    ctx.font = font;
+    return ctx.measureText(text).width;
+  },
+
+  /**
+   * 現場カードの必要幅を計算
+   * @param {string} line1 - 1行目（工番+顧客名）
+   * @param {string} line2 - 2行目（製品名）
+   * @param {string} line3 - 3行目（場所）
+   * @returns {number} 必要なピクセル幅
+   */
+  calculateSiteCardWidth(line1, line2, line3) {
+    // 各行の幅を計測（フォントサイズに合わせる）
+    const width1 = this.measureTextWidth(line1, '600 11px sans-serif');  // 1行目は太字
+    const width2 = this.measureTextWidth(line2, '10px sans-serif');
+    const width3 = this.measureTextWidth(line3, '10px sans-serif');
+
+    // 最大幅 + パディング + ロックアイコンスペース
+    const maxTextWidth = Math.max(width1, width2, width3);
+    return maxTextWidth + this.config.cardPadding + 20;  // +20はロックアイコン分
   },
 
   render() {
@@ -3118,17 +3154,17 @@ const TravelPlan = {
       return '';
     }
 
-    const left = Math.max(0, startOffset) * this.config.cellWidth;
-    const width = Math.min(duration, this.dates.length - Math.max(0, startOffset)) * this.config.cellWidth - 4;
+    const baseLeft = Math.max(0, startOffset) * this.config.cellWidth;
+    const spanWidth = Math.min(duration, this.dates.length - Math.max(0, startOffset)) * this.config.cellWidth - 4;
     const isLocked = trip.isLocked === true;
     const lockIcon = isLocked ? '<span class="travel-lock-icon">🔒</span>' : '';
 
     if (trip.kind === 'move') {
-      // 移動バー
+      // 移動バー（従来通り固定幅）
       const destination = trip['行先'] || '';
       return `
         <div class="travel-move-bar ${isLocked ? 'locked' : ''}"
-             style="left: ${left}px; width: ${width}px;"
+             style="left: ${baseLeft}px; width: ${spanWidth}px;"
              data-trip-id="${trip.tripId}"
              title="移動: ${destination}">
           ${lockIcon}
@@ -3137,16 +3173,35 @@ const TravelPlan = {
         </div>
       `;
     } else if (trip.kind === 'site') {
-      // 現場バー（3行表示）
+      // 現場バー（自動幅拡大対応）
       const description = trip['用件'] || '';
       const lines = description.split('\n');
       const line1 = lines[0] || '';
       const line2 = lines[1] || '';
       const line3 = lines[2] || trip['行先'] || '';
 
+      // テキストから必要幅を計算
+      const neededWidth = this.calculateSiteCardWidth(line1, line2, line3);
+      const maxWidth = this.config.cellWidth * this.config.maxExpandDays;  // 最大6日分
+      const minWidth = spanWidth;  // 最小はスパン幅
+
+      // 幅を決定: max(minWidth, neededWidth) を maxWidth でクランプ
+      let finalWidth = Math.max(minWidth, neededWidth);
+      finalWidth = Math.min(finalWidth, maxWidth);
+
+      // 右端カードの左寄せ補正
+      let finalLeft = baseLeft;
+      const gridTotalWidth = this.dates.length * this.config.cellWidth;
+      const cardRight = finalLeft + finalWidth;
+
+      // カードが右端を超える場合、左に寄せる
+      if (cardRight > gridTotalWidth) {
+        finalLeft = Math.max(0, gridTotalWidth - finalWidth - 4);
+      }
+
       return `
         <div class="travel-site-bar ${isLocked ? 'locked' : ''}"
-             style="left: ${left}px; width: ${width}px;"
+             style="left: ${finalLeft}px; width: ${finalWidth}px;"
              data-trip-id="${trip.tripId}"
              title="${Utils.escapeHtml(description)}">
           ${lockIcon}
@@ -3161,7 +3216,7 @@ const TravelPlan = {
       const purpose = trip['用件'] || '';
       return `
         <div class="travel-move-bar"
-             style="left: ${left}px; width: ${width}px; background: linear-gradient(135deg, #a78bfa, #8b5cf6); color: white; border-color: #7c3aed;"
+             style="left: ${baseLeft}px; width: ${spanWidth}px; background: linear-gradient(135deg, #a78bfa, #8b5cf6); color: white; border-color: #7c3aed;"
              data-trip-id="${trip.tripId}"
              title="${destination} - ${purpose}">
           <span>${Utils.escapeHtml(destination || purpose)}</span>

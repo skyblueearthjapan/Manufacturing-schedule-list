@@ -1517,6 +1517,7 @@
     display: flex;
     position: relative;
     flex: 1;
+    overflow: visible;  /* カードのはみ出しを許可 */
   }
 
   .travel-grid-cell {
@@ -1571,7 +1572,7 @@
     margin-right: 4px;
   }
 
-  /* 現場バー */
+  /* 現場バー（自動幅拡大対応） */
   .travel-site-bar {
     position: absolute;
     height: 58px;
@@ -1585,16 +1586,17 @@
     background: linear-gradient(135deg, #3b82f6, #2563eb);
     color: white;
     cursor: pointer;
-    overflow: hidden;
+    overflow: visible;  /* 内容がはみ出しても表示 */
     box-shadow: 0 2px 4px rgba(0,0,0,0.12);
     border: 1px solid #1d4ed8;
     line-height: 1.35;
+    z-index: 5;  /* 他のカードより前面に */
   }
 
   .travel-site-bar:hover {
     transform: translateY(-1px);
     box-shadow: 0 4px 6px rgba(0,0,0,0.15);
-    z-index: 10;
+    z-index: 20;
   }
 
   .travel-site-bar.locked {
@@ -1603,31 +1605,29 @@
     border-width: 3px;
   }
 
+  /* 現場バーのテキスト行（省略禁止） */
   .travel-site-bar .bar-line1 {
     font-weight: 600;
     font-size: 11px;
     white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 100%;
+    overflow: visible;
+    text-overflow: clip;  /* 省略（...）を禁止 */
   }
 
   .travel-site-bar .bar-line2 {
     font-size: 10px;
     white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    overflow: visible;
+    text-overflow: clip;  /* 省略（...）を禁止 */
     opacity: 0.95;
-    max-width: 100%;
   }
 
   .travel-site-bar .bar-line3 {
     font-size: 10px;
     white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    overflow: visible;
+    text-overflow: clip;  /* 省略（...）を禁止 */
     opacity: 0.9;
-    max-width: 100%;
   }
 
   /* ロックアイコン */
