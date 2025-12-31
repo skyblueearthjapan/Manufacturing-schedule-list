@@ -2733,6 +2733,26 @@ console.log('[DEBUG] WeeklyPlan defined');
 const TripModal = {
   currentTrip: null,
   isNew: false,
+  _presetPersonId: null,  // セル選択からの事前設定
+
+  /**
+   * セル選択から新規作成モードで開く
+   * @param {string} personId - 作業者ID
+   * @param {string} startDate - 開始日
+   * @param {string} endDate - 終了日
+   */
+  openNew(personId, startDate, endDate) {
+    this._presetPersonId = personId;
+    this.open(null);
+
+    // 事前設定を適用
+    document.getElementById('trip-person').value = personId;
+    document.getElementById('trip-start').value = startDate;
+    document.getElementById('trip-end').value = endDate;
+
+    // 移動ボタンを表示
+    document.getElementById('trip-add-move-btn').classList.remove('hidden');
+  },
 
   open(trip) {
     this.currentTrip = trip;
@@ -2801,6 +2821,7 @@ const TripModal = {
       document.getElementById('trip-locked-badge').classList.add('hidden');
       document.getElementById('trip-delete-btn').classList.add('hidden');
       document.getElementById('trip-lock-btn').classList.add('hidden');
+      document.getElementById('trip-add-move-btn').classList.add('hidden');
 
       this.setReadonly(false);
     }
@@ -2920,6 +2941,46 @@ const TripModal = {
     } finally {
       Utils.setLoading(false);
     }
+  },
+
+  /**
+   * 移動予定をワンクリックで追加
+   */
+  async addMove() {
+    const personId = document.getElementById('trip-person').value;
+    const start = document.getElementById('trip-start').value;
+    const end = document.getElementById('trip-end').value;
+
+    if (!personId || !start || !end) {
+      Utils.showToast('担当者と日付を選択してください', 'error');
+      return;
+    }
+
+    try {
+      Utils.setLoading(true);
+
+      const payload = {
+        personId,
+        start,
+        end,
+        '行先': '',
+        '用件': '移動',
+        '備考': '',
+        kind: 'move',
+        source: 'manual'
+      };
+
+      await API.call('api_createTrip', payload);
+      Utils.showToast('移動予定を追加しました', 'success');
+
+      this.close();
+      await Store.loadBootstrapData();
+    } catch (error) {
+      console.error('Add move failed:', error);
+      Utils.showToast('移動追加に失敗しました: ' + error.message, 'error');
+    } finally {
+      Utils.setLoading(false);
+    }
   }
 };
 
@@ -2943,6 +3004,11 @@ const TravelPlan = {
   _measureCanvas: null,
   // 日付ごとの追加幅マップ（押し広げ用）
   _dateExtraWidths: {},  // { 'YYYY-MM-DD': extraPx }
+  // セル選択状態
+  _selecting: false,
+  _selectPersonId: null,
+  _selectStartDate: null,
+  _selectEndDate: null,
 
   init() {
     this.displayStartDate = Utils.getToday();
@@ -3243,7 +3309,7 @@ const TravelPlan = {
           <div class="travel-person-grid" style="width: ${totalWidth}px;">
       `;
 
-      // グリッドセル（動的幅）
+      // グリッドセル（動的幅、クリック/ドラッグ選択対応）
       this.dates.forEach(date => {
         const isWeekend = Utils.isWeekend(date);
         const isToday = date === today;
@@ -3252,7 +3318,10 @@ const TravelPlan = {
         let classes = 'travel-grid-cell';
         if (isWeekend) classes += ' weekend';
         if (isToday) classes += ' today';
-        html += `<div class="${classes}" style="width: ${cellWidth}px; min-width: ${cellWidth}px;"></div>`;
+        html += `<div class="${classes}"
+                      style="width: ${cellWidth}px; min-width: ${cellWidth}px;"
+                      data-person-id="${person.personId}"
+                      data-date="${date}"></div>`;
       });
 
       // 予定バー（レイアウト計算済み）
@@ -3275,16 +3344,123 @@ const TravelPlan = {
   },
 
   setupTripClickHandlers(trips) {
+    // 既存の予定バークリック
     const tripBars = document.querySelectorAll('[data-trip-id]');
     tripBars.forEach(bar => {
       bar.style.cursor = 'pointer';
       bar.addEventListener('click', (e) => {
+        e.stopPropagation();  // グリッドセルへの伝播を止める
         const tripId = e.currentTarget.dataset.tripId;
         const trip = trips.find(t => t.tripId === tripId);
         if (trip) {
           TripModal.open(trip);
         }
       });
+    });
+
+    // グリッドセルのクリック/ドラッグ選択
+    this.setupCellSelectionHandlers();
+  },
+
+  /**
+   * セル選択ハンドラーをセットアップ
+   */
+  setupCellSelectionHandlers() {
+    const cells = document.querySelectorAll('.travel-grid-cell[data-person-id][data-date]');
+
+    cells.forEach(cell => {
+      // mousedown: 選択開始
+      cell.addEventListener('mousedown', (e) => {
+        if (e.button !== 0) return;  // 左クリックのみ
+        e.preventDefault();
+
+        const personId = cell.dataset.personId;
+        const date = cell.dataset.date;
+
+        this._selecting = true;
+        this._selectPersonId = personId;
+        this._selectStartDate = date;
+        this._selectEndDate = date;
+
+        this.updateSelectionHighlight();
+      });
+
+      // mousemove: 選択範囲拡張
+      cell.addEventListener('mousemove', (e) => {
+        if (!this._selecting) return;
+
+        const personId = cell.dataset.personId;
+        const date = cell.dataset.date;
+
+        // 同一personIdの行内のみ選択可能
+        if (personId === this._selectPersonId) {
+          this._selectEndDate = date;
+          this.updateSelectionHighlight();
+        }
+      });
+
+      // mouseup: 選択確定 → モーダル表示
+      cell.addEventListener('mouseup', (e) => {
+        if (!this._selecting) return;
+
+        const personId = this._selectPersonId;
+        let startDate = this._selectStartDate;
+        let endDate = this._selectEndDate;
+
+        // 日付の順序を正規化
+        if (startDate > endDate) {
+          [startDate, endDate] = [endDate, startDate];
+        }
+
+        this._selecting = false;
+        this.clearSelectionHighlight();
+
+        // モーダルを開く（新規作成モード）
+        TripModal.openNew(personId, startDate, endDate);
+      });
+    });
+
+    // mouseup outside: 選択キャンセル
+    document.addEventListener('mouseup', () => {
+      if (this._selecting) {
+        this._selecting = false;
+        this.clearSelectionHighlight();
+      }
+    });
+  },
+
+  /**
+   * 選択範囲のハイライト更新
+   */
+  updateSelectionHighlight() {
+    this.clearSelectionHighlight();
+
+    if (!this._selectPersonId || !this._selectStartDate || !this._selectEndDate) return;
+
+    let startDate = this._selectStartDate;
+    let endDate = this._selectEndDate;
+    if (startDate > endDate) {
+      [startDate, endDate] = [endDate, startDate];
+    }
+
+    const cells = document.querySelectorAll(
+      `.travel-grid-cell[data-person-id="${this._selectPersonId}"]`
+    );
+
+    cells.forEach(cell => {
+      const date = cell.dataset.date;
+      if (date >= startDate && date <= endDate) {
+        cell.classList.add('selecting');
+      }
+    });
+  },
+
+  /**
+   * 選択ハイライトをクリア
+   */
+  clearSelectionHighlight() {
+    document.querySelectorAll('.travel-grid-cell.selecting').forEach(cell => {
+      cell.classList.remove('selecting');
     });
   },
 

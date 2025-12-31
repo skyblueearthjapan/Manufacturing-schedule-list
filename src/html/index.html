@@ -691,8 +691,11 @@
       </div>
       <div class="modal-footer">
         <div class="flex justify-between w-full">
-          <div>
+          <div class="flex gap-2">
             <button type="button" id="trip-delete-btn" onclick="TripModal.delete()" class="btn btn-danger text-sm">削除</button>
+            <button type="button" id="trip-add-move-btn" onclick="TripModal.addMove()" class="btn text-sm hidden" style="background: linear-gradient(135deg, #fbbf24, #f59e0b); color: #78350f; border: 1px solid #d97706;">
+              🚗 移動を追加
+            </button>
           </div>
           <div class="flex gap-2">
             <button type="button" id="trip-lock-btn" onclick="TripModal.lock()" class="btn btn-secondary text-sm">
