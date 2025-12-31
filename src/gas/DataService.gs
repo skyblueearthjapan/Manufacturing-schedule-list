@@ -225,6 +225,68 @@ function getAllProcesses(includeInactive = false) {
   return processes.sort((a, b) => (a['表示順(order)'] || 0) - (b['表示順(order)'] || 0));
 }
 
+/**
+ * 新規工程を作成
+ * @param {Object} payload - { processName, type, order, colorHex, isWeekly, isActive, memo }
+ * @returns {Object} - 作成された工程レコード
+ */
+function createProcess(payload) {
+  const sheet = getSheet(CONFIG.SHEETS.PROCESS_MASTER);
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+  const processes = sheetDataToObjects(data);
+
+  // 工程名の重複チェック
+  const trimmedName = (payload.processName || '').trim();
+  if (!trimmedName) {
+    throw new Error('工程名を入力してください');
+  }
+  const duplicate = processes.find(p => (p['工程名'] || '').trim() === trimmedName);
+  if (duplicate) {
+    throw new Error('同じ工程名が既に存在します');
+  }
+
+  // processId自動生成（P + 3桁数字）
+  const existingIds = processes
+    .map(p => p.processId)
+    .filter(id => /^P\d{3}$/.test(id))
+    .map(id => parseInt(id.slice(1), 10));
+  const maxId = existingIds.length > 0 ? Math.max(...existingIds) : 0;
+  let nextId = maxId + 10;
+  // 既存に同IDがあれば+10で空きを探す
+  while (processes.some(p => p.processId === `P${String(nextId).padStart(3, '0')}`)) {
+    nextId += 10;
+  }
+  const processId = `P${String(nextId).padStart(3, '0')}`;
+
+  // デフォルト値設定
+  const newProcess = {
+    'processId': processId,
+    '工程名': trimmedName,
+    '種別(type)': payload.type || 'range',
+    '表示順(order)': payload.order || (maxId + 10),
+    '工程色(colorHex)': payload.colorHex || '#4A90E2',
+    '主担当必須': 'TRUE',
+    '副担当許可': 'TRUE',
+    '副担当必須': 'FALSE',
+    '有効(isActive)': payload.isActive !== false ? 'TRUE' : 'FALSE',
+    '標準(isStandard)': 'TRUE',
+    '重要（isWeekly）': payload.isWeekly ? 'TRUE' : 'FALSE',
+    '備考': payload.memo || ''
+  };
+
+  // ヘッダー順に行データを作成
+  const rowData = headers.map(header => newProcess[header] ?? '');
+  sheet.appendRow(rowData);
+
+  // boolean正規化して返却
+  return {
+    ...newProcess,
+    isWeekly: payload.isWeekly === true,
+    '有効(isActive)': payload.isActive !== false
+  };
+}
+
 // ============================================
 // People（作業者マスタ）
 // ============================================

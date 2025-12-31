@@ -822,6 +822,13 @@ const Store = {
     this.setState({ jobs });
   },
 
+  addProcess(process) {
+    const processes = [...this.state.processes, process];
+    // order順でソート
+    processes.sort((a, b) => (a['表示順(order)'] || 0) - (b['表示順(order)'] || 0));
+    this.setState({ processes });
+  },
+
   updateJobInStore(jobId, updates) {
     const jobs = this.state.jobs.map(j =>
       j.jobId === jobId ? { ...j, ...updates } : j
@@ -1720,8 +1727,13 @@ const Modal = {
     const processId = document.getElementById('entry-process').value;
 
     if (processId === '__new__') {
-      Utils.showToast('新規工程追加（Phase 3で実装）', 'info');
+      // セレクトをリセットしてからProcessModalを開く
       document.getElementById('entry-process').value = '';
+      ProcessModal.open((newProcess) => {
+        // 追加成功時：工程Selectを再生成し、新規工程を自動選択
+        this.populateProcessSelect(newProcess.processId);
+        this.validateProcess(); // マイルストーンチェック等
+      });
       return;
     }
 
@@ -1830,6 +1842,134 @@ const Modal = {
 };
 
 console.log('[DEBUG] Modal defined');
+
+// ========================================
+// ProcessModal - 新規工程追加モーダル
+// ========================================
+
+const ProcessModal = {
+  _onSuccess: null, // 追加成功時のコールバック
+
+  init() {
+    this.setupEventListeners();
+  },
+
+  setupEventListeners() {
+    document.getElementById('process-modal-close')?.addEventListener('click', () => this.close());
+    document.getElementById('btn-process-cancel')?.addEventListener('click', () => this.close());
+    document.getElementById('btn-process-save')?.addEventListener('click', () => this.save());
+    document.querySelector('#modal-process .modal-backdrop')?.addEventListener('click', () => this.close());
+  },
+
+  open(onSuccess = null) {
+    this._onSuccess = onSuccess;
+
+    // フォームリセット
+    document.getElementById('process-form').reset();
+
+    // 表示順のデフォルト値（既存最大order + 10）
+    const maxOrder = Math.max(
+      ...Store.state.processes.map(p => parseInt(p['表示順(order)']) || 0),
+      0
+    );
+    document.getElementById('process-order').value = maxOrder + 10;
+
+    // デフォルト色
+    document.getElementById('process-color').value = '#4A90E2';
+
+    document.getElementById('modal-process').classList.remove('hidden');
+    document.getElementById('process-name').focus();
+  },
+
+  close() {
+    document.getElementById('modal-process').classList.add('hidden');
+    this._onSuccess = null;
+  },
+
+  validate() {
+    const name = document.getElementById('process-name').value.trim();
+    const type = document.getElementById('process-type').value;
+    const order = parseInt(document.getElementById('process-order').value, 10);
+    const colorHex = document.getElementById('process-color').value;
+    const isWeekly = document.getElementById('process-isweekly').checked;
+    const memo = document.getElementById('process-memo').value.trim();
+
+    if (!name) {
+      Utils.showToast('工程名を入力してください', 'error');
+      document.getElementById('process-name').focus();
+      return null;
+    }
+
+    if (name.length > 60) {
+      Utils.showToast('工程名は60文字以内で入力してください', 'error');
+      document.getElementById('process-name').focus();
+      return null;
+    }
+
+    // 重複チェック（クライアント側）
+    const duplicate = Store.state.processes.find(p => (p['工程名'] || '').trim() === name);
+    if (duplicate) {
+      Utils.showToast('同じ工程名が既に存在します', 'error');
+      document.getElementById('process-name').focus();
+      return null;
+    }
+
+    if (!order || order < 1) {
+      Utils.showToast('表示順は1以上の数値を入力してください', 'error');
+      document.getElementById('process-order').focus();
+      return null;
+    }
+
+    if (!/^#[0-9A-Fa-f]{6}$/.test(colorHex)) {
+      Utils.showToast('工程色が不正です', 'error');
+      return null;
+    }
+
+    return {
+      processName: name,
+      type,
+      order,
+      colorHex,
+      isWeekly,
+      isActive: true,
+      memo
+    };
+  },
+
+  async save() {
+    const payload = this.validate();
+    if (!payload) return;
+
+    const saveBtn = document.getElementById('btn-process-save');
+    saveBtn.disabled = true;
+    saveBtn.textContent = '追加中...';
+
+    try {
+      const result = await API.call('api_createProcess', payload);
+      console.log('[ProcessModal] Created:', result);
+
+      // Storeに追加（order順でソート）
+      Store.addProcess(result);
+
+      Utils.showToast('工程を追加しました', 'success');
+
+      // 成功コールバック（工程Selectに自動選択など）
+      if (this._onSuccess && typeof this._onSuccess === 'function') {
+        this._onSuccess(result);
+      }
+
+      this.close();
+    } catch (error) {
+      console.error('[ProcessModal] Save failed:', error);
+      Utils.showToast('工程追加に失敗しました: ' + error.message, 'error');
+    } finally {
+      saveBtn.disabled = false;
+      saveBtn.textContent = '追加';
+    }
+  }
+};
+
+console.log('[DEBUG] ProcessModal defined');
 
 // ========================================
 // JobModal - 工番作成/編集モーダル
@@ -4394,6 +4534,7 @@ const App = {
 
     Gantt.init();
     Modal.init();
+    ProcessModal.init();
     JobModal.init();
     PeopleModal.setupEventListeners();
     JobDetail.init();

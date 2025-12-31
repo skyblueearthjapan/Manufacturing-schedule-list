@@ -203,6 +203,10 @@ function api_lockTrip(tripId, isLocked) {
   return sanitizeForClient(lockTrip(tripId, isLocked !== false));
 }
 
+function api_createProcess(payload) {
+  return sanitizeForClient(createProcess(payload));
+}
+
 /**
  * テスト用：スプレッドシート接続確認
  * GASエディタで実行して確認してください
