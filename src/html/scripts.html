@@ -2454,20 +2454,120 @@ const WorkerJobAssignView = {
   },
 
   /**
+   * Jobs から割り振りデータを生成（Source of Truth = Jobs）
+   * @param {Object[]} jobs - Jobs配列
+   * @param {Object[]} people - People配列
+   * @returns {Object[]} assignment配列
+   */
+  buildWorkerAssignmentsFromJobs(jobs, people) {
+    const assignments = [];
+    const peopleMap = {};
+    people.forEach(p => {
+      // personId を正規化（trim）してマップに格納
+      const normalizedId = String(p.personId || '').trim();
+      peopleMap[normalizedId] = p;
+    });
+
+    console.log('[WorkerJobAssignView] Building assignments from Jobs');
+    console.log('[WorkerJobAssignView] People IDs:', Object.keys(peopleMap));
+    console.log('[WorkerJobAssignView] Jobs count:', jobs.length);
+
+    jobs.forEach(job => {
+      const jobId = job.jobId || '';
+      const jobCode = job['工番'] || '';
+      const customerName = job['顧客名'] || '';
+      const productName = job['設備/製品名'] || '';
+
+      // mainPersonId を正規化
+      const mainPersonId = String(job.mainPersonId || '').trim();
+      // subPersonId を正規化
+      const subPersonId = String(job.subPersonId || '').trim();
+
+      // 主担当者の割り振り
+      if (mainPersonId) {
+        const person = peopleMap[mainPersonId];
+        if (person) {
+          assignments.push({
+            assignId: `${jobId}:main:${mainPersonId}`,
+            personId: mainPersonId,
+            personName: person['氏名'] || '',
+            jobId,
+            jobCode,
+            customerName,
+            productName,
+            mainProcess: '',
+            mainProcessName: '',
+            role: 'main',
+            priority: 10,
+            isActive: true,
+            memo: ''
+          });
+        } else {
+          console.warn(`[WorkerJobAssignView] mainPersonId "${mainPersonId}" not found in People (Job: ${jobCode})`);
+        }
+      }
+
+      // 副担当者の割り振り（主担当と異なる場合のみ）
+      if (subPersonId && subPersonId !== mainPersonId) {
+        const person = peopleMap[subPersonId];
+        if (person) {
+          assignments.push({
+            assignId: `${jobId}:sub:${subPersonId}`,
+            personId: subPersonId,
+            personName: person['氏名'] || '',
+            jobId,
+            jobCode,
+            customerName,
+            productName,
+            mainProcess: '',
+            mainProcessName: '',
+            role: 'sub',
+            priority: 20,
+            isActive: true,
+            memo: ''
+          });
+        } else {
+          console.warn(`[WorkerJobAssignView] subPersonId "${subPersonId}" not found in People (Job: ${jobCode})`);
+        }
+      }
+    });
+
+    console.log('[WorkerJobAssignView] Generated assignments:', assignments.length);
+
+    // priority → jobCode 順でソート
+    assignments.sort((a, b) => {
+      if (a.priority !== b.priority) return a.priority - b.priority;
+      return String(a.jobCode || '').localeCompare(String(b.jobCode || ''));
+    });
+
+    return assignments;
+  },
+
+  /**
    * メインレンダリング
    */
   render() {
     const container = document.getElementById('view-resource');
     if (!container) return;
 
-    const { workerJobAssign, people } = Store.state;
+    const { jobs, people } = Store.state;
+
+    console.log('[WorkerJobAssignView] render() called');
+    console.log('[WorkerJobAssignView] Store.state.jobs count:', jobs?.length || 0);
+    console.log('[WorkerJobAssignView] Store.state.people count:', people?.length || 0);
+
+    // Jobs から割り振りを生成（Source of Truth = Jobs）
+    const assignments = this.buildWorkerAssignmentsFromJobs(jobs || [], people || []);
 
     // 作業者情報をマップ化（部署など取得用）
     const peopleMap = {};
-    people.forEach(p => { peopleMap[p.personId] = p; });
+    (people || []).forEach(p => {
+      const normalizedId = String(p.personId || '').trim();
+      peopleMap[normalizedId] = p;
+    });
 
     // フィルタリング
-    let filtered = this.applyFilters(workerJobAssign);
+    let filtered = this.applyFilters(assignments);
 
     // personIdでグルーピング
     const grouped = this.groupByPerson(filtered, peopleMap);
@@ -2515,7 +2615,7 @@ const WorkerJobAssignView = {
   groupByPerson(assigns, peopleMap) {
     const groups = {};
     assigns.forEach(a => {
-      const personId = a.personId;
+      const personId = String(a.personId || '').trim();
       if (!groups[personId]) {
         groups[personId] = {
           personId,
