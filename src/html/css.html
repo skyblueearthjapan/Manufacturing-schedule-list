@@ -1572,7 +1572,7 @@
     margin-right: 4px;
   }
 
-  /* 現場バー（自動幅拡大対応） */
+  /* 現場バー（押し広げ方式対応） */
   .travel-site-bar {
     position: absolute;
     height: 58px;
@@ -1581,16 +1581,16 @@
     display: flex;
     flex-direction: column;
     justify-content: center;
-    padding: 4px 10px;
+    padding: 4px 10px 4px 28px;  /* 左に開始日バッジ用余白 */
     font-size: 10px;
     background: linear-gradient(135deg, #3b82f6, #2563eb);
     color: white;
     cursor: pointer;
-    overflow: visible;  /* 内容がはみ出しても表示 */
+    overflow: hidden;  /* セルが広がるのではみ出しは隠す */
     box-shadow: 0 2px 4px rgba(0,0,0,0.12);
     border: 1px solid #1d4ed8;
     line-height: 1.35;
-    z-index: 5;  /* 他のカードより前面に */
+    z-index: 5;
   }
 
   .travel-site-bar:hover {
@@ -1605,28 +1605,28 @@
     border-width: 3px;
   }
 
-  /* 現場バーのテキスト行（省略禁止） */
+  /* 現場バーのテキスト行（セルが広がるので省略不要） */
   .travel-site-bar .bar-line1 {
     font-weight: 600;
     font-size: 11px;
     white-space: nowrap;
-    overflow: visible;
-    text-overflow: clip;  /* 省略（...）を禁止 */
+    overflow: hidden;
+    text-overflow: ellipsis;  /* 上限超過時は省略 */
   }
 
   .travel-site-bar .bar-line2 {
     font-size: 10px;
     white-space: nowrap;
-    overflow: visible;
-    text-overflow: clip;  /* 省略（...）を禁止 */
+    overflow: hidden;
+    text-overflow: ellipsis;
     opacity: 0.95;
   }
 
   .travel-site-bar .bar-line3 {
     font-size: 10px;
     white-space: nowrap;
-    overflow: visible;
-    text-overflow: clip;  /* 省略（...）を禁止 */
+    overflow: hidden;
+    text-overflow: ellipsis;
     opacity: 0.9;
   }
 
@@ -1636,6 +1636,19 @@
     top: 2px;
     right: 2px;
     font-size: 10px;
+  }
+
+  /* 開始日バッジ（現場カード左上） */
+  .travel-date-badge {
+    position: absolute;
+    top: 2px;
+    left: 4px;
+    font-size: 9px;
+    font-weight: 600;
+    background: rgba(255, 255, 255, 0.25);
+    padding: 1px 4px;
+    border-radius: 3px;
+    opacity: 0.9;
   }
 
   /* 空行メッセージ */

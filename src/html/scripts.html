@@ -2931,15 +2931,18 @@ console.log('[DEBUG] TripModal defined');
 
 const TravelPlan = {
   config: {
-    cellWidth: 70,  // 日付列幅（32→70に拡大：カード3行が読めるように）
+    cellWidth: 70,  // 日付列幅
     rowHeight: 72,
-    maxExpandDays: 6,  // 現場カード自動拡大の最大日数
-    cardPadding: 24    // カード内パディング（左右10px×2 + 余白）
+    maxExpandDays: 4,  // 現場カード自動拡大の最大日数（追加分）
+    cardPadding: 24,   // カード内パディング
+    cardGap: 4         // カード間の隙間
   },
   dates: [],
   displayStartDate: null,
   displayDays: 90,
-  _measureCanvas: null,  // テキスト幅計測用Canvas
+  _measureCanvas: null,
+  // 日付ごとの追加幅マップ（押し広げ用）
+  _dateExtraWidths: {},  // { 'YYYY-MM-DD': extraPx }
 
   init() {
     this.displayStartDate = Utils.getToday();
@@ -3023,20 +3026,148 @@ const TravelPlan = {
    * @returns {number} 必要なピクセル幅
    */
   calculateSiteCardWidth(line1, line2, line3) {
-    // 各行の幅を計測（フォントサイズに合わせる）
-    const width1 = this.measureTextWidth(line1, '600 11px sans-serif');  // 1行目は太字
+    const width1 = this.measureTextWidth(line1, '600 11px sans-serif');
     const width2 = this.measureTextWidth(line2, '10px sans-serif');
     const width3 = this.measureTextWidth(line3, '10px sans-serif');
-
-    // 最大幅 + パディング + ロックアイコンスペース
     const maxTextWidth = Math.max(width1, width2, width3);
-    return maxTextWidth + this.config.cardPadding + 20;  // +20はロックアイコン分
+    return maxTextWidth + this.config.cardPadding + 20;
+  },
+
+  /**
+   * 日付からx座標を取得（累積extraWidthを考慮）
+   * @param {string} date - YYYY-MM-DD
+   * @returns {number} x座標（px）
+   */
+  getXForDate(date) {
+    const dateIndex = this.dates.indexOf(date);
+    if (dateIndex < 0) return 0;
+
+    let x = 0;
+    for (let i = 0; i < dateIndex; i++) {
+      x += this.config.cellWidth;
+      x += (this._dateExtraWidths[this.dates[i]] || 0);
+    }
+    return x;
+  },
+
+  /**
+   * 日付のセル幅を取得（base + extra）
+   * @param {string} date - YYYY-MM-DD
+   * @returns {number} セル幅（px）
+   */
+  getCellWidthForDate(date) {
+    return this.config.cellWidth + (this._dateExtraWidths[date] || 0);
+  },
+
+  /**
+   * グリッド全体の幅を取得
+   * @returns {number} 全体幅（px）
+   */
+  getTotalGridWidth() {
+    let width = 0;
+    this.dates.forEach(date => {
+      width += this.config.cellWidth + (this._dateExtraWidths[date] || 0);
+    });
+    return width;
+  },
+
+  /**
+   * 全作業者の予定から必要なextraWidthを計算
+   * @param {Object[]} trips - 全予定
+   */
+  calculateExtraWidths(trips) {
+    this._dateExtraWidths = {};
+
+    // 現場カード（site）のみ対象
+    const siteTrips = trips.filter(t => t.kind === 'site');
+
+    siteTrips.forEach(trip => {
+      const startOffset = Utils.getDaysBetween(this.displayStartDate, trip.start);
+      const duration = Utils.getDaysBetween(trip.start, trip.end) + 1;
+
+      // 表示範囲外はスキップ
+      if (startOffset + duration < 0 || startOffset >= this.dates.length) return;
+
+      // テキスト幅を計測
+      const description = trip['用件'] || '';
+      const lines = description.split('\n');
+      const line1 = lines[0] || '';
+      const line2 = lines[1] || '';
+      const line3 = lines[2] || trip['行先'] || '';
+
+      const neededWidth = this.calculateSiteCardWidth(line1, line2, line3);
+      const baseWidth = duration * this.config.cellWidth;
+
+      // 追加幅が必要な場合
+      if (neededWidth > baseWidth) {
+        let extraWidth = neededWidth - baseWidth;
+        // 上限: maxExpandDays日分
+        const maxExtra = this.config.maxExpandDays * this.config.cellWidth;
+        extraWidth = Math.min(extraWidth, maxExtra);
+
+        // 開始日に追加幅を設定（既存より大きい場合のみ更新）
+        const startDate = trip.start;
+        if (!this._dateExtraWidths[startDate] || this._dateExtraWidths[startDate] < extraWidth) {
+          this._dateExtraWidths[startDate] = extraWidth;
+        }
+      }
+    });
+  },
+
+  /**
+   * 作業者の予定をレイアウト計算（押し広げ対応）
+   * @param {Object[]} personTrips - 作業者の予定
+   * @returns {Object[]} レイアウト情報付き予定
+   */
+  calculatePersonLayout(personTrips) {
+    // 開始日でソート
+    const sorted = [...personTrips].sort((a, b) => a.start.localeCompare(b.start));
+
+    return sorted.map(trip => {
+      const startOffset = Utils.getDaysBetween(this.displayStartDate, trip.start);
+      const duration = Utils.getDaysBetween(trip.start, trip.end) + 1;
+
+      // 表示範囲外
+      if (startOffset + duration < 0 || startOffset >= this.dates.length) {
+        return { ...trip, _visible: false };
+      }
+
+      // x座標は累積extraWidthを考慮
+      const xStart = this.getXForDate(trip.start);
+
+      // カード幅の計算
+      let cardWidth;
+      if (trip.kind === 'site') {
+        // 現場カード: 拡張幅を含む
+        const description = trip['用件'] || '';
+        const lines = description.split('\n');
+        const neededWidth = this.calculateSiteCardWidth(lines[0] || '', lines[1] || '', lines[2] || trip['行先'] || '');
+        const baseWidth = duration * this.config.cellWidth;
+        const extraWidth = this._dateExtraWidths[trip.start] || 0;
+        cardWidth = Math.max(neededWidth, baseWidth + extraWidth) - this.config.cardGap;
+      } else {
+        // 移動カード: 基本幅のみ
+        cardWidth = duration * this.config.cellWidth - this.config.cardGap;
+      }
+
+      return {
+        ...trip,
+        _visible: true,
+        _xStart: xStart,
+        _width: cardWidth,
+        _duration: duration
+      };
+    });
   },
 
   render() {
     const { people, trips } = Store.state;
     this.dates = Utils.generateDateRange(this.displayStartDate, this.displayDays);
 
+    // Phase B: まず全予定から必要なextraWidthを計算
+    this.calculateExtraWidths(trips);
+
+    // 日付ヘッダーとボディをレンダリング
     this.renderDateHeader();
     this.renderBody(people, trips);
   },
@@ -3049,6 +3180,7 @@ const TravelPlan = {
     let html = '';
     let currentMonth = 0;
 
+    // 日付セルを動的幅でレンダリング（extraWidth対応）
     this.dates.forEach(date => {
       const month = Utils.getMonth(date);
       const day = Utils.getDay(date);
@@ -3059,12 +3191,15 @@ const TravelPlan = {
       const showMonth = month !== currentMonth;
       currentMonth = month;
 
+      // このセルの幅（base + extra）
+      const cellWidth = this.getCellWidthForDate(date);
+
       let classes = 'travel-date-cell';
       if (isWeekend) classes += ' weekend';
       if (isToday) classes += ' today';
 
       html += `
-        <div class="${classes}">
+        <div class="${classes}" style="width: ${cellWidth}px; min-width: ${cellWidth}px;">
           ${showMonth ? `<div class="month">${month}月</div>` : '<div class="month"></div>'}
           <div class="day">${day}</div>
           <div class="dow">${dow}</div>
@@ -3080,6 +3215,7 @@ const TravelPlan = {
     if (!container) return;
 
     const today = Utils.getToday();
+    const totalWidth = this.getTotalGridWidth();
 
     if (people.length === 0) {
       container.innerHTML = '<div class="travel-empty-message">作業者が登録されていません</div>';
@@ -3094,6 +3230,9 @@ const TravelPlan = {
       const name = person['氏名'] || '';
       const personColor = Utils.normalizeColor(person['作業者色(colorHex)']) || '#6b7280';
 
+      // レイアウト計算（押し広げ対応）
+      const layoutTrips = this.calculatePersonLayout(personTrips);
+
       html += `
         <div class="travel-person-row">
           <div class="travel-person-info" style="border-left: 4px solid ${personColor}">
@@ -3101,22 +3240,26 @@ const TravelPlan = {
             <div class="name">${Utils.escapeHtml(name)}</div>
             <div class="memo"></div>
           </div>
-          <div class="travel-person-grid">
+          <div class="travel-person-grid" style="width: ${totalWidth}px;">
       `;
 
-      // グリッドセル
+      // グリッドセル（動的幅）
       this.dates.forEach(date => {
         const isWeekend = Utils.isWeekend(date);
         const isToday = date === today;
+        const cellWidth = this.getCellWidthForDate(date);
+
         let classes = 'travel-grid-cell';
         if (isWeekend) classes += ' weekend';
         if (isToday) classes += ' today';
-        html += `<div class="${classes}"></div>`;
+        html += `<div class="${classes}" style="width: ${cellWidth}px; min-width: ${cellWidth}px;"></div>`;
       });
 
-      // 予定バー
-      personTrips.forEach(trip => {
-        html += this.renderTripBar(trip);
+      // 予定バー（レイアウト計算済み）
+      layoutTrips.forEach(trip => {
+        if (trip._visible) {
+          html += this.renderTripBarWithLayout(trip);
+        }
       });
 
       html += `
@@ -3145,26 +3288,25 @@ const TravelPlan = {
     });
   },
 
-  renderTripBar(trip) {
-    const startOffset = Utils.getDaysBetween(this.displayStartDate, trip.start);
-    const duration = Utils.getDaysBetween(trip.start, trip.end) + 1;
-
-    // 表示範囲外チェック
-    if (startOffset + duration < 0 || startOffset >= this.dates.length) {
-      return '';
-    }
-
-    const baseLeft = Math.max(0, startOffset) * this.config.cellWidth;
-    const spanWidth = Math.min(duration, this.dates.length - Math.max(0, startOffset)) * this.config.cellWidth - 4;
+  /**
+   * レイアウト計算済みの予定をレンダリング
+   * @param {Object} trip - レイアウト情報付き予定（_xStart, _width）
+   * @returns {string} HTML
+   */
+  renderTripBarWithLayout(trip) {
     const isLocked = trip.isLocked === true;
     const lockIcon = isLocked ? '<span class="travel-lock-icon">🔒</span>' : '';
 
+    // Phase C: 開始日バッジ（月/日）
+    const startDate = new Date(trip.start);
+    const startBadge = `${startDate.getMonth() + 1}/${startDate.getDate()}`;
+
     if (trip.kind === 'move') {
-      // 移動バー（従来通り固定幅）
+      // 移動バー
       const destination = trip['行先'] || '';
       return `
         <div class="travel-move-bar ${isLocked ? 'locked' : ''}"
-             style="left: ${baseLeft}px; width: ${spanWidth}px;"
+             style="left: ${trip._xStart}px; width: ${trip._width}px;"
              data-trip-id="${trip.tripId}"
              title="移動: ${destination}">
           ${lockIcon}
@@ -3173,38 +3315,20 @@ const TravelPlan = {
         </div>
       `;
     } else if (trip.kind === 'site') {
-      // 現場バー（自動幅拡大対応）
+      // 現場バー（3行表示 + 開始日バッジ）
       const description = trip['用件'] || '';
       const lines = description.split('\n');
       const line1 = lines[0] || '';
       const line2 = lines[1] || '';
       const line3 = lines[2] || trip['行先'] || '';
 
-      // テキストから必要幅を計算
-      const neededWidth = this.calculateSiteCardWidth(line1, line2, line3);
-      const maxWidth = this.config.cellWidth * this.config.maxExpandDays;  // 最大6日分
-      const minWidth = spanWidth;  // 最小はスパン幅
-
-      // 幅を決定: max(minWidth, neededWidth) を maxWidth でクランプ
-      let finalWidth = Math.max(minWidth, neededWidth);
-      finalWidth = Math.min(finalWidth, maxWidth);
-
-      // 右端カードの左寄せ補正
-      let finalLeft = baseLeft;
-      const gridTotalWidth = this.dates.length * this.config.cellWidth;
-      const cardRight = finalLeft + finalWidth;
-
-      // カードが右端を超える場合、左に寄せる
-      if (cardRight > gridTotalWidth) {
-        finalLeft = Math.max(0, gridTotalWidth - finalWidth - 4);
-      }
-
       return `
         <div class="travel-site-bar ${isLocked ? 'locked' : ''}"
-             style="left: ${finalLeft}px; width: ${finalWidth}px;"
+             style="left: ${trip._xStart}px; width: ${trip._width}px;"
              data-trip-id="${trip.tripId}"
              title="${Utils.escapeHtml(description)}">
           ${lockIcon}
+          <span class="travel-date-badge">${startBadge}</span>
           <div class="bar-line1">${Utils.escapeHtml(line1)}</div>
           <div class="bar-line2">${Utils.escapeHtml(line2)}</div>
           <div class="bar-line3">${Utils.escapeHtml(line3)}</div>
@@ -3216,7 +3340,7 @@ const TravelPlan = {
       const purpose = trip['用件'] || '';
       return `
         <div class="travel-move-bar"
-             style="left: ${baseLeft}px; width: ${spanWidth}px; background: linear-gradient(135deg, #a78bfa, #8b5cf6); color: white; border-color: #7c3aed;"
+             style="left: ${trip._xStart}px; width: ${trip._width}px; background: linear-gradient(135deg, #a78bfa, #8b5cf6); color: white; border-color: #7c3aed;"
              data-trip-id="${trip.tripId}"
              title="${destination} - ${purpose}">
           <span>${Utils.escapeHtml(destination || purpose)}</span>
