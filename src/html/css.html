@@ -1374,6 +1374,11 @@
   /* ========================================
      TravelPlan（出張計画表）
      ======================================== */
+  /* CSS変数でTravelPlan専用の日付列幅を管理 */
+  :root {
+    --tp-day-width: 70px;  /* TravelPlan日付列幅（カード3行が読める幅） */
+  }
+
   .travel-container {
     height: calc(100vh - 70px);
     display: flex;
@@ -1426,8 +1431,8 @@
   }
 
   .travel-date-cell {
-    width: 32px;
-    min-width: 32px;
+    width: var(--tp-day-width);
+    min-width: var(--tp-day-width);
     padding: 4px 0;
     text-align: center;
     font-size: 10px;
@@ -1515,8 +1520,8 @@
   }
 
   .travel-grid-cell {
-    width: 32px;
-    min-width: 32px;
+    width: var(--tp-day-width);
+    min-width: var(--tp-day-width);
     height: 100%;
     border-right: 1px solid #f3f4f6;
   }
@@ -1532,19 +1537,21 @@
   /* 移動バー */
   .travel-move-bar {
     position: absolute;
-    height: 28px;
-    top: 6px;
-    border-radius: 4px;
+    height: 30px;
+    top: 20px;
+    border-radius: 5px;
     display: flex;
     align-items: center;
-    padding: 0 6px;
-    font-size: 10px;
+    justify-content: center;
+    padding: 0 8px;
+    font-size: 11px;
+    font-weight: 500;
     background: linear-gradient(135deg, #fbbf24, #f59e0b);
     color: #78350f;
     cursor: pointer;
     overflow: hidden;
     white-space: nowrap;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.12);
     border: 1px solid #d97706;
   }
 
@@ -1567,21 +1574,21 @@
   /* 現場バー */
   .travel-site-bar {
     position: absolute;
-    height: 56px;
-    top: 8px;
-    border-radius: 4px;
+    height: 58px;
+    top: 6px;
+    border-radius: 5px;
     display: flex;
     flex-direction: column;
     justify-content: center;
-    padding: 4px 8px;
+    padding: 4px 10px;
     font-size: 10px;
     background: linear-gradient(135deg, #3b82f6, #2563eb);
     color: white;
     cursor: pointer;
     overflow: hidden;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.12);
     border: 1px solid #1d4ed8;
-    line-height: 1.3;
+    line-height: 1.35;
   }
 
   .travel-site-bar:hover {
@@ -1602,6 +1609,7 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    max-width: 100%;
   }
 
   .travel-site-bar .bar-line2 {
@@ -1609,15 +1617,17 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    opacity: 0.9;
+    opacity: 0.95;
+    max-width: 100%;
   }
 
   .travel-site-bar .bar-line3 {
-    font-size: 9px;
+    font-size: 10px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    opacity: 0.8;
+    opacity: 0.9;
+    max-width: 100%;
   }
 
   /* ロックアイコン */
