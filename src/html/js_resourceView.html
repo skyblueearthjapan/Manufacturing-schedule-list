@@ -195,7 +195,7 @@ const ResourceView = {
       const milestoneLeft = startOffset * this.config.cellWidth + (this.config.cellWidth / 2) - 10;
       return `
         <div class="resource-milestone" style="left: ${milestoneLeft}px;" title="${jobNo} - ${processName}">
-          ★
+          ★${Utils.escapeHtml(processName)}
         </div>
       `;
     }

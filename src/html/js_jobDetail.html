@@ -262,7 +262,7 @@ const JobDetail = {
 
     return `
       <div class="job-milestone" style="left: ${left}px;" title="${schedule.label || ''}">
-        ★
+        ★${Utils.escapeHtml(schedule.label || '')}
       </div>
     `;
   },

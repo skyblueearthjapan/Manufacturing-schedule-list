@@ -1696,7 +1696,7 @@ const Gantt = {
            data-schedule-id="${schedule.scheduleId}"
            style="left: ${left}px; top: ${top}px;"
            title="${processName}">
-        ★
+        ★${Utils.escapeHtml(processName)}
       </div>
     `;
   },
@@ -3208,7 +3208,7 @@ const JobDetail = {
 
     return `
       <div class="job-milestone" style="left: ${left}px;" title="${schedule.label || ''}">
-        ★
+        ★${Utils.escapeHtml(schedule.label || '')}
       </div>
     `;
   },
@@ -3521,7 +3521,7 @@ const ResourceView = {
       const milestoneLeft = startOffset * this.config.cellWidth + (this.config.cellWidth / 2) - 10;
       return `
         <div class="resource-milestone" style="left: ${milestoneLeft}px;" title="${jobNo} - ${processName}">
-          ★
+          ★${Utils.escapeHtml(processName)}
         </div>
       `;
     }

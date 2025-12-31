@@ -323,7 +323,7 @@ const Gantt = {
            data-schedule-id="${schedule.scheduleId}"
            style="left: ${left}px;"
            title="${processName}">
-        ★
+        ★${Utils.escapeHtml(processName)}
       </div>
     `;
   },
