@@ -1288,3 +1288,120 @@ function searchExternalJobMaster(query, limit = 20) {
 
   return results.slice(0, limit);
 }
+
+// ============================================
+// Batch Save API（一括保存）
+// ============================================
+
+/**
+ * 複数の変更を一括保存
+ * @param {Object} payload - { changes: [...], clientRevision: string, user: string }
+ * @returns {Object} - { ok: boolean, results: { schedule: {...}, trip: {...}, job: {...} } }
+ */
+function api_saveBatch(payload) {
+  const { changes, clientRevision, user } = payload;
+
+  if (!changes || !Array.isArray(changes) || changes.length === 0) {
+    return { ok: true, results: { schedule: {}, trip: {}, job: {} } };
+  }
+
+  const results = {
+    schedule: { upserted: [], deleted: [] },
+    trip: { upserted: [], deleted: [], locked: [], unlocked: [] },
+    job: { upserted: [] }
+  };
+
+  const errors = [];
+
+  // temp_*で始まるIDは新規作成として扱う
+  const isNewRecord = (id) => !id || id.startsWith('temp_');
+
+  // 各変更を処理
+  for (const change of changes) {
+    try {
+      const { entityType, op, id, payload: changePayload } = change;
+
+      switch (entityType) {
+        case 'schedule':
+          if (op === 'upsert') {
+            let saved;
+            if (isNewRecord(id)) {
+              // 新規作成
+              saved = createSchedule(changePayload);
+              saved._tempId = id; // 仮IDを返却（クライアント側でマッピング用）
+            } else {
+              // 既存レコード更新
+              saved = updateSchedule(id, changePayload);
+            }
+            results.schedule.upserted.push(saved);
+          } else if (op === 'delete' && !isNewRecord(id)) {
+            deleteSchedule(id);
+            results.schedule.deleted.push(id);
+          }
+          break;
+
+        case 'trip':
+          if (op === 'upsert') {
+            let saved;
+            if (isNewRecord(id)) {
+              // 新規作成
+              saved = createTrip(changePayload);
+              saved._tempId = id;
+            } else {
+              // 既存レコード更新
+              saved = updateTrip(id, changePayload);
+            }
+            results.trip.upserted.push(saved);
+          } else if (op === 'delete' && !isNewRecord(id)) {
+            deleteTrip(id);
+            results.trip.deleted.push(id);
+          } else if (op === 'lock' && !isNewRecord(id)) {
+            const locked = lockTrip(id, true);
+            results.trip.locked.push(locked);
+          } else if (op === 'unlock' && !isNewRecord(id)) {
+            const unlocked = lockTrip(id, false);
+            results.trip.unlocked.push(unlocked);
+          }
+          break;
+
+        case 'job':
+          if (op === 'upsert') {
+            let saved;
+            if (isNewRecord(id)) {
+              // 新規作成
+              saved = createJob(changePayload);
+              saved._tempId = id;
+            } else {
+              // 既存レコード更新
+              saved = updateJob(id, changePayload);
+            }
+            results.job.upserted.push(saved);
+          }
+          break;
+
+        default:
+          errors.push({ entityType, op, id, error: 'Unknown entityType' });
+      }
+    } catch (error) {
+      errors.push({
+        entityType: change.entityType,
+        op: change.op,
+        id: change.id,
+        error: error.message,
+        code: error.code
+      });
+    }
+  }
+
+  // エラーがあった場合も部分的な成功を返す
+  if (errors.length > 0) {
+    return {
+      ok: errors.length < changes.length, // 一部成功ならtrue
+      results,
+      errors,
+      partialSuccess: true
+    };
+  }
+
+  return { ok: true, results };
+}

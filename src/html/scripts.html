@@ -355,6 +355,349 @@ const API = {
 console.log('[DEBUG] API defined');
 
 // ========================================
+// ChangeBuffer - 変更バッファ（A+C+Bプラン共通基盤）
+// ========================================
+
+const ChangeBuffer = {
+  // 保留中の変更
+  pendingChanges: [],
+
+  // 状態
+  isSaving: false,
+  lastSaveError: null,
+
+  // 設定
+  config: {
+    idleAutoSaveMs: 5000,  // アイドル自動保存（5秒）
+    enableIdleAutoSave: true
+  },
+
+  // アイドルタイマー
+  _idleTimer: null,
+
+  // リスナー（UI更新用）
+  _listeners: [],
+
+  /**
+   * 変更を追加
+   * @param {string} entityType - 'schedule' | 'trip' | 'job'
+   * @param {string} op - 'upsert' | 'delete' | 'lock' | 'unlock'
+   * @param {string} id - エンティティID
+   * @param {Object} payload - 変更内容
+   * @param {string} sourceView - 'master' | 'jobDetail' | 'travel' | 'weekly'
+   */
+  add(entityType, op, id, payload, sourceView) {
+    // 同一IDの既存変更を検索
+    const existingIndex = this.pendingChanges.findIndex(
+      c => c.entityType === entityType && c.id === id
+    );
+
+    const change = {
+      entityType,
+      op,
+      id,
+      payload,
+      updatedAtClient: new Date().toISOString(),
+      sourceView
+    };
+
+    if (existingIndex >= 0) {
+      // 既存を上書き（最新の変更で置換）
+      this.pendingChanges[existingIndex] = change;
+      console.log(`[ChangeBuffer] Updated existing change: ${entityType}/${id}`);
+    } else {
+      // 新規追加
+      this.pendingChanges.push(change);
+      console.log(`[ChangeBuffer] Added new change: ${entityType}/${id} (${op})`);
+    }
+
+    this._notify();
+    this._resetIdleTimer();
+  },
+
+  /**
+   * 変更を削除（保存成功後に呼ぶ）
+   */
+  remove(entityType, id) {
+    this.pendingChanges = this.pendingChanges.filter(
+      c => !(c.entityType === entityType && c.id === id)
+    );
+    this._notify();
+  },
+
+  /**
+   * 全変更をクリア
+   */
+  clear() {
+    this.pendingChanges = [];
+    this.lastSaveError = null;
+    this._notify();
+  },
+
+  /**
+   * 未保存件数
+   */
+  get count() {
+    return this.pendingChanges.length;
+  },
+
+  /**
+   * 未保存があるか
+   */
+  get isDirty() {
+    return this.pendingChanges.length > 0;
+  },
+
+  /**
+   * 保存実行（バッチ）
+   */
+  async flush(reason = 'manual') {
+    if (!this.isDirty) {
+      console.log('[ChangeBuffer] Nothing to save');
+      return { ok: true, saved: 0 };
+    }
+
+    if (this.isSaving) {
+      console.log('[ChangeBuffer] Already saving, skipping');
+      return { ok: false, reason: 'already_saving' };
+    }
+
+    console.log(`[ChangeBuffer] Flushing ${this.count} changes (reason: ${reason})`);
+    this.isSaving = true;
+    this.lastSaveError = null;
+    this._notify();
+
+    try {
+      // 変更をコピー（保存中に新しい変更が来る可能性）
+      const changesToSave = [...this.pendingChanges];
+
+      // バッチ保存API呼び出し
+      const result = await API.call('api_saveBatch', {
+        changes: changesToSave,
+        clientRevision: Utils.generateId(),
+        user: 'user'
+      });
+
+      if (result && result.ok) {
+        // 保存成功：差分反映
+        Store.applySavedResults(result.results);
+
+        // 保存した変更をバッファから削除
+        changesToSave.forEach(c => {
+          this.remove(c.entityType, c.id);
+        });
+
+        this.isSaving = false;
+        this._notify();
+
+        Utils.showToast(`保存しました（${changesToSave.length}件）`, 'success');
+        console.log('[ChangeBuffer] Flush successful');
+        return { ok: true, saved: changesToSave.length };
+      } else {
+        throw new Error(result?.error || '保存に失敗しました');
+      }
+    } catch (error) {
+      console.error('[ChangeBuffer] Flush failed:', error);
+      this.isSaving = false;
+      this.lastSaveError = error.message;
+      this._notify();
+
+      Utils.showToast(`保存に失敗しました: ${error.message}`, 'error');
+      return { ok: false, error: error.message };
+    }
+  },
+
+  /**
+   * 未保存があれば保存（タブ切替・離脱時用）
+   */
+  async flushIfDirty(options = {}) {
+    const { reason = 'auto', showConfirmOnFail = true } = options;
+
+    if (!this.isDirty) {
+      return { ok: true };
+    }
+
+    const result = await this.flush(reason);
+
+    if (!result.ok && showConfirmOnFail) {
+      // 失敗時：遷移を止めるかどうかを返す
+      return { ok: false, shouldBlock: true, error: result.error };
+    }
+
+    return result;
+  },
+
+  /**
+   * アイドルタイマーをリセット
+   */
+  _resetIdleTimer() {
+    if (this._idleTimer) {
+      clearTimeout(this._idleTimer);
+    }
+
+    if (this.config.enableIdleAutoSave && this.isDirty) {
+      this._idleTimer = setTimeout(() => {
+        console.log('[ChangeBuffer] Idle timeout, auto-saving');
+        this.flush('idle');
+      }, this.config.idleAutoSaveMs);
+    }
+  },
+
+  /**
+   * リスナー登録
+   */
+  subscribe(callback) {
+    this._listeners.push(callback);
+    return () => {
+      this._listeners = this._listeners.filter(l => l !== callback);
+    };
+  },
+
+  /**
+   * リスナーに通知
+   */
+  _notify() {
+    const state = {
+      count: this.count,
+      isDirty: this.isDirty,
+      isSaving: this.isSaving,
+      lastSaveError: this.lastSaveError
+    };
+    this._listeners.forEach(cb => cb(state));
+  },
+
+  /**
+   * 初期化（イベントリスナー設定）
+   */
+  init() {
+    // beforeunload: ページ離脱時の警告
+    window.addEventListener('beforeunload', (e) => {
+      if (this.isDirty) {
+        e.preventDefault();
+        e.returnValue = '未保存の変更があります。ページを離れますか？';
+        return e.returnValue;
+      }
+    });
+
+    // ユーザー操作でアイドルタイマーリセット
+    ['click', 'keydown', 'mousemove'].forEach(event => {
+      document.addEventListener(event, () => {
+        if (this.isDirty) {
+          this._resetIdleTimer();
+        }
+      }, { passive: true });
+    });
+
+    console.log('[ChangeBuffer] Initialized');
+  }
+};
+
+console.log('[DEBUG] ChangeBuffer defined');
+
+// ========================================
+// SaveBar - 保存ステータスバー（共通UI）
+// ========================================
+
+const SaveBar = {
+  _container: null,
+
+  /**
+   * 初期化（DOMに保存バーを追加）
+   */
+  init() {
+    // 既存のバーがあれば削除
+    const existing = document.getElementById('save-bar');
+    if (existing) existing.remove();
+
+    // 保存バーを作成
+    this._container = document.createElement('div');
+    this._container.id = 'save-bar';
+    this._container.className = 'save-bar hidden';
+    this._container.innerHTML = `
+      <span class="save-bar-status">
+        <span class="save-bar-count">未保存: 0</span>
+      </span>
+      <button class="save-bar-btn" onclick="SaveBar.save()">
+        <span class="save-bar-btn-text">保存</span>
+        <span class="save-bar-spinner hidden">⏳</span>
+      </button>
+      <button class="save-bar-retry hidden" onclick="SaveBar.save()">
+        再試行
+      </button>
+    `;
+
+    // ヘッダーに追加
+    const header = document.querySelector('header .flex.items-center.space-x-3');
+    if (header) {
+      header.insertBefore(this._container, header.firstChild);
+    } else {
+      document.body.appendChild(this._container);
+    }
+
+    // ChangeBufferの状態変更を購読
+    ChangeBuffer.subscribe((state) => this.update(state));
+
+    console.log('[SaveBar] Initialized');
+  },
+
+  /**
+   * 状態更新
+   */
+  update(state) {
+    if (!this._container) return;
+
+    const { count, isDirty, isSaving, lastSaveError } = state;
+
+    // 表示/非表示
+    if (isDirty || isSaving || lastSaveError) {
+      this._container.classList.remove('hidden');
+    } else {
+      this._container.classList.add('hidden');
+    }
+
+    // カウント更新
+    const countEl = this._container.querySelector('.save-bar-count');
+    if (countEl) {
+      countEl.textContent = `未保存: ${count}`;
+    }
+
+    // 保存中表示
+    const btnText = this._container.querySelector('.save-bar-btn-text');
+    const spinner = this._container.querySelector('.save-bar-spinner');
+    const btn = this._container.querySelector('.save-bar-btn');
+
+    if (isSaving) {
+      btnText?.classList.add('hidden');
+      spinner?.classList.remove('hidden');
+      btn?.setAttribute('disabled', 'true');
+    } else {
+      btnText?.classList.remove('hidden');
+      spinner?.classList.add('hidden');
+      btn?.removeAttribute('disabled');
+    }
+
+    // エラー表示
+    const retryBtn = this._container.querySelector('.save-bar-retry');
+    if (lastSaveError) {
+      retryBtn?.classList.remove('hidden');
+      this._container.classList.add('save-bar-error');
+    } else {
+      retryBtn?.classList.add('hidden');
+      this._container.classList.remove('save-bar-error');
+    }
+  },
+
+  /**
+   * 保存実行
+   */
+  async save() {
+    await ChangeBuffer.flush('manual');
+  }
+};
+
+console.log('[DEBUG] SaveBar defined');
+
+// ========================================
 // Store - アプリケーション状態管理
 // ========================================
 
@@ -493,6 +836,157 @@ const Store = {
   removeSchedule(scheduleId) {
     const schedules = this.state.schedules.filter(s => s.scheduleId !== scheduleId);
     this.setState({ schedules });
+  },
+
+  // Trip関連のStore操作
+  addTrip(trip) {
+    const trips = [...this.state.trips, trip];
+    this.setState({ trips });
+  },
+
+  updateTripInStore(tripId, updates) {
+    const trips = this.state.trips.map(t =>
+      t.tripId === tripId ? { ...t, ...updates } : t
+    );
+    this.setState({ trips });
+  },
+
+  removeTrip(tripId) {
+    const trips = this.state.trips.filter(t => t.tripId !== tripId);
+    this.setState({ trips });
+  },
+
+  /**
+   * 保存結果を差分反映（Cプラン：loadBootstrapData()を呼ばない）
+   * @param {Object} results - { schedule: { upserted, deleted }, trip: { upserted, deleted, locked } }
+   */
+  applySavedResults(results) {
+    if (!results) return;
+
+    console.log('[Store] Applying saved results:', results);
+
+    // Schedule の差分反映
+    if (results.schedule) {
+      let schedules = [...this.state.schedules];
+
+      // upserted: 更新または追加（tempId → realId マッピング対応）
+      if (results.schedule.upserted) {
+        results.schedule.upserted.forEach(saved => {
+          // _tempIdがある場合は仮IDを本IDに置換
+          if (saved._tempId) {
+            const tempIdx = schedules.findIndex(s => s.scheduleId === saved._tempId);
+            if (tempIdx >= 0) {
+              schedules[tempIdx] = { ...saved };
+              delete schedules[tempIdx]._tempId;
+              console.log(`[Store] Schedule tempId ${saved._tempId} → ${saved.scheduleId}`);
+              return;
+            }
+          }
+          const idx = schedules.findIndex(s => s.scheduleId === saved.scheduleId);
+          if (idx >= 0) {
+            schedules[idx] = { ...schedules[idx], ...saved };
+          } else {
+            schedules.push(saved);
+          }
+        });
+      }
+
+      // deleted: 削除
+      if (results.schedule.deleted) {
+        const deletedIds = results.schedule.deleted.map(d => d.scheduleId || d);
+        schedules = schedules.filter(s => !deletedIds.includes(s.scheduleId));
+      }
+
+      this.setState({ schedules });
+    }
+
+    // Trip の差分反映
+    if (results.trip) {
+      let trips = [...this.state.trips];
+
+      // upserted: 更新または追加（tempId → realId マッピング対応）
+      if (results.trip.upserted) {
+        results.trip.upserted.forEach(saved => {
+          if (saved._tempId) {
+            const tempIdx = trips.findIndex(t => t.tripId === saved._tempId);
+            if (tempIdx >= 0) {
+              trips[tempIdx] = { ...saved };
+              delete trips[tempIdx]._tempId;
+              console.log(`[Store] Trip tempId ${saved._tempId} → ${saved.tripId}`);
+              return;
+            }
+          }
+          const idx = trips.findIndex(t => t.tripId === saved.tripId);
+          if (idx >= 0) {
+            trips[idx] = { ...trips[idx], ...saved };
+          } else {
+            trips.push(saved);
+          }
+        });
+      }
+
+      // locked: ロック反映
+      if (results.trip.locked) {
+        results.trip.locked.forEach(locked => {
+          const idx = trips.findIndex(t => t.tripId === locked.tripId);
+          if (idx >= 0) {
+            trips[idx] = { ...trips[idx], ...locked, isLocked: true };
+          }
+        });
+      }
+
+      // unlocked: アンロック反映
+      if (results.trip.unlocked) {
+        results.trip.unlocked.forEach(unlocked => {
+          const idx = trips.findIndex(t => t.tripId === unlocked.tripId);
+          if (idx >= 0) {
+            trips[idx] = { ...trips[idx], ...unlocked, isLocked: false };
+          }
+        });
+      }
+
+      // deleted: 削除
+      if (results.trip.deleted) {
+        const deletedIds = results.trip.deleted.map(d => d.tripId || d);
+        trips = trips.filter(t => !deletedIds.includes(t.tripId));
+      }
+
+      this.setState({ trips });
+    }
+
+    // Job の差分反映
+    if (results.job) {
+      let jobs = [...this.state.jobs];
+
+      if (results.job.upserted) {
+        results.job.upserted.forEach(saved => {
+          if (saved._tempId) {
+            const tempIdx = jobs.findIndex(j => j.jobId === saved._tempId);
+            if (tempIdx >= 0) {
+              jobs[tempIdx] = { ...saved };
+              delete jobs[tempIdx]._tempId;
+              console.log(`[Store] Job tempId ${saved._tempId} → ${saved.jobId}`);
+              return;
+            }
+          }
+          const idx = jobs.findIndex(j => j.jobId === saved.jobId);
+          if (idx >= 0) {
+            jobs[idx] = { ...jobs[idx], ...saved };
+          } else {
+            jobs.push(saved);
+          }
+        });
+      }
+
+      if (results.job.deleted) {
+        const deletedIds = results.job.deleted.map(d => d.jobId || d);
+        jobs = jobs.filter(j => !deletedIds.includes(j.jobId));
+      }
+
+      this.setState({ jobs });
+    }
+
+    console.log('[Store] Diff update complete');
   },
 
   addPerson(person) {
@@ -1276,68 +1770,53 @@ const Modal = {
     };
   },
 
-  async save() {
+  save() {
     const payload = this.validate();
     if (!payload) return;
 
-    try {
-      Utils.setLoading(true);
+    if (this.isEditMode) {
+      const scheduleId = document.getElementById('entry-schedule-id').value;
+      // 楽観的更新
+      Store.updateScheduleInStore(scheduleId, { ...payload, updatedAt: new Date().toISOString() });
+      ChangeBuffer.add('schedule', 'upsert', scheduleId, payload, 'master');
+      Utils.showToast('更新しました（保存待ち）', 'info');
+    } else {
+      // 新規作成：仮IDで楽観的更新
+      const tempId = 'temp_' + Utils.generateId();
+      const newSchedule = {
+        scheduleId: tempId,
+        ...payload,
+        updatedAt: new Date().toISOString()
+      };
+      Store.addSchedule(newSchedule);
+      ChangeBuffer.add('schedule', 'upsert', tempId, payload, 'master');
+      Utils.showToast('登録しました（保存待ち）', 'info');
+    }
 
-      if (this.isEditMode) {
-        const scheduleId = document.getElementById('entry-schedule-id').value;
-        const expectedUpdatedAt = document.getElementById('entry-updated-at').value;
-        const result = await API.updateSchedule(scheduleId, payload, expectedUpdatedAt);
-        Store.updateScheduleInStore(scheduleId, result);
-        Utils.showToast('更新しました', 'success');
-      } else {
-        const result = await API.createSchedule(payload);
-        Store.addSchedule(result);
-        Utils.showToast('登録しました', 'success');
-      }
+    this.close();
 
-      Utils.setLoading(false);
-      this.close();
-
-      // JobDetailが開いている場合は再描画
-      if (JobDetail.currentJobId) {
-        JobDetail.render();
-      }
-    } catch (error) {
-      Utils.setLoading(false);
-      console.error('Save failed:', error);
-
-      if (error.message?.includes('他のユーザー')) {
-        Utils.showToast('他のユーザーが更新しました。再読み込みしてください。', 'error');
-      } else {
-        Utils.showToast('保存に失敗しました', 'error');
-      }
+    // JobDetailが開いている場合は再描画
+    if (JobDetail.currentJobId) {
+      JobDetail.render();
     }
   },
 
-  async delete() {
+  delete() {
     if (!this.isEditMode || !this.currentSchedule) return;
     if (!confirm('この工程を削除しますか？')) return;
 
-    try {
-      Utils.setLoading(true);
-      const scheduleId = this.currentSchedule.scheduleId;
-      const expectedUpdatedAt = document.getElementById('entry-updated-at').value;
+    const scheduleId = this.currentSchedule.scheduleId;
 
-      await API.deleteSchedule(scheduleId, expectedUpdatedAt);
-      Store.removeSchedule(scheduleId);
+    // 楽観的削除
+    Store.removeSchedule(scheduleId);
+    ChangeBuffer.add('schedule', 'delete', scheduleId, {}, 'master');
 
-      Utils.setLoading(false);
-      Utils.showToast('削除しました', 'success');
-      this.close();
+    Utils.showToast('削除しました（保存待ち）', 'info');
+    this.close();
 
-      // JobDetailが開いている場合は再描画
-      if (JobDetail.currentJobId) {
-        JobDetail.render();
-      }
-    } catch (error) {
-      Utils.setLoading(false);
-      console.error('Delete failed:', error);
-      Utils.showToast('削除に失敗しました', 'error');
+    // JobDetailが開いている場合は再描画
+    if (JobDetail.currentJobId) {
+      JobDetail.render();
     }
   }
 };
@@ -1594,38 +2073,32 @@ const JobModal = {
     };
   },
 
-  async save() {
+  save() {
     const payload = this.validate();
     if (!payload) return;
 
-    try {
-      Utils.setLoading(true);
-
-      if (this.isEditMode) {
-        const jobId = document.getElementById('job-job-id').value;
-        const expectedUpdatedAt = document.getElementById('job-updated-at').value;
-        // 編集時は状態を保持
-        payload['状態'] = this.currentJob?.['状態'] || '未着手';
-        const result = await API.updateJob(jobId, payload, expectedUpdatedAt);
-        Store.updateJobInStore(jobId, result);
-        Utils.showToast('工番を更新しました', 'success');
-      } else {
-        const result = await API.createJob(payload);
-        Store.addJob(result);
-        Utils.showToast('工番を登録しました', 'success');
-      }
-
-      Utils.setLoading(false);
-      this.close();
-    } catch (error) {
-      Utils.setLoading(false);
-      console.error('Save job failed:', error);
-      if (error.message?.includes('他のユーザー')) {
-        Utils.showToast('他のユーザーが更新しました。再読み込みしてください。', 'error');
-      } else {
-        Utils.showToast('保存に失敗しました: ' + error.message, 'error');
-      }
+    if (this.isEditMode) {
+      const jobId = document.getElementById('job-job-id').value;
+      // 編集時は状態を保持
+      payload['状態'] = this.currentJob?.['状態'] || '未着手';
+      // 楽観的更新
+      Store.updateJobInStore(jobId, { ...payload, updatedAt: new Date().toISOString() });
+      ChangeBuffer.add('job', 'upsert', jobId, payload, 'master');
+      Utils.showToast('工番を更新しました（保存待ち）', 'info');
+    } else {
+      // 新規作成：仮IDで楽観的更新
+      const tempId = 'temp_' + Utils.generateId();
+      const newJob = {
+        jobId: tempId,
+        ...payload,
+        updatedAt: new Date().toISOString()
+      };
+      Store.addJob(newJob);
+      ChangeBuffer.add('job', 'upsert', tempId, payload, 'master');
+      Utils.showToast('工番を登録しました（保存待ち）', 'info');
     }
+
+    this.close();
   }
 };
 
@@ -3244,83 +3717,72 @@ const TripModal = {
       return;
     }
 
-    try {
-      Utils.setLoading(true);
+    const payload = {
+      personId,
+      start,
+      end,
+      '行先': destination,
+      '用件': purpose,
+      '備考': note,
+      source: 'manual'
+    };
 
-      const payload = {
-        personId,
-        start,
-        end,
-        '行先': destination,
-        '用件': purpose,
-        '備考': note,
-        source: 'manual'
+    if (this.isNew) {
+      // 新規作成：仮IDで楽観的更新
+      const tempId = 'temp_' + Utils.generateId();
+      const newTrip = {
+        tripId: tempId,
+        ...payload,
+        isLocked: false,
+        updatedAt: new Date().toISOString()
       };
-
-      if (this.isNew) {
-        // 新規作成
-        await API.call('api_createTrip', payload);
-        Utils.showToast('出張予定を登録しました', 'success');
-      } else {
-        // 更新
-        const tripId = document.getElementById('trip-id').value;
-        const expectedUpdatedAt = document.getElementById('trip-expected-updated-at').value;
-        await API.call('api_updateTrip', tripId, payload, expectedUpdatedAt);
-        Utils.showToast('出張予定を更新しました', 'success');
-      }
-
-      this.close();
-      await Store.loadBootstrapData();
-    } catch (error) {
-      console.error('Trip save failed:', error);
-      Utils.showToast('保存に失敗しました: ' + error.message, 'error');
-    } finally {
-      Utils.setLoading(false);
+      Store.addTrip(newTrip);
+      ChangeBuffer.add('trip', 'upsert', tempId, payload, 'travel');
+      Utils.showToast('出張予定を登録しました（保存待ち）', 'info');
+    } else {
+      // 更新：楽観的更新
+      const tripId = document.getElementById('trip-id').value;
+      Store.updateTripInStore(tripId, payload);
+      ChangeBuffer.add('trip', 'upsert', tripId, payload, 'travel');
+      Utils.showToast('出張予定を更新しました（保存待ち）', 'info');
     }
+
+    this.close();
+    TravelPlan.render();
   },
 
-  async delete() {
+  delete() {
     if (!this.currentTrip) return;
 
     if (!confirm('この出張予定を削除しますか？')) return;
 
-    try {
-      Utils.setLoading(true);
-      await API.call('api_deleteTrip', this.currentTrip.tripId);
-      Utils.showToast('出張予定を削除しました', 'success');
-      this.close();
-      await Store.loadBootstrapData();
-    } catch (error) {
-      console.error('Trip delete failed:', error);
-      Utils.showToast('削除に失敗しました: ' + error.message, 'error');
-    } finally {
-      Utils.setLoading(false);
-    }
+    const tripId = this.currentTrip.tripId;
+    Store.removeTrip(tripId);
+    ChangeBuffer.add('trip', 'delete', tripId, {}, 'travel');
+    Utils.showToast('出張予定を削除しました（保存待ち）', 'info');
+
+    this.close();
+    TravelPlan.render();
   },
 
-  async lock() {
+  lock() {
     if (!this.currentTrip) return;
 
     if (!confirm('この予定を確定しますか？確定後は編集できなくなります。')) return;
 
-    try {
-      Utils.setLoading(true);
-      await API.call('api_lockTrip', this.currentTrip.tripId, true);
-      Utils.showToast('出張予定を確定しました', 'success');
-      this.close();
-      await Store.loadBootstrapData();
-    } catch (error) {
-      console.error('Trip lock failed:', error);
-      Utils.showToast('確定に失敗しました: ' + error.message, 'error');
-    } finally {
-      Utils.setLoading(false);
-    }
+    const tripId = this.currentTrip.tripId;
+    Store.updateTripInStore(tripId, { isLocked: true });
+    ChangeBuffer.add('trip', 'lock', tripId, {}, 'travel');
+    Utils.showToast('出張予定を確定しました（保存待ち）', 'info');
+
+    this.close();
+    TravelPlan.render();
   },
 
   /**
    * 移動予定をワンクリックで追加
    */
-  async addMove() {
+  addMove() {
     const personId = document.getElementById('trip-person').value;
     const start = document.getElementById('trip-start').value;
     const end = document.getElementById('trip-end').value;
@@ -3330,31 +3792,30 @@ const TripModal = {
       return;
     }
 
-    try {
-      Utils.setLoading(true);
+    const payload = {
+      personId,
+      start,
+      end,
+      '行先': '',
+      '用件': '移動',
+      '備考': '',
+      kind: 'move',
+      source: 'manual'
+    };
 
-      const payload = {
-        personId,
-        start,
-        end,
-        '行先': '',
-        '用件': '移動',
-        '備考': '',
-        kind: 'move',
-        source: 'manual'
-      };
+    const tempId = 'temp_' + Utils.generateId();
+    const newTrip = {
+      tripId: tempId,
+      ...payload,
+      isLocked: false,
+      updatedAt: new Date().toISOString()
+    };
+    Store.addTrip(newTrip);
+    ChangeBuffer.add('trip', 'upsert', tempId, payload, 'travel');
+    Utils.showToast('移動予定を追加しました（保存待ち）', 'info');
 
-      await API.call('api_createTrip', payload);
-      Utils.showToast('移動予定を追加しました', 'success');
-
-      this.close();
-      await Store.loadBootstrapData();
-    } catch (error) {
-      console.error('Add move failed:', error);
-      Utils.showToast('移動追加に失敗しました: ' + error.message, 'error');
-    } finally {
-      Utils.setLoading(false);
-    }
+    this.close();
+    TravelPlan.render();
   }
 };
 
@@ -3899,14 +4360,11 @@ const TravelPlan = {
     }
   },
 
-  async lockTrip(tripId) {
-    try {
-      await API.call('api_updateTrip', tripId, { isLocked: true });
-      Utils.showToast('予定を確定しました', 'success');
-      await Store.loadBootstrapData();
-    } catch (error) {
-      Utils.showToast('確定に失敗しました: ' + error.message, 'error');
-    }
+  lockTrip(tripId) {
+    Store.updateTripInStore(tripId, { isLocked: true });
+    ChangeBuffer.add('trip', 'lock', tripId, {}, 'travel');
+    Utils.showToast('予定を確定しました（保存待ち）', 'info');
+    this.render();
   }
 };
 
@@ -3921,6 +4379,10 @@ const App = {
     console.log('Manufacturing Schedule App initializing...');
 
     Store.init();
+
+    // 共通基盤初期化
+    ChangeBuffer.init();
+    SaveBar.init();
 
     Gantt.init();
     Modal.init();
@@ -3998,7 +4460,17 @@ const App = {
     document.getElementById('color-mode-person').classList.toggle('active', mode === 'person');
   },
 
-  switchView(view) {
+  async switchView(view) {
+    // タブ切替前に未保存があれば自動保存
+    if (ChangeBuffer.isDirty) {
+      const result = await ChangeBuffer.flushIfDirty({ reason: 'tab_switch' });
+      if (!result.ok && result.shouldBlock) {
+        // 保存失敗時は遷移をキャンセル
+        console.log('[App] switchView blocked due to save failure');
+        return;
+      }
+    }
+
     Store.setState({ currentView: view });
 
     document.querySelectorAll('.nav-tab').forEach(tab => {
