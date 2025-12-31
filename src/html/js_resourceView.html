@@ -188,8 +188,10 @@ const ResourceView = {
     const job = Store.getJobById(schedule.jobId);
     const process = Store.getProcessById(schedule.processId);
     const jobNo = job?.['工番'] || '';
-    const processName = process?.['工程名'] || '';
+    const rawProcessName = process?.['工程名'] || '';
     const isMilestone = process?.['種別(type)'] === 'milestone';
+    // マイルストーンは既存の★を除去（二重★防止）
+    const processName = isMilestone ? rawProcessName.replace(/^★+/, '') : rawProcessName;
 
     if (isMilestone) {
       const milestoneLeft = startOffset * this.config.cellWidth + (this.config.cellWidth / 2) - 10;

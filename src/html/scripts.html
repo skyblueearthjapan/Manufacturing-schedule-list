@@ -1685,7 +1685,10 @@ const Gantt = {
     }
 
     const left = startOffset * this.config.cellWidth + (this.config.cellWidth / 2) - 12;
-    const processName = Store.getProcessDisplayName(schedule.processId);
+    // マイルストーンは★を自前で付けるため、生の工程名を使用し、既存の★を除去（二重★防止）
+    const process = Store.getProcessById(schedule.processId);
+    const rawName = process?.['工程名'] || '';
+    const processName = rawName.replace(/^★+/, ''); // 先頭の★を除去
 
     // レーンに応じたtop位置を計算
     const lane = schedule._lane || 0;
@@ -3205,10 +3208,14 @@ const JobDetail = {
     }
 
     const left = startOffset * this.config.cellWidth + (this.config.cellWidth / 2) - 8;
+    // 工程名を取得し、既存の★を除去（二重★防止）
+    const process = Store.getProcessById(schedule.processId);
+    const rawName = process?.['工程名'] || schedule.label || '';
+    const processName = rawName.replace(/^★+/, '');
 
     return `
-      <div class="job-milestone" style="left: ${left}px;" title="${schedule.label || ''}">
-        ★${Utils.escapeHtml(schedule.label || '')}
+      <div class="job-milestone" style="left: ${left}px;" title="${processName}">
+        ★${Utils.escapeHtml(processName)}
       </div>
     `;
   },
@@ -3514,14 +3521,16 @@ const ResourceView = {
     const job = Store.getJobById(schedule.jobId);
     const process = Store.getProcessById(schedule.processId);
     const jobNo = job?.['工番'] || '';
-    const processName = Store.getProcessDisplayName(schedule.processId);
     const isMilestone = process?.['種別(type)'] === 'milestone';
+    // マイルストーンは★を自前で付けるため、生の工程名を使用し、既存の★を除去（二重★防止）
+    const rawProcessName = (process?.['工程名'] || '').replace(/^★+/, '');
+    const processName = isMilestone ? rawProcessName : Store.getProcessDisplayName(schedule.processId);
 
     if (isMilestone) {
       const milestoneLeft = startOffset * this.config.cellWidth + (this.config.cellWidth / 2) - 10;
       return `
-        <div class="resource-milestone" style="left: ${milestoneLeft}px;" title="${jobNo} - ${processName}">
-          ★${Utils.escapeHtml(processName)}
+        <div class="resource-milestone" style="left: ${milestoneLeft}px;" title="${jobNo} - ${rawProcessName}">
+          ★${Utils.escapeHtml(rawProcessName)}
         </div>
       `;
     }

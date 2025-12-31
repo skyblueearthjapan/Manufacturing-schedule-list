@@ -316,7 +316,8 @@ const Gantt = {
 
     const left = startOffset * this.config.cellWidth + (this.config.cellWidth / 2) - 12;
     const process = Store.getProcessById(schedule.processId);
-    const processName = process?.['工程名'] || '';
+    // 既存の★を除去（二重★防止）
+    const processName = (process?.['工程名'] || '').replace(/^★+/, '');
 
     return `
       <div class="gantt-milestone"

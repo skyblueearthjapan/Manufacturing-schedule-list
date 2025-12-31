@@ -259,10 +259,14 @@ const JobDetail = {
     }
 
     const left = startOffset * this.config.cellWidth + (this.config.cellWidth / 2) - 8;
+    // 工程名を取得し、既存の★を除去（二重★防止）
+    const process = Store.getProcessById(schedule.processId);
+    const rawName = process?.['工程名'] || schedule.label || '';
+    const processName = rawName.replace(/^★+/, '');
 
     return `
-      <div class="job-milestone" style="left: ${left}px;" title="${schedule.label || ''}">
-        ★${Utils.escapeHtml(schedule.label || '')}
+      <div class="job-milestone" style="left: ${left}px;" title="${processName}">
+        ★${Utils.escapeHtml(processName)}
       </div>
     `;
   },
