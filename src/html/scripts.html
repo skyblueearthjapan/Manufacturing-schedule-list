@@ -721,7 +721,6 @@ const Store = {
     workerJobAssign: [], // 作業者別担当工番
     displayStartDate: null,
     displayDays: 120,
-    colorMode: 'process',
     currentView: 'master',
     isLoading: false,
     lastFetchedAt: null
@@ -1039,14 +1038,7 @@ const Store = {
     return Utils.isValidHexColor(raw) ? raw.toUpperCase() : '#6B7280';
   },
 
-  getPersonColor(personId) {
-    const person = this.getPersonById(personId);
-    const raw = person?.['作業者色(colorHex)'];
-    return Utils.normalizeColor(raw) || '#6B7280';
-  },
-
   getBarColor(schedule) {
-    // 常に工程色を使用（担当者色ロジックは撤去）
     return this.getProcessColor(schedule.processId);
   },
 
@@ -4578,14 +4570,6 @@ const App = {
       PeopleModal.open();
     });
 
-    document.getElementById('color-mode-process')?.addEventListener('click', () => {
-      this.setColorMode('process');
-    });
-
-    document.getElementById('color-mode-person')?.addEventListener('click', () => {
-      this.setColorMode('person');
-    });
-
     const navTabs = document.querySelectorAll('.nav-tab');
     console.log('[DEBUG] Found nav-tabs:', navTabs.length);
     navTabs.forEach(tab => {
@@ -4610,13 +4594,6 @@ const App = {
     if (startDate && days) {
       Store.changeDisplayRange(startDate, days);
     }
-  },
-
-  setColorMode(mode) {
-    Store.setState({ colorMode: mode });
-
-    document.getElementById('color-mode-process').classList.toggle('active', mode === 'process');
-    document.getElementById('color-mode-person').classList.toggle('active', mode === 'person');
   },
 
   async switchView(view) {
