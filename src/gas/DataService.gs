@@ -674,6 +674,22 @@ function getTrips(rangeStart, rangeEnd, filters = {}) {
 }
 
 /**
+ * genKey（同一性キー）を生成
+ * 形式: jobId|processId|start|end|personId|kind
+ * @param {Object} trip
+ * @returns {string}
+ */
+function generateGenKey(trip) {
+  const jobId = trip['jobId(任意)'] || trip.jobId || '';
+  const processId = trip.processId || '';
+  const start = trip.start || '';
+  const end = trip.end || '';
+  const personId = trip.personId || '';
+  const kind = trip.kind || '';
+  return `${jobId}|${processId}|${start}|${end}|${personId}|${kind}`;
+}
+
+/**
  * Trip新規作成
  * @param {Object} payload
  * @returns {Object}
@@ -686,6 +702,9 @@ function createTrip(payload) {
   // ID採番
   const tripId = Utilities.getUuid();
   const now = new Date();
+
+  // genKeyを生成
+  const genKey = payload.genKey || generateGenKey(payload);
 
   // ヘッダーベースで行データ作成
   const newRow = headers.map(header => {
@@ -702,6 +721,7 @@ function createTrip(payload) {
       case 'processId': return payload.processId || '';
       case 'source': return payload.source || 'manual';
       case 'isLocked': return payload.isLocked || false;
+      case 'genKey': return genKey;
       case 'updatedAt': return now;
       default: return payload[header] || '';
     }
@@ -712,6 +732,7 @@ function createTrip(payload) {
   return {
     tripId,
     ...payload,
+    genKey,
     start: formatDate(payload.start),
     end: formatDate(payload.end),
     updatedAt: formatDateTime(now)
@@ -719,7 +740,7 @@ function createTrip(payload) {
 }
 
 /**
- * Trip更新
+ * Trip更新（ロック済みは拒否）
  * @param {string} tripId
  * @param {Object} patch
  * @param {string} expectedUpdatedAt - 競合検知用
@@ -733,6 +754,8 @@ function updateTrip(tripId, patch, expectedUpdatedAt) {
   // 対象行を検索（ヘッダーベース）
   const tripIdIndex = headers.indexOf('tripId');
   const updatedAtIndex = headers.indexOf('updatedAt');
+  const isLockedIndex = headers.indexOf('isLocked');
+  const sourceIndex = headers.indexOf('source');
 
   if (tripIdIndex === -1) {
     throw new Error('tripId列が見つかりません');
@@ -750,6 +773,18 @@ function updateTrip(tripId, patch, expectedUpdatedAt) {
     throw new Error('指定された出張予定が見つかりません');
   }
 
+  // ロック済みチェック（isLocked更新以外は拒否）
+  if (isLockedIndex !== -1) {
+    const currentIsLocked = data[targetRowIndex][isLockedIndex];
+    const isLocked = currentIsLocked === true || currentIsLocked === 'TRUE' || currentIsLocked === 'true';
+    // isLockedの更新リクエストでなければ、ロック済みを拒否
+    if (isLocked && !patch.hasOwnProperty('isLocked')) {
+      const error = new Error('この予定は確定済みのため編集できません。');
+      error.code = 403;
+      throw error;
+    }
+  }
+
   // 競合検知
   if (expectedUpdatedAt && updatedAtIndex !== -1) {
     const currentUpdatedAt = formatDateTime(data[targetRowIndex][updatedAtIndex]);
@@ -762,6 +797,14 @@ function updateTrip(tripId, patch, expectedUpdatedAt) {
 
   // 更新
   const now = new Date();
+
+  // AUTO→MANUALへの変更（isLocked更新以外の編集の場合）
+  if (sourceIndex !== -1 && !patch.hasOwnProperty('isLocked')) {
+    const currentSource = data[targetRowIndex][sourceIndex];
+    if (currentSource === 'auto' && !patch.hasOwnProperty('source')) {
+      patch.source = 'manual';
+    }
+  }
 
   headers.forEach((header, colIndex) => {
     if (patch.hasOwnProperty(header)) {
@@ -783,6 +826,65 @@ function updateTrip(tripId, patch, expectedUpdatedAt) {
   result.start = formatDate(result.start);
   result.end = formatDate(result.end);
   result.updatedAt = formatDateTime(now);
+  result.isLocked = result.isLocked === true || result.isLocked === 'TRUE' || result.isLocked === 'true';
+
+  return result;
+}
+
+/**
+ * Trip確定（ロック）
+ * @param {string} tripId
+ * @param {boolean} isLocked - true=ロック, false=解除
+ * @returns {Object}
+ */
+function lockTrip(tripId, isLocked = true) {
+  const sheet = getSheet(CONFIG.SHEETS.TRIPS);
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+
+  const tripIdIndex = headers.indexOf('tripId');
+  const isLockedIndex = headers.indexOf('isLocked');
+  const updatedAtIndex = headers.indexOf('updatedAt');
+
+  if (tripIdIndex === -1) {
+    throw new Error('tripId列が見つかりません');
+  }
+  if (isLockedIndex === -1) {
+    throw new Error('isLocked列が見つかりません');
+  }
+
+  let targetRowIndex = -1;
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][tripIdIndex] === tripId) {
+      targetRowIndex = i;
+      break;
+    }
+  }
+
+  if (targetRowIndex === -1) {
+    throw new Error('指定された出張予定が見つかりません');
+  }
+
+  const now = new Date();
+
+  // isLocked更新
+  sheet.getRange(targetRowIndex + 1, isLockedIndex + 1).setValue(isLocked);
+
+  // updatedAt更新
+  if (updatedAtIndex !== -1) {
+    sheet.getRange(targetRowIndex + 1, updatedAtIndex + 1).setValue(now);
+  }
+
+  // 更新後データを返す
+  const updatedData = sheet.getRange(targetRowIndex + 1, 1, 1, headers.length).getValues()[0];
+  const result = {};
+  headers.forEach((header, index) => {
+    result[header] = updatedData[index];
+  });
+  result.start = formatDate(result.start);
+  result.end = formatDate(result.end);
+  result.updatedAt = formatDateTime(now);
+  result.isLocked = isLocked;
 
   return result;
 }
@@ -942,39 +1044,45 @@ function generateTravelPlan(rangeStart, rangeEnd) {
 }
 
 /**
- * Trip upsert（重複判定キーで挿入or更新）
- * 重複キー: personId + kind + jobId + processId + start + end
+ * Trip upsert（genKeyで同一性判定）
+ * genKey形式: jobId|processId|start|end|personId|kind
  * @param {Object[]} existingTrips - 既存Trips配列（参照用）
  * @param {Object} newTrip - 新規Trip
  * @returns {Object} { action: 'created'|'updated'|'skipped', trip?, reason? }
  */
 function upsertTrip(existingTrips, newTrip) {
-  // 重複判定キーでマッチ
-  const existing = existingTrips.find(t =>
-    t.personId === newTrip.personId &&
-    t.kind === newTrip.kind &&
-    (t['jobId(任意)'] === newTrip['jobId(任意)'] || t.jobId === newTrip['jobId(任意)']) &&
-    t.processId === newTrip.processId &&
-    t.start === newTrip.start &&
-    t.end === newTrip.end
-  );
+  // genKeyを生成
+  const newGenKey = generateGenKey(newTrip);
+  newTrip.genKey = newGenKey;
+
+  // genKeyでマッチ（既存にgenKeyがある場合はそれを使用、なければ動的生成）
+  const existing = existingTrips.find(t => {
+    const existingGenKey = t.genKey || generateGenKey(t);
+    return existingGenKey === newGenKey;
+  });
 
   if (existing) {
-    // 既存がロック済みなら何もしない
+    // 既存がロック済みなら何もしない（最優先）
     if (existing.isLocked) {
       return { action: 'skipped', reason: 'isLocked=true' };
     }
-    // 既存がautoなら更新
+    // 既存がmanualなら上書きしない
+    if (existing.source === 'manual') {
+      return { action: 'skipped', reason: 'source=manual' };
+    }
+    // 既存がautoなら更新（内容のみ、sourceはautoのまま）
     if (existing.source === 'auto') {
+      // updateTripはロック済みチェックがあるが、AUTO→AUTO更新なのでisLockedは渡さない
       const updated = updateTrip(existing.tripId, {
         '行先': newTrip['行先'],
         '用件': newTrip['用件'],
-        '備考': newTrip['備考'] || ''
+        '備考': newTrip['備考'] || '',
+        source: 'auto' // 明示的にautoを維持
       });
       return { action: 'updated', trip: updated };
     }
-    // manualは上書きしない
-    return { action: 'skipped', reason: 'source=manual' };
+    // その他（sourceが未設定など）は上書きしない
+    return { action: 'skipped', reason: 'source unknown' };
   }
 
   // 新規作成

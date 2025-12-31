@@ -631,6 +631,81 @@
     </div>
   </div>
 
+  <!-- 出張予定編集モーダル -->
+  <div id="modal-trip" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content" style="max-width: 500px;">
+      <div class="modal-header">
+        <h3 id="trip-modal-title" class="text-lg font-semibold">出張予定を編集</h3>
+        <button id="trip-modal-close" class="modal-close-btn" onclick="TripModal.close()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="trip-form">
+          <input type="hidden" id="trip-id">
+          <input type="hidden" id="trip-expected-updated-at">
+
+          <!-- 担当者 -->
+          <div class="form-group">
+            <label class="form-label">担当者 <span class="text-danger">*</span></label>
+            <select id="trip-person" class="form-select" required>
+              <option value="">選択してください</option>
+            </select>
+          </div>
+
+          <!-- 期間 -->
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label class="form-label">開始日 <span class="text-danger">*</span></label>
+              <input type="date" id="trip-start" class="form-input" required>
+            </div>
+            <div class="form-group flex-1">
+              <label class="form-label">終了日 <span class="text-danger">*</span></label>
+              <input type="date" id="trip-end" class="form-input" required>
+            </div>
+          </div>
+
+          <!-- 行先 -->
+          <div class="form-group">
+            <label class="form-label">行先 <span class="text-danger">*</span></label>
+            <input type="text" id="trip-destination" class="form-input" placeholder="例: 東京工場" required>
+          </div>
+
+          <!-- 用件 -->
+          <div class="form-group">
+            <label class="form-label">用件</label>
+            <textarea id="trip-purpose" class="form-input" rows="3" placeholder="例: 据付工事&#10;工番 顧客名&#10;製品名"></textarea>
+          </div>
+
+          <!-- 備考 -->
+          <div class="form-group">
+            <label class="form-label">備考</label>
+            <input type="text" id="trip-note" class="form-input" placeholder="メモ">
+          </div>
+
+          <!-- ステータス表示 -->
+          <div id="trip-status-area" class="flex items-center gap-2 text-sm text-gray-600 mb-4">
+            <span id="trip-source-badge" class="px-2 py-0.5 rounded text-xs"></span>
+            <span id="trip-locked-badge" class="px-2 py-0.5 rounded text-xs hidden"></span>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <div class="flex justify-between w-full">
+          <div>
+            <button type="button" id="trip-delete-btn" onclick="TripModal.delete()" class="btn btn-danger text-sm">削除</button>
+          </div>
+          <div class="flex gap-2">
+            <button type="button" id="trip-lock-btn" onclick="TripModal.lock()" class="btn btn-secondary text-sm">
+              🔒 確定
+            </button>
+            <button type="button" onclick="TripModal.close()" class="btn btn-secondary">キャンセル</button>
+            <button type="button" id="trip-save-btn" onclick="TripModal.save()" class="btn btn-primary">保存</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- トースト通知 -->
   <div id="toast-container" class="fixed bottom-4 right-4 z-50 space-y-2"></div>
 

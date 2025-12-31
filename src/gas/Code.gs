@@ -113,7 +113,7 @@ function sanitizeForClient(obj) {
 }
 
 function api_ping() {
-  return { ok: true, at: new Date().toISOString(), version: '2025-12-31-v1' };
+  return { ok: true, at: new Date().toISOString(), version: '2025-12-31-v2' };
 }
 
 function api_getBootstrapData(rangeStart, days) {
@@ -197,6 +197,10 @@ function api_deleteTrip(tripId) {
 
 function api_generateTravelPlan(rangeStart, rangeEnd) {
   return sanitizeForClient(generateTravelPlan(rangeStart, rangeEnd));
+}
+
+function api_lockTrip(tripId, isLocked) {
+  return sanitizeForClient(lockTrip(tripId, isLocked !== false));
 }
 
 /**
