@@ -652,7 +652,10 @@ function getTrips(rangeStart, rangeEnd, filters = {}) {
   trips = trips.map(t => ({
     ...t,
     start: formatDate(t.start),
-    end: formatDate(t.end)
+    end: formatDate(t.end),
+    updatedAt: formatDateTime(t.updatedAt),
+    // isLockedをboolean化
+    isLocked: t.isLocked === true || t.isLocked === 'TRUE' || t.isLocked === 'true'
   }));
 
   // 期間フィルタ
@@ -668,6 +671,329 @@ function getTrips(rangeStart, rangeEnd, filters = {}) {
   }
 
   return trips;
+}
+
+/**
+ * Trip新規作成
+ * @param {Object} payload
+ * @returns {Object}
+ */
+function createTrip(payload) {
+  const sheet = getSheet(CONFIG.SHEETS.TRIPS);
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+
+  // ID採番
+  const tripId = Utilities.getUuid();
+  const now = new Date();
+
+  // ヘッダーベースで行データ作成
+  const newRow = headers.map(header => {
+    switch(header) {
+      case 'tripId': return tripId;
+      case 'personId': return payload.personId || '';
+      case 'start': return payload.start || '';
+      case 'end': return payload.end || '';
+      case '行先': return payload['行先'] || '';
+      case '用件': return payload['用件'] || '';
+      case 'jobId(任意)': return payload['jobId(任意)'] || payload.jobId || '';
+      case '備考': return payload['備考'] || '';
+      case 'kind': return payload.kind || '';
+      case 'processId': return payload.processId || '';
+      case 'source': return payload.source || 'manual';
+      case 'isLocked': return payload.isLocked || false;
+      case 'updatedAt': return now;
+      default: return payload[header] || '';
+    }
+  });
+
+  sheet.appendRow(newRow);
+
+  return {
+    tripId,
+    ...payload,
+    start: formatDate(payload.start),
+    end: formatDate(payload.end),
+    updatedAt: formatDateTime(now)
+  };
+}
+
+/**
+ * Trip更新
+ * @param {string} tripId
+ * @param {Object} patch
+ * @param {string} expectedUpdatedAt - 競合検知用
+ * @returns {Object}
+ */
+function updateTrip(tripId, patch, expectedUpdatedAt) {
+  const sheet = getSheet(CONFIG.SHEETS.TRIPS);
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+
+  // 対象行を検索（ヘッダーベース）
+  const tripIdIndex = headers.indexOf('tripId');
+  const updatedAtIndex = headers.indexOf('updatedAt');
+
+  if (tripIdIndex === -1) {
+    throw new Error('tripId列が見つかりません');
+  }
+
+  let targetRowIndex = -1;
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][tripIdIndex] === tripId) {
+      targetRowIndex = i;
+      break;
+    }
+  }
+
+  if (targetRowIndex === -1) {
+    throw new Error('指定された出張予定が見つかりません');
+  }
+
+  // 競合検知
+  if (expectedUpdatedAt && updatedAtIndex !== -1) {
+    const currentUpdatedAt = formatDateTime(data[targetRowIndex][updatedAtIndex]);
+    if (currentUpdatedAt && currentUpdatedAt !== expectedUpdatedAt) {
+      const error = new Error('他のユーザーが更新しました。最新データを取得してください。');
+      error.code = 409;
+      throw error;
+    }
+  }
+
+  // 更新
+  const now = new Date();
+
+  headers.forEach((header, colIndex) => {
+    if (patch.hasOwnProperty(header)) {
+      sheet.getRange(targetRowIndex + 1, colIndex + 1).setValue(patch[header]);
+    }
+  });
+
+  // updatedAt更新
+  if (updatedAtIndex !== -1) {
+    sheet.getRange(targetRowIndex + 1, updatedAtIndex + 1).setValue(now);
+  }
+
+  // 更新後データを返す
+  const updatedData = sheet.getRange(targetRowIndex + 1, 1, 1, headers.length).getValues()[0];
+  const result = {};
+  headers.forEach((header, index) => {
+    result[header] = updatedData[index];
+  });
+  result.start = formatDate(result.start);
+  result.end = formatDate(result.end);
+  result.updatedAt = formatDateTime(now);
+
+  return result;
+}
+
+/**
+ * Trip削除
+ * @param {string} tripId
+ * @returns {Object}
+ */
+function deleteTrip(tripId) {
+  const sheet = getSheet(CONFIG.SHEETS.TRIPS);
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+
+  const tripIdIndex = headers.indexOf('tripId');
+  if (tripIdIndex === -1) {
+    throw new Error('tripId列が見つかりません');
+  }
+
+  let targetRowIndex = -1;
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][tripIdIndex] === tripId) {
+      targetRowIndex = i;
+      break;
+    }
+  }
+
+  if (targetRowIndex === -1) {
+    throw new Error('指定された出張予定が見つかりません');
+  }
+
+  // 物理削除
+  sheet.deleteRow(targetRowIndex + 1);
+
+  return { success: true, tripId };
+}
+
+/**
+ * 出張計画自動生成（P150スケジュールから）
+ * @param {string} rangeStart - 対象期間開始
+ * @param {string} rangeEnd - 対象期間終了
+ * @returns {Object} 生成結果
+ */
+function generateTravelPlan(rangeStart, rangeEnd) {
+  const PROCESS_ID_SITE_WORK = 'P150'; // 据付/現地工事の工程ID
+
+  // 既存Tripsを取得
+  const existingTrips = getTrips(null, null, {}); // 全件取得
+
+  // P150のスケジュールを取得
+  const schedules = getSchedules(rangeStart, rangeEnd, { processIds: [PROCESS_ID_SITE_WORK] });
+
+  // Jobsを取得（mainPersonId/subPersonId取得用）
+  const jobs = getAllJobs();
+  const jobMap = {};
+  jobs.forEach(j => { jobMap[j.jobId] = j; });
+
+  const created = [];
+  const updated = [];
+  const skipped = [];
+
+  schedules.forEach(schedule => {
+    const job = jobMap[schedule.jobId];
+    if (!job) {
+      skipped.push({ scheduleId: schedule.scheduleId, reason: 'Job not found' });
+      return;
+    }
+
+    // 対象者リスト（mainPersonId + subPersonId）
+    const personIds = [];
+    if (job.mainPersonId) personIds.push(job.mainPersonId);
+    if (job.subPersonId && job.subPersonId !== job.mainPersonId) personIds.push(job.subPersonId);
+
+    if (personIds.length === 0) {
+      skipped.push({ scheduleId: schedule.scheduleId, reason: 'No person assigned' });
+      return;
+    }
+
+    // スケジュールの日付
+    const siteStart = schedule.start;
+    const siteEnd = schedule.end;
+    const moveBeforeDate = addDaysServer(siteStart, -1);
+    const moveAfterDate = addDaysServer(siteEnd, 1);
+
+    // 用件テキスト生成（3行形式）
+    const jobNo = job['工番'] || '';
+    const customerName = job['顧客名'] || '';
+    const productName = job['設備/製品名'] || '';
+    const destination = job['納入先'] || '';
+    const siteDescription = `${jobNo} ${customerName}\n${productName}\n${destination}`;
+    const moveDescription = '移動';
+
+    personIds.forEach(personId => {
+      // 1. 前日移動
+      const moveBefore = {
+        personId,
+        start: moveBeforeDate,
+        end: moveBeforeDate,
+        '行先': destination,
+        '用件': moveDescription,
+        'jobId(任意)': schedule.jobId,
+        kind: 'move',
+        processId: PROCESS_ID_SITE_WORK,
+        source: 'auto',
+        isLocked: false
+      };
+      const moveBeforeResult = upsertTrip(existingTrips, moveBefore);
+      if (moveBeforeResult.action === 'created') created.push(moveBeforeResult.trip);
+      else if (moveBeforeResult.action === 'updated') updated.push(moveBeforeResult.trip);
+      else skipped.push({ ...moveBefore, reason: moveBeforeResult.reason });
+
+      // 2. 現場（site）
+      const site = {
+        personId,
+        start: siteStart,
+        end: siteEnd,
+        '行先': destination,
+        '用件': siteDescription,
+        'jobId(任意)': schedule.jobId,
+        kind: 'site',
+        processId: PROCESS_ID_SITE_WORK,
+        source: 'auto',
+        isLocked: false
+      };
+      const siteResult = upsertTrip(existingTrips, site);
+      if (siteResult.action === 'created') created.push(siteResult.trip);
+      else if (siteResult.action === 'updated') updated.push(siteResult.trip);
+      else skipped.push({ ...site, reason: siteResult.reason });
+
+      // 3. 翌日移動
+      const moveAfter = {
+        personId,
+        start: moveAfterDate,
+        end: moveAfterDate,
+        '行先': destination,
+        '用件': moveDescription,
+        'jobId(任意)': schedule.jobId,
+        kind: 'move',
+        processId: PROCESS_ID_SITE_WORK,
+        source: 'auto',
+        isLocked: false
+      };
+      const moveAfterResult = upsertTrip(existingTrips, moveAfter);
+      if (moveAfterResult.action === 'created') created.push(moveAfterResult.trip);
+      else if (moveAfterResult.action === 'updated') updated.push(moveAfterResult.trip);
+      else skipped.push({ ...moveAfter, reason: moveAfterResult.reason });
+    });
+  });
+
+  return {
+    success: true,
+    created: created.length,
+    updated: updated.length,
+    skipped: skipped.length,
+    details: { created, updated, skipped }
+  };
+}
+
+/**
+ * Trip upsert（重複判定キーで挿入or更新）
+ * 重複キー: personId + kind + jobId + processId + start + end
+ * @param {Object[]} existingTrips - 既存Trips配列（参照用）
+ * @param {Object} newTrip - 新規Trip
+ * @returns {Object} { action: 'created'|'updated'|'skipped', trip?, reason? }
+ */
+function upsertTrip(existingTrips, newTrip) {
+  // 重複判定キーでマッチ
+  const existing = existingTrips.find(t =>
+    t.personId === newTrip.personId &&
+    t.kind === newTrip.kind &&
+    (t['jobId(任意)'] === newTrip['jobId(任意)'] || t.jobId === newTrip['jobId(任意)']) &&
+    t.processId === newTrip.processId &&
+    t.start === newTrip.start &&
+    t.end === newTrip.end
+  );
+
+  if (existing) {
+    // 既存がロック済みなら何もしない
+    if (existing.isLocked) {
+      return { action: 'skipped', reason: 'isLocked=true' };
+    }
+    // 既存がautoなら更新
+    if (existing.source === 'auto') {
+      const updated = updateTrip(existing.tripId, {
+        '行先': newTrip['行先'],
+        '用件': newTrip['用件'],
+        '備考': newTrip['備考'] || ''
+      });
+      return { action: 'updated', trip: updated };
+    }
+    // manualは上書きしない
+    return { action: 'skipped', reason: 'source=manual' };
+  }
+
+  // 新規作成
+  const created = createTrip(newTrip);
+  // existingTripsに追加（後続の重複判定用）
+  existingTrips.push(created);
+  return { action: 'created', trip: created };
+}
+
+/**
+ * サーバー側で日付に日数を加算
+ * @param {string} dateStr - YYYY-MM-DD形式
+ * @param {number} days - 加算日数
+ * @returns {string} YYYY-MM-DD形式
+ */
+function addDaysServer(dateStr, days) {
+  const d = new Date(dateStr);
+  d.setDate(d.getDate() + days);
+  return formatDate(d);
 }
 
 // ============================================

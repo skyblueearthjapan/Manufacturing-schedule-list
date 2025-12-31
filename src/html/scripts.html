@@ -2727,6 +2727,248 @@ const WeeklyPlan = {
 console.log('[DEBUG] WeeklyPlan defined');
 
 // ========================================
+// TravelPlan - 出張計画表
+// ========================================
+
+const TravelPlan = {
+  config: {
+    cellWidth: 32,
+    rowHeight: 72
+  },
+  dates: [],
+  displayStartDate: null,
+  displayDays: 90,
+
+  init() {
+    this.displayStartDate = Utils.getToday();
+
+    // UI初期化
+    document.getElementById('travel-start-date').value = this.displayStartDate;
+    document.getElementById('travel-days').value = this.displayDays;
+
+    // イベントリスナー
+    document.getElementById('travel-start-date')?.addEventListener('change', () => {
+      this.onDisplayRangeChange();
+    });
+    document.getElementById('travel-days')?.addEventListener('change', () => {
+      this.onDisplayRangeChange();
+    });
+
+    // スクロール同期
+    const scrollArea = document.getElementById('travel-scroll-area');
+    const scrollHeader = document.querySelector('.travel-scroll-header');
+    if (scrollArea && scrollHeader) {
+      scrollArea.addEventListener('scroll', () => {
+        scrollHeader.scrollLeft = scrollArea.scrollLeft;
+      });
+    }
+
+    Store.subscribe((state) => {
+      if (state.currentView === 'travel') {
+        this.render();
+      }
+    });
+  },
+
+  onDisplayRangeChange() {
+    this.displayStartDate = document.getElementById('travel-start-date').value;
+    this.displayDays = parseInt(document.getElementById('travel-days').value, 10);
+    this.render();
+  },
+
+  async generateTrips() {
+    try {
+      Utils.setLoading(true);
+      const rangeEnd = Utils.addDays(this.displayStartDate, this.displayDays);
+      const result = await API.call('api_generateTravelPlan', this.displayStartDate, rangeEnd);
+
+      Utils.showToast(`自動生成完了: 作成${result.created}件, 更新${result.updated}件, スキップ${result.skipped}件`, 'success');
+
+      // データ再読み込み
+      await Store.loadBootstrapData();
+    } catch (error) {
+      console.error('Travel plan generation failed:', error);
+      Utils.showToast('自動生成に失敗しました: ' + error.message, 'error');
+    } finally {
+      Utils.setLoading(false);
+    }
+  },
+
+  addNewTrip() {
+    // Phase 3で実装
+    Utils.showToast('予定追加機能は準備中です', 'info');
+  },
+
+  render() {
+    const { people, trips } = Store.state;
+    this.dates = Utils.generateDateRange(this.displayStartDate, this.displayDays);
+
+    this.renderDateHeader();
+    this.renderBody(people, trips);
+  },
+
+  renderDateHeader() {
+    const container = document.getElementById('travel-date-header');
+    if (!container) return;
+
+    const today = Utils.getToday();
+    let html = '';
+    let currentMonth = 0;
+
+    this.dates.forEach(date => {
+      const month = Utils.getMonth(date);
+      const day = Utils.getDay(date);
+      const dow = Utils.getDayOfWeek(date);
+      const isWeekend = Utils.isWeekend(date);
+      const isToday = date === today;
+
+      const showMonth = month !== currentMonth;
+      currentMonth = month;
+
+      let classes = 'travel-date-cell';
+      if (isWeekend) classes += ' weekend';
+      if (isToday) classes += ' today';
+
+      html += `
+        <div class="${classes}">
+          ${showMonth ? `<div class="month">${month}月</div>` : '<div class="month"></div>'}
+          <div class="day">${day}</div>
+          <div class="dow">${dow}</div>
+        </div>
+      `;
+    });
+
+    container.innerHTML = html;
+  },
+
+  renderBody(people, trips) {
+    const container = document.getElementById('travel-body');
+    if (!container) return;
+
+    const today = Utils.getToday();
+
+    if (people.length === 0) {
+      container.innerHTML = '<div class="travel-empty-message">作業者が登録されていません</div>';
+      return;
+    }
+
+    let html = '';
+
+    people.forEach(person => {
+      const personTrips = trips.filter(t => t.personId === person.personId);
+      const dept = person['部署/区分'] || '';
+      const name = person['氏名'] || '';
+      const personColor = Utils.normalizeColor(person['作業者色(colorHex)']) || '#6b7280';
+
+      html += `
+        <div class="travel-person-row">
+          <div class="travel-person-info" style="border-left: 4px solid ${personColor}">
+            <div class="dept">${Utils.escapeHtml(dept)}</div>
+            <div class="name">${Utils.escapeHtml(name)}</div>
+            <div class="memo"></div>
+          </div>
+          <div class="travel-person-grid">
+      `;
+
+      // グリッドセル
+      this.dates.forEach(date => {
+        const isWeekend = Utils.isWeekend(date);
+        const isToday = date === today;
+        let classes = 'travel-grid-cell';
+        if (isWeekend) classes += ' weekend';
+        if (isToday) classes += ' today';
+        html += `<div class="${classes}"></div>`;
+      });
+
+      // 予定バー
+      personTrips.forEach(trip => {
+        html += this.renderTripBar(trip);
+      });
+
+      html += `
+          </div>
+        </div>
+      `;
+    });
+
+    container.innerHTML = html;
+  },
+
+  renderTripBar(trip) {
+    const startOffset = Utils.getDaysBetween(this.displayStartDate, trip.start);
+    const duration = Utils.getDaysBetween(trip.start, trip.end) + 1;
+
+    // 表示範囲外チェック
+    if (startOffset + duration < 0 || startOffset >= this.dates.length) {
+      return '';
+    }
+
+    const left = Math.max(0, startOffset) * this.config.cellWidth;
+    const width = Math.min(duration, this.dates.length - Math.max(0, startOffset)) * this.config.cellWidth - 4;
+    const isLocked = trip.isLocked === true;
+    const lockIcon = isLocked ? '<span class="travel-lock-icon">🔒</span>' : '';
+
+    if (trip.kind === 'move') {
+      // 移動バー
+      const destination = trip['行先'] || '';
+      return `
+        <div class="travel-move-bar ${isLocked ? 'locked' : ''}"
+             style="left: ${left}px; width: ${width}px;"
+             data-trip-id="${trip.tripId}"
+             title="移動: ${destination}">
+          ${lockIcon}
+          <span class="bar-icon">🚗</span>
+          <span>移動</span>
+        </div>
+      `;
+    } else if (trip.kind === 'site') {
+      // 現場バー（3行表示）
+      const description = trip['用件'] || '';
+      const lines = description.split('\n');
+      const line1 = lines[0] || '';
+      const line2 = lines[1] || '';
+      const line3 = lines[2] || trip['行先'] || '';
+
+      return `
+        <div class="travel-site-bar ${isLocked ? 'locked' : ''}"
+             style="left: ${left}px; width: ${width}px;"
+             data-trip-id="${trip.tripId}"
+             title="${Utils.escapeHtml(description)}">
+          ${lockIcon}
+          <div class="bar-line1">${Utils.escapeHtml(line1)}</div>
+          <div class="bar-line2">${Utils.escapeHtml(line2)}</div>
+          <div class="bar-line3">${Utils.escapeHtml(line3)}</div>
+        </div>
+      `;
+    } else {
+      // その他（既存trip形式）
+      const destination = trip['行先'] || '';
+      const purpose = trip['用件'] || '';
+      return `
+        <div class="travel-move-bar"
+             style="left: ${left}px; width: ${width}px; background: linear-gradient(135deg, #a78bfa, #8b5cf6); color: white; border-color: #7c3aed;"
+             data-trip-id="${trip.tripId}"
+             title="${destination} - ${purpose}">
+          <span>${Utils.escapeHtml(destination || purpose)}</span>
+        </div>
+      `;
+    }
+  },
+
+  async lockTrip(tripId) {
+    try {
+      await API.call('api_updateTrip', tripId, { isLocked: true });
+      Utils.showToast('予定を確定しました', 'success');
+      await Store.loadBootstrapData();
+    } catch (error) {
+      Utils.showToast('確定に失敗しました: ' + error.message, 'error');
+    }
+  }
+};
+
+console.log('[DEBUG] TravelPlan defined');
+
+// ========================================
 // App - アプリケーションメインエントリーポイント
 // ========================================
 
@@ -2743,6 +2985,7 @@ const App = {
     JobDetail.init();
     ResourceView.init();
     WeeklyPlan.init();
+    TravelPlan.init();
 
     this.setupEventListeners();
 
@@ -2836,6 +3079,9 @@ const App = {
         break;
       case 'weekly':
         WeeklyPlan.render();
+        break;
+      case 'travel':
+        TravelPlan.render();
         break;
     }
   }

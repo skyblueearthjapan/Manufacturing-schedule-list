@@ -45,6 +45,9 @@
             <button id="nav-weekly" class="nav-tab" data-view="weekly">
               今週の予定
             </button>
+            <button id="nav-travel" class="nav-tab" data-view="travel">
+              出張計画
+            </button>
           </nav>
         </div>
 
@@ -226,6 +229,65 @@
               <!-- JSで生成 -->
             </tbody>
           </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TravelPlanView（出張計画表） -->
+    <div id="view-travel" class="view-container hidden">
+      <div class="travel-container">
+        <!-- ヘッダー -->
+        <div class="travel-header-controls">
+          <div class="flex items-center space-x-4">
+            <h2 class="text-lg font-bold text-gray-800">出張計画表</h2>
+            <div class="flex items-center space-x-2 text-sm">
+              <label class="text-gray-600">表示開始:</label>
+              <input type="date" id="travel-start-date"
+                     class="border border-gray-300 rounded px-2 py-1 text-sm focus:ring-2 focus:ring-primary focus:border-transparent">
+              <label class="text-gray-600">日数:</label>
+              <select id="travel-days" class="border border-gray-300 rounded px-2 py-1 text-sm focus:ring-2 focus:ring-primary">
+                <option value="60">60日</option>
+                <option value="90" selected>90日</option>
+                <option value="120">120日</option>
+              </select>
+            </div>
+          </div>
+          <div class="flex items-center space-x-2">
+            <button onclick="TravelPlan.generateTrips()" class="btn btn-secondary text-sm" title="P150スケジュールから自動生成">
+              <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+              </svg>
+              自動生成
+            </button>
+            <button onclick="TravelPlan.addNewTrip()" class="btn btn-primary text-sm">
+              <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+              </svg>
+              予定追加
+            </button>
+          </div>
+        </div>
+
+        <!-- メインコンテンツ（2ペイン構造） -->
+        <div class="travel-main">
+          <!-- 固定ヘッダー -->
+          <div class="travel-header-row">
+            <div class="travel-fixed-header">
+              <div class="travel-person-header">作業者情報</div>
+            </div>
+            <div class="travel-scroll-header">
+              <div class="travel-date-header" id="travel-date-header">
+                <!-- JSで生成 -->
+              </div>
+            </div>
+          </div>
+
+          <!-- スクロール領域 -->
+          <div class="travel-scroll-area" id="travel-scroll-area">
+            <div class="travel-body" id="travel-body">
+              <!-- JSで生成 -->
+            </div>
+          </div>
         </div>
       </div>
     </div>

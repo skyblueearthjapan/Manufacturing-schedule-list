@@ -113,7 +113,7 @@ function sanitizeForClient(obj) {
 }
 
 function api_ping() {
-  return { ok: true, at: new Date().toISOString(), version: '2025-12-30-v1' };
+  return { ok: true, at: new Date().toISOString(), version: '2025-12-31-v1' };
 }
 
 function api_getBootstrapData(rangeStart, days) {
@@ -180,6 +180,23 @@ function api_updatePerson(personId, patch, expectedUpdatedAt) {
 
 function api_getPeople(includeInactive) {
   return sanitizeForClient(getAllPeople(includeInactive));
+}
+
+// ========== Trip API ==========
+function api_createTrip(payload) {
+  return sanitizeForClient(createTrip(payload));
+}
+
+function api_updateTrip(tripId, patch, expectedUpdatedAt) {
+  return sanitizeForClient(updateTrip(tripId, patch, expectedUpdatedAt));
+}
+
+function api_deleteTrip(tripId) {
+  return deleteTrip(tripId);
+}
+
+function api_generateTravelPlan(rangeStart, rangeEnd) {
+  return sanitizeForClient(generateTravelPlan(rangeStart, rangeEnd));
 }
 
 /**
