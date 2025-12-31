@@ -719,6 +719,8 @@ const Store = {
     trips: [],
     jobMaster: [], // 外部工番マスター
     workerJobAssign: [], // 作業者別担当工番
+    topMemos: [], // 上部メモ
+    topMemoExpanded: false, // 上部メモ展開状態
     displayStartDate: null,
     displayDays: 120,
     currentView: 'master',
@@ -770,6 +772,10 @@ const Store = {
         throw new Error('サーバーからデータが返されませんでした');
       }
 
+      // TopMemoの初期展開状態を判定（最初のメモのisOpenDefaultを使用）
+      const topMemos = data.topMemos || [];
+      const topMemoExpanded = topMemos.length > 0 && topMemos[0].isOpenDefault === true;
+
       this.setState({
         jobs: data.jobs || [],
         processes: data.processes || [],
@@ -778,6 +784,8 @@ const Store = {
         trips: data.trips || [],
         jobMaster: data.jobMaster || [],
         workerJobAssign: data.workerJobAssign || [],
+        topMemos: topMemos,
+        topMemoExpanded: topMemoExpanded,
         lastFetchedAt: data.meta?.fetchedAt || new Date().toISOString(),
         isLoading: false
       });
@@ -868,6 +876,27 @@ const Store = {
   removeTrip(tripId) {
     const trips = this.state.trips.filter(t => t.tripId !== tripId);
     this.setState({ trips });
+  },
+
+  // TopMemo関連のStore操作
+  getTopMemo(scope = 'master') {
+    // 指定scopeの最初のメモを返す（現状は1件のみ対応）
+    return this.state.topMemos.find(m => m.scope === scope) || null;
+  },
+
+  toggleTopMemoExpanded() {
+    this.setState({ topMemoExpanded: !this.state.topMemoExpanded });
+  },
+
+  setTopMemoExpanded(expanded) {
+    this.setState({ topMemoExpanded: expanded });
+  },
+
+  updateTopMemoInStore(memoId, updates) {
+    const topMemos = this.state.topMemos.map(m =>
+      m.memoId === memoId ? { ...m, ...updates } : m
+    );
+    this.setState({ topMemos });
   },
 
   /**
@@ -1844,6 +1873,98 @@ const Modal = {
 };
 
 console.log('[DEBUG] Modal defined');
+
+// ========================================
+// TopMemoPanel - 上部メモパネル
+// ========================================
+
+const TopMemoPanel = {
+  _panelEl: null,
+  _bodyEl: null,
+  _contentEl: null,
+  _titleEl: null,
+  _toggleBtn: null,
+
+  init() {
+    this._panelEl = document.getElementById('top-memo-panel');
+    this._bodyEl = document.getElementById('top-memo-body');
+    this._contentEl = document.getElementById('top-memo-content');
+    this._titleEl = document.getElementById('top-memo-title');
+    this._toggleBtn = document.getElementById('top-memo-toggle');
+
+    if (!this._panelEl) {
+      console.warn('[TopMemoPanel] パネル要素が見つかりません');
+      return;
+    }
+
+    this.setupEventListeners();
+
+    // Storeの変更を監視
+    Store.subscribe(() => this.render());
+  },
+
+  setupEventListeners() {
+    this._toggleBtn?.addEventListener('click', () => this.toggle());
+  },
+
+  render() {
+    const memo = Store.getTopMemo('master');
+
+    if (!memo) {
+      // メモがない場合はパネルを非表示
+      this._panelEl?.classList.add('hidden');
+      this.updateGanttHeight(false);
+      return;
+    }
+
+    // パネルを表示
+    this._panelEl?.classList.remove('hidden');
+
+    // タイトル設定
+    if (this._titleEl) {
+      this._titleEl.textContent = memo.title || '下記以外';
+    }
+
+    // 本文設定（改行を保持）
+    if (this._contentEl) {
+      this._contentEl.textContent = memo.body || '';
+    }
+
+    // 展開状態の反映
+    const expanded = Store.state.topMemoExpanded;
+    this._panelEl?.classList.toggle('expanded', expanded);
+    this._bodyEl?.classList.toggle('hidden', !expanded);
+
+    // ガントチャートの高さ調整
+    this.updateGanttHeight(expanded);
+  },
+
+  toggle() {
+    Store.toggleTopMemoExpanded();
+  },
+
+  updateGanttHeight(expanded) {
+    const viewMaster = document.getElementById('view-master');
+    const ganttVScroll = document.getElementById('gantt-v-scroll');
+
+    if (!viewMaster || !ganttVScroll) return;
+
+    if (expanded) {
+      viewMaster.classList.add('top-memo-expanded');
+      // パネルの高さを取得して直接ガントの高さを調整
+      // requestAnimationFrameで描画後の正確な高さを取得
+      requestAnimationFrame(() => {
+        const panelHeight = this._panelEl?.offsetHeight || 0;
+        ganttVScroll.style.height = `calc(100vh - 64px - ${panelHeight}px)`;
+      });
+    } else {
+      viewMaster.classList.remove('top-memo-expanded');
+      ganttVScroll.style.height = '';  // デフォルトに戻す
+    }
+  }
+};
+
+console.log('[DEBUG] TopMemoPanel defined');
 
 // ========================================
 // ProcessModal - 新規工程追加モーダル
@@ -4537,6 +4658,7 @@ const App = {
     Gantt.init();
     Modal.init();
     ProcessModal.init();
+    TopMemoPanel.init();
     JobModal.init();
     PeopleModal.setupEventListeners();
     JobDetail.init();

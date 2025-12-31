@@ -98,6 +98,23 @@
 
     <!-- MasterView（大工程表）- 2ペイン構造（縦スクロール統一） -->
     <div id="view-master" class="view-container">
+      <!-- 上部メモパネル -->
+      <div id="top-memo-panel" class="top-memo-panel hidden">
+        <!-- タブ（常に表示） -->
+        <div id="top-memo-tab" class="top-memo-tab">
+          <button id="top-memo-toggle" class="top-memo-toggle-btn" title="クリックで開閉">
+            <svg class="top-memo-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M19 9l-7 7-7-7"/>
+            </svg>
+            <span id="top-memo-title" class="top-memo-title">下記以外</span>
+          </button>
+        </div>
+        <!-- 本文（展開時のみ表示） -->
+        <div id="top-memo-body" class="top-memo-body hidden">
+          <div id="top-memo-content" class="top-memo-content"></div>
+        </div>
+      </div>
+
       <!-- 縦スクロールコンテナ（全体を包む） -->
       <div id="gantt-v-scroll" class="h-[calc(100vh-64px)] overflow-y-auto relative">
 

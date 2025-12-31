@@ -1962,4 +1962,69 @@
   .save-bar-retry:hover {
     background: #dc2626;
   }
+
+  /* ========================================
+     上部メモパネル (TopMemoPanel)
+     ======================================== */
+  .top-memo-panel {
+    background: #fffef5;
+    border-bottom: 1px solid #e5e7eb;
+    font-size: 13px;
+  }
+
+  .top-memo-tab {
+    padding: 0;
+  }
+
+  .top-memo-toggle-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    color: #374151;
+    width: 100%;
+    text-align: left;
+  }
+
+  .top-memo-toggle-btn:hover {
+    background: rgba(0, 0, 0, 0.03);
+  }
+
+  .top-memo-arrow {
+    width: 16px;
+    height: 16px;
+    transition: transform 0.2s ease;
+    stroke: #6b7280;
+  }
+
+  .top-memo-panel.expanded .top-memo-arrow {
+    transform: rotate(180deg);
+  }
+
+  .top-memo-title {
+    font-weight: 600;
+    color: #1f2937;
+  }
+
+  .top-memo-body {
+    padding: 0 12px 12px 12px;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  .top-memo-content {
+    white-space: pre-wrap;
+    line-height: 1.6;
+    color: #374151;
+    font-size: 12px;
+    padding: 8px 12px;
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 4px;
+  }
 </style>
