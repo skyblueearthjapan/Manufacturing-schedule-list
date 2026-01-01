@@ -896,7 +896,7 @@ const Store = {
     jobMaster: [], // 外部工番マスター
     workerJobAssign: [], // 作業者別担当工番
     topMemos: [], // 上部メモ
-    topMemoExpanded: false, // 上部メモ展開状態
+    topMemoExpanded: true, // 上部メモ展開状態（デフォルトON）
     displayStartDate: null,
     displayDays: 120,
     currentView: 'master',
@@ -2117,7 +2117,7 @@ console.log('[DEBUG] Modal defined');
 const TopMemoPanel = {
   _panelEl: null,
   _bodyEl: null,
-  _cardsEl: null,
+  _listEl: null,
   _emptyEl: null,
   _countEl: null,
   _toggleBtn: null,
@@ -2125,7 +2125,7 @@ const TopMemoPanel = {
   init() {
     this._panelEl = document.getElementById('top-memo-panel');
     this._bodyEl = document.getElementById('top-memo-body');
-    this._cardsEl = document.getElementById('top-memo-cards');
+    this._listEl = document.getElementById('top-memo-list');
     this._emptyEl = document.getElementById('top-memo-empty');
     this._countEl = document.getElementById('top-memo-count');
     this._toggleBtn = document.getElementById('top-memo-toggle');
@@ -2136,6 +2136,9 @@ const TopMemoPanel = {
     }
 
     this.setupEventListeners();
+
+    // デフォルトで展開状態
+    Store.setTopMemoExpanded(true);
 
     // Storeの変更を監視
     Store.subscribe(() => this.render());
@@ -2168,26 +2171,28 @@ const TopMemoPanel = {
     this._panelEl?.classList.toggle('expanded', expanded);
     this._bodyEl?.classList.toggle('hidden', !expanded);
 
-    // カードを描画
-    if (this._cardsEl) {
+    // 箇条書きリストを描画
+    if (this._listEl) {
       if (memos.length === 0) {
-        this._cardsEl.innerHTML = '';
-        this._cardsEl.classList.add('hidden');
+        this._listEl.innerHTML = '';
+        this._listEl.classList.add('hidden');
         this._emptyEl?.classList.remove('hidden');
       } else {
         this._emptyEl?.classList.add('hidden');
-        this._cardsEl.classList.remove('hidden');
-        this._cardsEl.innerHTML = memos.map(memo => this.renderCard(memo)).join('');
+        this._listEl.classList.remove('hidden');
+        this._listEl.innerHTML = memos.map(memo => this.renderItem(memo)).join('');
 
-        // カードのイベントリスナーを設定
-        this._cardsEl.querySelectorAll('.top-memo-card-btn.edit').forEach(btn => {
+        // 各行のイベントリスナーを設定
+        this._listEl.querySelectorAll('.top-memo-item-btn.edit').forEach(btn => {
           btn.addEventListener('click', (e) => {
+            e.stopPropagation();
             const memoId = e.currentTarget.dataset.memoId;
             this.openEditModal(memoId);
           });
         });
-        this._cardsEl.querySelectorAll('.top-memo-card-btn.delete').forEach(btn => {
+        this._listEl.querySelectorAll('.top-memo-item-btn.delete').forEach(btn => {
           btn.addEventListener('click', (e) => {
+            e.stopPropagation();
             const memoId = e.currentTarget.dataset.memoId;
             this.deleteMemo(memoId);
           });
@@ -2199,33 +2204,27 @@ const TopMemoPanel = {
     this.updateAllViewHeights(expanded);
   },
 
-  renderCard(memo) {
-    const updatedAt = memo.updatedAt ? new Date(memo.updatedAt).toLocaleString('ja-JP', {
-      month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit'
-    }) : '';
-    const updatedBy = memo.updatedBy || '';
+  /**
+   * メモを1行形式でレンダリング
+   * 形式: ・【見出し】 本文（改行は／に変換）
+   */
+  renderItem(memo) {
+    const title = memo.title || '無題';
+    // 本文の改行を「／」に変換して1行化
+    const body = (memo.body || '').replace(/\r?\n/g, '／').trim();
 
     return `
-      <div class="top-memo-card" data-memo-id="${memo.memoId}">
-        <div class="top-memo-card-header">
-          <div class="top-memo-card-title">${Utils.escapeHtml(memo.title || '無題')}</div>
-          <div class="top-memo-card-actions">
-            <button class="top-memo-card-btn edit" data-memo-id="${memo.memoId}" title="編集">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
-                <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
-              </svg>
-            </button>
-            <button class="top-memo-card-btn delete" data-memo-id="${memo.memoId}" title="非表示">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
-              </svg>
-            </button>
-          </div>
-        </div>
-        <div class="top-memo-card-body">${Utils.escapeHtml(memo.body || '')}</div>
-        <div class="top-memo-card-meta">${updatedAt} ${updatedBy}</div>
-      </div>
+      <li class="top-memo-item" data-memo-id="${memo.memoId}">
+        <span class="top-memo-item-text">
+          <span class="top-memo-item-bullet">・</span>
+          <span class="top-memo-item-title">【${Utils.escapeHtml(title)}】</span>
+          <span class="top-memo-item-body">${Utils.escapeHtml(body)}</span>
+        </span>
+        <span class="top-memo-item-actions">
+          <button class="top-memo-item-btn edit" data-memo-id="${memo.memoId}" title="編集">✏</button>
+          <button class="top-memo-item-btn delete" data-memo-id="${memo.memoId}" title="非表示">🗑</button>
+        </span>
+      </li>
     `;
   },
 

@@ -89,9 +89,9 @@
     </div>
   </header>
 
-  <!-- 上部メモパネル（全画面共通） -->
-  <div id="top-memo-panel" class="top-memo-panel">
-    <!-- タブ（常に表示） -->
+  <!-- 上部メモパネル（全画面共通・箇条書き表示） -->
+  <div id="top-memo-panel" class="top-memo-panel expanded">
+    <!-- ヘッダー（常に表示） -->
     <div id="top-memo-tab" class="top-memo-tab">
       <button id="top-memo-toggle" class="top-memo-toggle-btn" title="クリックで開閉">
         <svg class="top-memo-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -109,15 +109,15 @@
         </button>
       </div>
     </div>
-    <!-- 本文（展開時のみ表示） -->
-    <div id="top-memo-body" class="top-memo-body hidden">
-      <div id="top-memo-cards" class="top-memo-cards">
-        <!-- メモカードはJSで生成 -->
-      </div>
+    <!-- 本文（展開時のみ表示・箇条書き形式） -->
+    <div id="top-memo-body" class="top-memo-body">
+      <ul id="top-memo-list" class="top-memo-list">
+        <!-- メモ行はJSで生成 -->
+      </ul>
       <!-- 空状態 -->
       <div id="top-memo-empty" class="top-memo-empty hidden">
-        <p>メモがありません</p>
-        <button id="top-memo-add-empty" class="btn btn-primary text-sm">＋ 新規メモを作成</button>
+        <span>メモがありません</span>
+        <button id="top-memo-add-empty" class="top-memo-add-link">＋ 追加</button>
       </div>
     </div>
   </div>

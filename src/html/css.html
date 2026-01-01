@@ -2331,104 +2331,105 @@
   }
 
   .top-memo-body {
-    padding: 8px 12px 12px 12px;
-    max-height: 260px;
+    padding: 4px 12px 8px 12px;
+    max-height: 200px;
     overflow-y: auto;
   }
 
-  .top-memo-cards {
+  /* 箇条書きリスト */
+  .top-memo-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .top-memo-item {
     display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-
-  .top-memo-card {
-    background: white;
-    border: 1px solid #e5e7eb;
-    border-radius: 6px;
-    padding: 8px 12px;
-    min-width: 200px;
-    max-width: 400px;
-    flex: 1 1 280px;
-    position: relative;
-  }
-
-  .top-memo-card:hover {
-    border-color: #d1d5db;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-  }
-
-  .top-memo-card-header {
-    display: flex;
-    align-items: flex-start;
+    align-items: center;
     justify-content: space-between;
-    margin-bottom: 4px;
+    padding: 3px 8px 3px 4px;
+    border-radius: 4px;
+    transition: background 0.15s;
+    line-height: 1.5;
   }
 
-  .top-memo-card-title {
+  .top-memo-item:hover {
+    background: rgba(0, 0, 0, 0.03);
+  }
+
+  .top-memo-item-text {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .top-memo-item-bullet {
+    color: #6b7280;
+    margin-right: 2px;
+  }
+
+  .top-memo-item-title {
     font-weight: 600;
-    font-size: 12px;
     color: #1f2937;
+    margin-right: 8px;
   }
 
-  .top-memo-card-actions {
+  .top-memo-item-body {
+    color: #4b5563;
+  }
+
+  .top-memo-item-actions {
     display: flex;
     gap: 2px;
     opacity: 0;
-    transition: opacity 0.2s;
+    transition: opacity 0.15s;
+    flex-shrink: 0;
+    margin-left: 8px;
   }
 
-  .top-memo-card:hover .top-memo-card-actions {
+  .top-memo-item:hover .top-memo-item-actions {
     opacity: 1;
   }
 
-  .top-memo-card-btn {
-    padding: 2px;
+  .top-memo-item-btn {
+    padding: 2px 4px;
     background: transparent;
     border: none;
     cursor: pointer;
-    color: #9ca3af;
+    font-size: 12px;
     border-radius: 3px;
-    transition: all 0.2s;
+    transition: all 0.15s;
+    line-height: 1;
   }
 
-  .top-memo-card-btn:hover {
+  .top-memo-item-btn:hover {
     background: #f3f4f6;
-    color: #4b5563;
   }
 
-  .top-memo-card-btn.delete:hover {
+  .top-memo-item-btn.delete:hover {
     background: #fef2f2;
-    color: #ef4444;
-  }
-
-  .top-memo-card-btn svg {
-    width: 14px;
-    height: 14px;
-  }
-
-  .top-memo-card-body {
-    white-space: pre-wrap;
-    line-height: 1.5;
-    color: #4b5563;
-    font-size: 11px;
-    max-height: 80px;
-    overflow: hidden;
-  }
-
-  .top-memo-card-meta {
-    margin-top: 6px;
-    font-size: 10px;
-    color: #9ca3af;
   }
 
   .top-memo-empty {
-    text-align: center;
-    padding: 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
     color: #6b7280;
+    font-size: 12px;
   }
 
-  .top-memo-empty p {
-    margin-bottom: 12px;
+  .top-memo-add-link {
+    background: transparent;
+    border: none;
+    color: #3b82f6;
+    cursor: pointer;
+    font-size: 12px;
+  }
+
+  .top-memo-add-link:hover {
+    text-decoration: underline;
   }
 </style>
