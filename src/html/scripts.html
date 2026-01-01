@@ -912,7 +912,7 @@ const Store = {
     jobMaster: [], // 外部工番マスター
     workerJobAssign: [], // 作業者別担当工番
     topMemos: [], // 上部メモ
-    topMemoExpanded: true, // 上部メモ展開状態（デフォルトON）
+    topMemoExpanded: false, // 上部メモ展開状態（デフォルトOFF）
     displayStartDate: null,
     displayDays: 120,
     currentView: 'master',
@@ -964,9 +964,8 @@ const Store = {
         throw new Error('サーバーからデータが返されませんでした');
       }
 
-      // TopMemoの初期展開状態を判定（最初のメモのisOpenDefaultを使用）
+      // TopMemoは常にデフォルト折りたたみ（isOpenDefaultは無視）
       const topMemos = data.topMemos || [];
-      const topMemoExpanded = topMemos.length > 0 && topMemos[0].isOpenDefault === true;
 
       this.setState({
         jobs: data.jobs || [],
@@ -977,7 +976,7 @@ const Store = {
         jobMaster: data.jobMaster || [],
         workerJobAssign: data.workerJobAssign || [],
         topMemos: topMemos,
-        topMemoExpanded: topMemoExpanded,
+        topMemoExpanded: false, // 常に折りたたみで開始
         lastFetchedAt: data.meta?.fetchedAt || new Date().toISOString(),
         isLoading: false
       });
@@ -2164,10 +2163,7 @@ const TopMemoPanel = {
 
     this.setupEventListeners();
 
-    // デフォルトで折りたたみ状態
-    Store.setTopMemoExpanded(false);
-
-    // Storeの変更を監視
+    // Storeの変更を監視（展開状態はStore初期値とloadBootstrapDataで管理）
     Store.subscribe(() => this.render());
   },
 
