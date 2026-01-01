@@ -1217,6 +1217,23 @@
     background-color: rgba(219, 234, 254, 0.5);
   }
 
+  /* 週次モード用セルスタイル */
+  .job-grid-cell.weekly {
+    min-width: 40px;
+    width: 40px;
+    border-right: 1px solid #e5e7eb;
+  }
+
+  .job-grid-cell.weekly.current {
+    background-color: rgba(219, 234, 254, 0.3);
+  }
+
+  .job-date-cell.weekly {
+    min-width: 40px;
+    border-right: 1px solid #e5e7eb;
+    text-align: center;
+  }
+
   .job-bar {
     position: absolute;
     height: 20px;
@@ -1253,31 +1270,73 @@
      印刷スタイル
      ======================================== */
   @media print {
-    body {
-      background: white;
+    /* ベーススタイル */
+    * {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
     }
 
-    header, .nav-tab, .btn, #loading, #toast-container {
+    body {
+      background: white !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+
+    /* 非表示要素 */
+    header, .nav-tab, .btn, .btn-icon, #loading, #toast-container,
+    #save-bar-container, .modal-backdrop,
+    #view-gantt, #view-resource, #view-weeklyPlan,
+    .restore-dialog-overlay {
       display: none !important;
     }
 
+    /* 工番別詳細モーダル専用印刷レイアウト */
     #view-job-detail {
-      position: static;
-      height: auto;
+      position: static !important;
+      height: auto !important;
+      display: block !important;
+      overflow: visible !important;
     }
 
+    /* モーダル背景を非表示 */
     #view-job-detail > div:first-child {
-      display: none;
+      display: none !important;
     }
 
+    /* モーダルコンテンツ */
     #view-job-detail > div:last-child {
-      position: static;
-      box-shadow: none;
-      border-radius: 0;
+      position: static !important;
+      box-shadow: none !important;
+      border-radius: 0 !important;
+      overflow: visible !important;
+      inset: 0 !important;
+      margin: 0 !important;
     }
 
+    /* ヘッダー: 印刷ボタン・閉じるボタン非表示 */
+    #view-job-detail .bg-gray-100 button,
+    #job-detail-close,
+    #btn-print-job {
+      display: none !important;
+    }
+
+    /* コントロールバー: 表示設定は非表示 */
+    #view-job-detail .bg-gray-50 {
+      display: none !important;
+    }
+
+    /* ガントチャート印刷最適化 */
     .job-detail-gantt {
       font-size: 10px;
+      overflow: visible !important;
+    }
+
+    .job-detail-body {
+      overflow: visible !important;
+    }
+
+    #job-detail-body-scroll {
+      overflow: visible !important;
     }
 
     .job-date-cell {
@@ -1289,6 +1348,34 @@
       width: 100px;
       font-size: 9px;
     }
+
+    /* 工程行の改ページ制御 */
+    .job-process-row {
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+
+    /* バーの色を印刷で保持 */
+    .job-bar {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+
+    /* マイルストーンの色を印刷で保持 */
+    .job-milestone {
+      color: #f59e0b !important;
+    }
+
+    /* 印刷境界線は印刷時に非表示 */
+    .print-boundary {
+      display: none !important;
+    }
+  }
+
+  /* 印刷プレビュー専用クラス（画面上でも印刷レイアウトを確認可能） */
+  body.print-preview #view-job-detail .bg-gray-50,
+  body.print-preview #view-job-detail button {
+    display: none !important;
   }
 
   /* ========================================

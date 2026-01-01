@@ -369,6 +369,12 @@
             <span class="text-gray-500 ml-2">出図予定:</span>
             <span id="job-detail-draw-date" class="font-medium"></span>
           </div>
+          <button id="btn-export-sheet" class="btn btn-secondary text-sm">
+            <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+            </svg>
+            シート出力
+          </button>
           <button id="btn-print-job" class="btn btn-secondary text-sm">
             <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
@@ -400,11 +406,29 @@
               <option value="240">240日</option>
             </select>
           </div>
+          <!-- 未使用工程を隠すトグル -->
+          <label class="flex items-center space-x-2 text-sm text-gray-600 cursor-pointer">
+            <input type="checkbox" id="job-detail-hide-unused" class="rounded border-gray-300" checked>
+            <span>未使用工程を隠す</span>
+          </label>
         </div>
-        <div class="flex items-center space-x-2">
-          <span class="text-sm text-gray-600">表示:</span>
-          <button id="job-detail-mode-daily" class="color-mode-btn active">日次</button>
-          <button id="job-detail-mode-weekly" class="color-mode-btn">週次</button>
+        <div class="flex items-center space-x-4">
+          <div class="flex items-center space-x-2">
+            <span class="text-sm text-gray-600">表示:</span>
+            <button id="job-detail-mode-daily" class="color-mode-btn active">日次</button>
+            <button id="job-detail-mode-weekly" class="color-mode-btn">週次</button>
+          </div>
+          <!-- 印刷境界線表示 -->
+          <div class="flex items-center space-x-2">
+            <label class="flex items-center space-x-1 text-sm text-gray-600 cursor-pointer">
+              <input type="checkbox" id="job-detail-show-boundaries" class="rounded border-gray-300">
+              <span>印刷目安</span>
+            </label>
+            <select id="job-detail-paper-size" class="border border-gray-300 rounded px-1 py-0.5 text-xs" disabled>
+              <option value="a4">A4横</option>
+              <option value="a3">A3横</option>
+            </select>
+          </div>
         </div>
         <div class="text-sm text-gray-500">
           作成日: <span id="job-detail-created"></span>

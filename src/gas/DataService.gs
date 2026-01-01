@@ -1841,3 +1841,156 @@ function api_saveBatch(payload) {
 
   return { ok: true, results };
 }
+
+// ============================================
+// 工程表シート出力
+// ============================================
+
+/**
+ * 工番別工程表を新規シートにエクスポート（色付き）
+ * @param {Object} exportData - エクスポートデータ
+ * @returns {Object} - { success: boolean, sheetName: string }
+ */
+function exportJobDetailToSheet(exportData) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const job = exportData.job;
+  const processes = exportData.processes;
+  const schedules = exportData.schedules;
+  const dates = exportData.dates;
+
+  // シート名を生成（工番_製品名_日時）
+  const timestamp = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'MMdd_HHmm');
+  const sheetName = `工程表_${job.jobNo}_${timestamp}`.substring(0, 31); // シート名は31文字制限
+
+  // 新規シートを作成
+  let sheet = ss.getSheetByName(sheetName);
+  if (sheet) {
+    ss.deleteSheet(sheet); // 既存シートがあれば削除
+  }
+  sheet = ss.insertSheet(sheetName);
+
+  // ヘッダー情報を書き込み
+  sheet.getRange('A1').setValue('工番別工程表');
+  sheet.getRange('A1').setFontWeight('bold').setFontSize(14);
+
+  sheet.getRange('A2').setValue(`工番: ${job.jobNo}`);
+  sheet.getRange('B2').setValue(`顧客: ${job.customer}`);
+  sheet.getRange('C2').setValue(`製品: ${job.product}`);
+  sheet.getRange('D2').setValue(`出荷予定: ${job.shipDate}`);
+  sheet.getRange('E2').setValue(`出図予定: ${job.drawDate}`);
+
+  // 日付ヘッダー行を作成（4行目）
+  const headerRow = 4;
+  sheet.getRange(headerRow, 1).setValue('工程');
+  sheet.getRange(headerRow, 1).setBackground('#f3f4f6').setFontWeight('bold');
+
+  // 日付を書き込み
+  dates.forEach((date, i) => {
+    const cell = sheet.getRange(headerRow, i + 2);
+    const d = new Date(date);
+    const month = d.getMonth() + 1;
+    const day = d.getDate();
+    const dow = ['日', '月', '火', '水', '木', '金', '土'][d.getDay()];
+    cell.setValue(`${month}/${day}\n${dow}`);
+    cell.setHorizontalAlignment('center');
+    cell.setVerticalAlignment('middle');
+    cell.setFontSize(8);
+    cell.setWrap(true);
+
+    // 土日は背景色を変える
+    if (d.getDay() === 0) {
+      cell.setBackground('#fee2e2'); // 日曜
+    } else if (d.getDay() === 6) {
+      cell.setBackground('#fef3c7'); // 土曜
+    } else {
+      cell.setBackground('#f3f4f6');
+    }
+  });
+
+  // 工程行を書き込み
+  processes.forEach((process, pIdx) => {
+    const row = headerRow + 1 + pIdx;
+
+    // 工程名セル
+    const nameCell = sheet.getRange(row, 1);
+    const displayName = process.isMilestone ? `★${process.name}` : process.name;
+    nameCell.setValue(displayName);
+    nameCell.setBackground(hexToRgbLight(process.color));
+    nameCell.setFontWeight('bold');
+
+    // 日付セルを初期化
+    dates.forEach((date, dIdx) => {
+      const cell = sheet.getRange(row, dIdx + 2);
+      const d = new Date(date);
+      if (d.getDay() === 0) {
+        cell.setBackground('#fef2f2');
+      } else if (d.getDay() === 6) {
+        cell.setBackground('#fffbeb');
+      }
+    });
+
+    // スケジュールバーを描画
+    const processSchedules = schedules.filter(s => s.processId === process.processId);
+    processSchedules.forEach(schedule => {
+      const startIdx = dates.indexOf(schedule.start);
+      const endIdx = dates.indexOf(schedule.end);
+
+      if (startIdx >= 0 && endIdx >= 0) {
+        for (let i = startIdx; i <= endIdx; i++) {
+          const cell = sheet.getRange(row, i + 2);
+          cell.setBackground(process.color);
+          if (i === startIdx && schedule.label) {
+            cell.setValue(schedule.label);
+            cell.setFontColor('#ffffff');
+            cell.setFontSize(8);
+          }
+        }
+      } else if (process.isMilestone && startIdx >= 0) {
+        // マイルストーン
+        const cell = sheet.getRange(row, startIdx + 2);
+        cell.setValue('◆');
+        cell.setBackground('#fef3c7');
+        cell.setFontColor('#f59e0b');
+        cell.setHorizontalAlignment('center');
+      }
+    });
+  });
+
+  // 列幅を調整
+  sheet.setColumnWidth(1, 120); // 工程名列
+  for (let i = 2; i <= dates.length + 1; i++) {
+    sheet.setColumnWidth(i, 35); // 日付列
+  }
+
+  // 行高さを調整
+  sheet.setRowHeight(headerRow, 40);
+  for (let i = headerRow + 1; i <= headerRow + processes.length; i++) {
+    sheet.setRowHeight(i, 25);
+  }
+
+  // 罫線を設定
+  const dataRange = sheet.getRange(headerRow, 1, processes.length + 1, dates.length + 1);
+  dataRange.setBorder(true, true, true, true, true, true, '#d1d5db', SpreadsheetApp.BorderStyle.SOLID);
+
+  return { success: true, sheetName: sheetName };
+}
+
+/**
+ * HEXカラーを薄い背景色に変換
+ * @param {string} hex - HEXカラー (#RRGGBB)
+ * @returns {string}
+ */
+function hexToRgbLight(hex) {
+  if (!hex || !hex.startsWith('#')) return '#f3f4f6';
+
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+
+  // 薄くする（白に近づける）
+  const lightR = Math.round(r + (255 - r) * 0.7);
+  const lightG = Math.round(g + (255 - g) * 0.7);
+  const lightB = Math.round(b + (255 - b) * 0.7);
+
+  return `#${lightR.toString(16).padStart(2, '0')}${lightG.toString(16).padStart(2, '0')}${lightB.toString(16).padStart(2, '0')}`;
+}
