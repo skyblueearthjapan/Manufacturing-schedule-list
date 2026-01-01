@@ -1713,14 +1713,15 @@ function api_saveBatch(payload) {
   const { changes, clientRevision, user } = payload;
 
   if (!changes || !Array.isArray(changes) || changes.length === 0) {
-    return { ok: true, results: { schedule: {}, trip: {}, job: {}, topMemo: {} } };
+    return { ok: true, results: { schedule: {}, trip: {}, job: {}, topMemo: {}, jobProcessLayout: {} } };
   }
 
   const results = {
     schedule: { upserted: [], deleted: [] },
     trip: { upserted: [], deleted: [], locked: [], unlocked: [] },
     job: { upserted: [] },
-    topMemo: { upserted: [], deleted: [] }
+    topMemo: { upserted: [], deleted: [] },
+    jobProcessLayout: { reordered: [] }
   };
 
   const errors = [];
@@ -1815,6 +1816,18 @@ function api_saveBatch(payload) {
           }
           break;
 
+        case 'jobProcessLayout':
+          if (op === 'reorder') {
+            // 工番別の工程並び順を保存
+            // id = jobId, changePayload = { orderedProcessIds: [...] }
+            const result = saveJobProcessLayout(id, changePayload.orderedProcessIds);
+            results.jobProcessLayout.reordered.push({
+              jobId: id,
+              layouts: result.layouts
+            });
+          }
+          break;
+
         default:
           errors.push({ entityType, op, id, error: 'Unknown entityType' });
       }
@@ -1840,6 +1853,156 @@ function api_saveBatch(payload) {
   }
 
   return { ok: true, results };
+}
+
+// ============================================
+// 工番別工程レイアウト（JobProcessLayout）
+// ============================================
+
+/**
+ * 工番別の工程表示順を取得
+ * @param {string} jobId - 工番ID
+ * @returns {Array} - [{layoutId, jobId, processId, orderIndex, isHidden, updatedAt}]
+ */
+function getJobProcessLayout(jobId) {
+  if (!jobId) return [];
+
+  const sheet = getSheet(CONFIG.SHEETS.JOB_PROCESS_LAYOUT);
+  if (!sheet) return []; // シートがない場合は空配列
+
+  const data = sheet.getDataRange().getValues();
+  if (data.length <= 1) return []; // ヘッダーのみ
+
+  const headers = data[0];
+  const jobIdCol = headers.indexOf('jobId');
+  const processIdCol = headers.indexOf('processId');
+  const orderIndexCol = headers.indexOf('orderIndex');
+  const isHiddenCol = headers.indexOf('isHidden');
+  const layoutIdCol = headers.indexOf('layoutId');
+  const updatedAtCol = headers.indexOf('updatedAt');
+
+  const layouts = [];
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][jobIdCol] === jobId) {
+      layouts.push({
+        layoutId: data[i][layoutIdCol] || '',
+        jobId: data[i][jobIdCol],
+        processId: data[i][processIdCol],
+        orderIndex: data[i][orderIndexCol] || 0,
+        isHidden: data[i][isHiddenCol] === true,
+        updatedAt: data[i][updatedAtCol] || ''
+      });
+    }
+  }
+
+  // orderIndex順にソート
+  layouts.sort((a, b) => a.orderIndex - b.orderIndex);
+  return layouts;
+}
+
+/**
+ * 工番別の工程表示順を保存（並び替え）
+ * @param {string} jobId - 工番ID
+ * @param {Array<string>} orderedProcessIds - 並び順のprocessId配列
+ * @returns {Object} - { success: boolean, layouts: Array }
+ */
+function saveJobProcessLayout(jobId, orderedProcessIds) {
+  if (!jobId || !orderedProcessIds || !Array.isArray(orderedProcessIds)) {
+    throw new Error('Invalid parameters for saveJobProcessLayout');
+  }
+
+  const sheet = getOrCreateJobProcessLayoutSheet();
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+
+  // カラムインデックス取得
+  const layoutIdCol = headers.indexOf('layoutId');
+  const jobIdCol = headers.indexOf('jobId');
+  const processIdCol = headers.indexOf('processId');
+  const orderIndexCol = headers.indexOf('orderIndex');
+  const isHiddenCol = headers.indexOf('isHidden');
+  const updatedAtCol = headers.indexOf('updatedAt');
+  const updatedByCol = headers.indexOf('updatedBy');
+
+  const now = new Date();
+  const user = Session.getActiveUser().getEmail() || 'system';
+
+  // 既存レコードをマップ化（processId -> rowIndex）
+  const existingMap = new Map();
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][jobIdCol] === jobId) {
+      existingMap.set(data[i][processIdCol], i);
+    }
+  }
+
+  // 更新するレコード
+  const updatedLayouts = [];
+
+  // orderedProcessIdsを順に処理
+  orderedProcessIds.forEach((processId, idx) => {
+    const orderIndex = (idx + 1) * 10; // 10, 20, 30...
+
+    if (existingMap.has(processId)) {
+      // 既存レコードを更新
+      const rowIndex = existingMap.get(processId);
+      sheet.getRange(rowIndex + 1, orderIndexCol + 1).setValue(orderIndex);
+      sheet.getRange(rowIndex + 1, updatedAtCol + 1).setValue(now);
+      sheet.getRange(rowIndex + 1, updatedByCol + 1).setValue(user);
+
+      updatedLayouts.push({
+        layoutId: data[rowIndex][layoutIdCol],
+        jobId: jobId,
+        processId: processId,
+        orderIndex: orderIndex,
+        isHidden: data[rowIndex][isHiddenCol] === true,
+        updatedAt: now.toISOString()
+      });
+
+      existingMap.delete(processId); // 処理済みとしてマーク
+    } else {
+      // 新規レコードを追加
+      const layoutId = Utilities.getUuid();
+      sheet.appendRow([layoutId, jobId, processId, orderIndex, false, now, user]);
+
+      updatedLayouts.push({
+        layoutId: layoutId,
+        jobId: jobId,
+        processId: processId,
+        orderIndex: orderIndex,
+        isHidden: false,
+        updatedAt: now.toISOString()
+      });
+    }
+  });
+
+  // 残った既存レコード（orderedProcessIdsに含まれない）はそのまま保持
+  // （未使用工程を隠した状態で並べ替えた場合の整合性を保つ）
+
+  return {
+    success: true,
+    layouts: updatedLayouts
+  };
+}
+
+/**
+ * JobProcessLayoutシートを取得または作成
+ */
+function getOrCreateJobProcessLayoutSheet() {
+  const ss = getSpreadsheet();
+  let sheet = ss.getSheetByName(CONFIG.SHEETS.JOB_PROCESS_LAYOUT);
+
+  if (!sheet) {
+    // シートを新規作成
+    sheet = ss.insertSheet(CONFIG.SHEETS.JOB_PROCESS_LAYOUT);
+    // ヘッダー行を追加
+    sheet.getRange(1, 1, 1, 7).setValues([[
+      'layoutId', 'jobId', 'processId', 'orderIndex', 'isHidden', 'updatedAt', 'updatedBy'
+    ]]);
+    sheet.setFrozenRows(1);
+    console.log('Created JobProcessLayout sheet');
+  }
+
+  return sheet;
 }
 
 // ============================================

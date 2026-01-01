@@ -1262,6 +1262,17 @@ const Store = {
       this.setState({ topMemos });
     }
 
+    // JobProcessLayout の差分反映
+    if (results.jobProcessLayout && results.jobProcessLayout.reordered) {
+      results.jobProcessLayout.reordered.forEach(item => {
+        if (item.jobId && item.layouts) {
+          // JobDetailのレイアウトキャッシュを更新
+          JobDetail.jobProcessLayouts[item.jobId] = item.layouts;
+          console.log(`[Store] JobProcessLayout updated for job ${item.jobId}`);
+        }
+      });
+    }
+
     console.log('[Store] Diff update complete');
   },
 
@@ -2992,6 +3003,16 @@ const JobDetail = {
   // 紺一色テーマ用パレット（4段階濃淡）
   navyPalette: ['#0B1F4B', '#123A7A', '#1E55B3', '#4B7BD8'],
 
+  // 工番別の工程表示順（jobId -> [{processId, orderIndex}]）
+  jobProcessLayouts: {},
+
+  // 行並べ替えドラッグの状態
+  rowDragState: {
+    isDragging: false,
+    draggedProcessId: null,
+    dragOverProcessId: null
+  },
+
   // 用紙サイズ定義（横向き、マージン考慮）
   // A4横: 297mm x 210mm → 実効幅約250mm, 高さ約180mm
   // A3横: 420mm x 297mm → 実効幅約370mm, 高さ約260mm
@@ -3060,7 +3081,7 @@ const JobDetail = {
     });
   },
 
-  open(jobId) {
+  async open(jobId) {
     const job = Store.getJobById(jobId);
     if (!job) {
       Utils.showToast('工番が見つかりません', 'error');
@@ -3086,8 +3107,17 @@ const JobDetail = {
       hideUnusedCheckbox.checked = this.config.hideUnusedProcesses;
     }
 
+    // 工程並び順を読み込み（キャッシュがあればスキップ）
+    if (!this.jobProcessLayouts[jobId]) {
+      await this.loadLayout(jobId);
+    }
+
     this.renderHeader();
     this.render();
+
+    // 行ドラッグイベントを設定
+    this.attachRowDragListeners();
+
     document.getElementById('view-job-detail').classList.remove('hidden');
   },
 
@@ -3112,13 +3142,16 @@ const JobDetail = {
   render() {
     const dates = Utils.generateDateRange(this.config.displayStartDate, this.config.displayDays);
     const schedules = Store.getSchedulesByJobId(this.currentJobId);
-    let processes = Store.state.processes;
+    let processes = [...Store.state.processes]; // コピーを作成
 
     // 未使用工程を隠す（デフォルトON）
     if (this.config.hideUnusedProcesses) {
       const usedProcessIds = new Set(schedules.map(s => s.processId));
       processes = processes.filter(p => usedProcessIds.has(p.processId));
     }
+
+    // 工番別の並び順を適用
+    processes = this.sortProcessesByLayout(processes);
 
     // 週次モードでは週単位でグループ化
     const weeks = this.config.viewMode === 'weekly' ? this.groupByWeekMondayStart(dates) : null;
@@ -3128,6 +3161,28 @@ const JobDetail = {
 
     // 印刷境界線を更新
     requestAnimationFrame(() => this.updatePrintBoundaries());
+  },
+
+  /**
+   * 工程を工番別レイアウトに従ってソート
+   */
+  sortProcessesByLayout(processes) {
+    const layout = this.jobProcessLayouts[this.currentJobId];
+    if (!layout || layout.length === 0) {
+      // レイアウトがなければProcessMasterのsortOrder順（デフォルト）
+      return processes;
+    }
+
+    // レイアウトのprocessId -> orderIndexマップを作成
+    const orderMap = new Map();
+    layout.forEach(l => orderMap.set(l.processId, l.orderIndex));
+
+    // ソート: レイアウトにあるものはorderIndex順、ないものは末尾
+    return processes.sort((a, b) => {
+      const orderA = orderMap.has(a.processId) ? orderMap.get(a.processId) : 99999;
+      const orderB = orderMap.has(b.processId) ? orderMap.get(b.processId) : 99999;
+      return orderA - orderB;
+    });
   },
 
   renderDateHeader(dates, weeks) {
@@ -3206,9 +3261,10 @@ const JobDetail = {
       const processDisplayName = Store.getProcessDisplayName(process.processId);
 
       html += `
-        <div class="job-process-row" data-process-id="${process.processId}">
+        <div class="job-process-row" data-process-id="${process.processId}" draggable="true">
           <div class="job-process-name" style="background-color: ${Utils.withAlpha(processColor, '20')}; border-left: 4px solid ${processColor}">
-            ${Utils.escapeHtml(processDisplayName)}
+            <span class="drag-handle" title="ドラッグで並べ替え">⋮⋮</span>
+            <span class="process-label">${Utils.escapeHtml(processDisplayName)}</span>
           </div>
           <div class="job-process-grid" data-process-id="${process.processId}" style="width: ${gridWidth}px">
       `;
@@ -3527,6 +3583,172 @@ const JobDetail = {
   },
 
   /**
+   * 行の並べ替えDnDイベントを設定
+   */
+  attachRowDragListeners() {
+    const body = document.getElementById('job-detail-body');
+    if (!body) return;
+
+    // 既にリスナーが設定されていれば何もしない（フラグで管理）
+    if (body._rowDragListenersAttached) return;
+    body._rowDragListenersAttached = true;
+
+    // dragstart
+    body.addEventListener('dragstart', (e) => {
+      const row = e.target.closest('.job-process-row');
+      if (!row) return;
+
+      this.rowDragState.isDragging = true;
+      this.rowDragState.draggedProcessId = row.dataset.processId;
+      row.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', row.dataset.processId);
+    });
+
+    // dragend
+    body.addEventListener('dragend', (e) => {
+      const row = e.target.closest('.job-process-row');
+      if (row) row.classList.remove('dragging');
+      this.rowDragState.isDragging = false;
+      this.rowDragState.draggedProcessId = null;
+
+      // すべてのdrag-overクラスを削除
+      body.querySelectorAll('.drag-over, .drag-over-bottom').forEach(el => {
+        el.classList.remove('drag-over', 'drag-over-bottom');
+      });
+    });
+
+    // dragover
+    body.addEventListener('dragover', (e) => {
+      if (!this.rowDragState.isDragging) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+
+      const row = e.target.closest('.job-process-row');
+      if (!row || row.dataset.processId === this.rowDragState.draggedProcessId) return;
+
+      // 既存のdrag-overクラスを削除
+      body.querySelectorAll('.drag-over, .drag-over-bottom').forEach(el => {
+        el.classList.remove('drag-over', 'drag-over-bottom');
+      });
+
+      // マウス位置に応じて上/下のインジケータを表示
+      const rect = row.getBoundingClientRect();
+      const midY = rect.top + rect.height / 2;
+      if (e.clientY < midY) {
+        row.classList.add('drag-over');
+      } else {
+        row.classList.add('drag-over-bottom');
+      }
+    });
+
+    // dragleave
+    body.addEventListener('dragleave', (e) => {
+      const row = e.target.closest('.job-process-row');
+      if (row) {
+        row.classList.remove('drag-over', 'drag-over-bottom');
+      }
+    });
+
+    // drop
+    body.addEventListener('drop', (e) => {
+      e.preventDefault();
+      if (!this.rowDragState.isDragging) return;
+
+      const targetRow = e.target.closest('.job-process-row');
+      if (!targetRow) return;
+
+      const draggedId = this.rowDragState.draggedProcessId;
+      const targetId = targetRow.dataset.processId;
+      if (draggedId === targetId) return;
+
+      // ドロップ位置（上/下）を判定
+      const rect = targetRow.getBoundingClientRect();
+      const midY = rect.top + rect.height / 2;
+      const insertAfter = e.clientY >= midY;
+
+      // 並び替えを実行
+      this.reorderProcessRow(draggedId, targetId, insertAfter);
+
+      // クラスをクリア
+      body.querySelectorAll('.drag-over, .drag-over-bottom').forEach(el => {
+        el.classList.remove('drag-over', 'drag-over-bottom');
+      });
+    });
+  },
+
+  /**
+   * 工程行の並び替えを実行
+   */
+  reorderProcessRow(draggedProcessId, targetProcessId, insertAfter) {
+    // 現在表示中の工程順を取得
+    const rows = document.querySelectorAll('#job-detail-body .job-process-row');
+    const currentOrder = Array.from(rows).map(r => r.dataset.processId);
+
+    // 新しい順序を計算
+    const draggedIndex = currentOrder.indexOf(draggedProcessId);
+    let targetIndex = currentOrder.indexOf(targetProcessId);
+
+    if (draggedIndex === -1 || targetIndex === -1) return;
+
+    // 配列から削除
+    currentOrder.splice(draggedIndex, 1);
+
+    // 新しい位置を計算（削除後のインデックス調整）
+    if (draggedIndex < targetIndex) {
+      targetIndex--;
+    }
+    if (insertAfter) {
+      targetIndex++;
+    }
+
+    // 挿入
+    currentOrder.splice(targetIndex, 0, draggedProcessId);
+
+    // ローカルレイアウトを更新
+    this.updateLocalLayout(currentOrder);
+
+    // ChangeBufferに追加（A+C+B）
+    ChangeBuffer.add('jobProcessLayout', 'reorder', this.currentJobId, {
+      orderedProcessIds: currentOrder
+    }, 'jobDetail');
+
+    // 即座にUIを再描画（楽観的更新）
+    this.render();
+
+    Utils.showToast('並び替えました（保存待ち）', 'info');
+  },
+
+  /**
+   * ローカルのレイアウト情報を更新
+   */
+  updateLocalLayout(orderedProcessIds) {
+    const layouts = orderedProcessIds.map((processId, idx) => ({
+      processId: processId,
+      orderIndex: (idx + 1) * 10
+    }));
+    this.jobProcessLayouts[this.currentJobId] = layouts;
+  },
+
+  /**
+   * サーバーからレイアウトを取得
+   */
+  async loadLayout(jobId) {
+    try {
+      const layouts = await new Promise((resolve, reject) => {
+        google.script.run
+          .withSuccessHandler(resolve)
+          .withFailureHandler(reject)
+          .getJobProcessLayout(jobId);
+      });
+      this.jobProcessLayouts[jobId] = layouts || [];
+    } catch (e) {
+      console.warn('[JobDetail] Failed to load layout:', e);
+      this.jobProcessLayouts[jobId] = [];
+    }
+  },
+
+  /**
    * スプレッドシートへ出力
    * - Googleドライブに保存してURLを表示
    */
@@ -3559,6 +3781,9 @@ const JobDetail = {
       const usedProcessIds = new Set(schedules.map(s => s.processId));
       processes = processes.filter(p => usedProcessIds.has(p.processId));
     }
+
+    // 並び順をJobProcessLayoutに従う
+    processes = this.sortProcessesByLayout(processes);
 
     // エクスポートデータを構築
     const exportData = {

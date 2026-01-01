@@ -21,7 +21,8 @@ const CONFIG = {
     TRIPS: 'Trips',
     EXTERNAL_JOB_MASTER: '外部_工番マスター',
     WORKER_JOB_ASSIGN: 'WorkerJobAssign',
-    TOP_MEMO: 'TopMemo'
+    TOP_MEMO: 'TopMemo',
+    JOB_PROCESS_LAYOUT: 'JobProcessLayout'
   },
 
   // デフォルト表示日数
