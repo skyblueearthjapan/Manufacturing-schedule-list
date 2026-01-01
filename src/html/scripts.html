@@ -2164,8 +2164,8 @@ const TopMemoPanel = {
 
     this.setupEventListeners();
 
-    // デフォルトで展開状態
-    Store.setTopMemoExpanded(true);
+    // デフォルトで折りたたみ状態
+    Store.setTopMemoExpanded(false);
 
     // Storeの変更を監視
     Store.subscribe(() => this.render());
