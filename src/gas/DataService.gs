@@ -2148,14 +2148,12 @@ function exportJobDetailToSpreadsheet(exportData) {
   const dataRange = sheet.getRange(headerRow, 1, processes.length + 1, dates.length + 1);
   dataRange.setBorder(true, true, true, true, true, true, '#d1d5db', SpreadsheetApp.BorderStyle.SOLID);
 
-  // 元のスプレッドシートと同じフォルダに移動
+  // 「生産工程表ファイル追加」フォルダに保存
   SpreadsheetApp.flush();
   try {
-    const originalSs = SpreadsheetApp.getActiveSpreadsheet();
-    const parentFolder = DriveApp.getFileById(originalSs.getId()).getParents().next();
+    const targetFolder = getOrCreateExportFolder();
     const file = DriveApp.getFileById(ss.getId());
-    parentFolder.addFile(file);
-    DriveApp.getRootFolder().removeFile(file);
+    file.moveTo(targetFolder);
   } catch (e) {
     // フォルダ移動に失敗してもルートにあるので続行
     console.log('フォルダ移動スキップ: ' + e.message);
@@ -2167,6 +2165,23 @@ function exportJobDetailToSpreadsheet(exportData) {
     fileName: fileName,
     spreadsheetId: ss.getId()
   };
+}
+
+/**
+ * 出力用フォルダを取得または作成
+ * フォルダ名: 「生産工程表ファイル追加」
+ */
+function getOrCreateExportFolder() {
+  const FOLDER_NAME = '生産工程表ファイル追加';
+
+  // 既存フォルダを検索
+  const folders = DriveApp.getFoldersByName(FOLDER_NAME);
+  if (folders.hasNext()) {
+    return folders.next();
+  }
+
+  // なければ作成（マイドライブ直下）
+  return DriveApp.createFolder(FOLDER_NAME);
 }
 
 /**
