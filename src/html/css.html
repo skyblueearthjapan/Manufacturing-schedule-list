@@ -1267,7 +1267,7 @@
   }
 
   /* ========================================
-     印刷スタイル
+     印刷スタイル（工番別工程表のみ印刷）
      ======================================== */
   @media print {
     /* ベーススタイル */
@@ -1282,20 +1282,39 @@
       padding: 0 !important;
     }
 
-    /* 非表示要素 */
-    header, .nav-tab, .btn, .btn-icon, #loading, #toast-container,
-    #save-bar-container, .modal-backdrop,
-    #view-gantt, #view-resource, #view-weeklyPlan,
-    .restore-dialog-overlay {
+    /* ===== 印刷対象外（すべて非表示） ===== */
+    header,
+    .nav-tab,
+    #loading,
+    #toast-container,
+    #save-bar-container,
+    .restore-dialog-overlay,
+    #top-memo-panel,
+    /* 全ビューを非表示（大工程表含む） */
+    #view-master,
+    #view-resource,
+    #view-weekly,
+    #view-travel,
+    /* モーダル類 */
+    .modal-backdrop,
+    #modal-entry,
+    #modal-process,
+    #modal-job,
+    #modal-people,
+    #modal-top-memo,
+    /* data-no-print属性を持つ要素 */
+    [data-no-print="true"] {
       display: none !important;
+      visibility: hidden !important;
     }
 
-    /* 工番別詳細モーダル専用印刷レイアウト */
+    /* ===== 印刷対象：工番別工程表のみ ===== */
     #view-job-detail {
       position: static !important;
       height: auto !important;
       display: block !important;
       overflow: visible !important;
+      z-index: 1 !important;
     }
 
     /* モーダル背景を非表示 */
@@ -1311,12 +1330,21 @@
       overflow: visible !important;
       inset: 0 !important;
       margin: 0 !important;
+      background: white !important;
     }
 
-    /* ヘッダー: 印刷ボタン・閉じるボタン非表示 */
+    /* ヘッダー部分：印刷用にシンプル化 */
+    #view-job-detail .bg-gray-100 {
+      background: white !important;
+      border-bottom: 1px solid #333 !important;
+      padding: 8px 12px !important;
+    }
+
+    /* ボタン類は非表示 */
     #view-job-detail .bg-gray-100 button,
     #job-detail-close,
-    #btn-print-job {
+    #btn-print-job,
+    #btn-export-sheet {
       display: none !important;
     }
 
@@ -1337,6 +1365,11 @@
 
     #job-detail-body-scroll {
       overflow: visible !important;
+      height: auto !important;
+    }
+
+    .job-detail-header {
+      background: #f5f5f5 !important;
     }
 
     .job-date-cell {

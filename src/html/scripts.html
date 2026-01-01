@@ -3040,11 +3040,13 @@ const JobDetail = {
       const paperSelect = document.getElementById('job-detail-paper-size');
       if (paperSelect) paperSelect.disabled = !e.target.checked;
       this.updatePrintBoundaries();
+      this.updateDaysPerPageIndicator();
     });
     // 用紙サイズ選択
     document.getElementById('job-detail-paper-size')?.addEventListener('change', (e) => {
       this.config.paperSize = e.target.value;
       this.updatePrintBoundaries();
+      this.updateDaysPerPageIndicator();
     });
   },
 
@@ -3399,6 +3401,7 @@ const JobDetail = {
     document.getElementById('job-detail-mode-daily')?.classList.toggle('active', mode === 'daily');
     document.getElementById('job-detail-mode-weekly')?.classList.toggle('active', mode === 'weekly');
     this.render();
+    this.updateDaysPerPageIndicator();
   },
 
   onDisplayRangeChange() {
@@ -3514,8 +3517,8 @@ const JobDetail = {
   },
 
   /**
-   * スプレッドシートにエクスポート
-   * - 工程表を新規シートに色付きで出力
+   * Excelファイル(xlsx)をエクスポート
+   * - 工程表をxlsxファイルとしてダウンロード
    */
   async exportToSpreadsheet() {
     const job = this.currentJob;
@@ -3524,7 +3527,7 @@ const JobDetail = {
       return;
     }
 
-    Utils.showToast('シート出力中...', 'info');
+    Utils.showToast('Excel出力中...', 'info');
 
     const dates = Utils.generateDateRange(this.config.displayStartDate, this.config.displayDays);
     const schedules = Store.getSchedulesByJobId(this.currentJobId);
@@ -3570,17 +3573,19 @@ const JobDetail = {
         google.script.run
           .withSuccessHandler(resolve)
           .withFailureHandler(reject)
-          .exportJobDetailToSheet(exportData);
+          .exportJobDetailToXlsx(exportData);
       });
 
-      if (result.success) {
-        Utils.showToast(`シート「${result.sheetName}」を作成しました`, 'success');
+      if (result.success && result.downloadUrl) {
+        Utils.showToast(`${result.filename} を作成しました`, 'success');
+        // ダウンロードURLを新しいタブで開く
+        window.open(result.downloadUrl, '_blank');
       } else {
-        Utils.showToast('シート出力に失敗しました', 'error');
+        Utils.showToast('Excel出力に失敗しました', 'error');
       }
     } catch (error) {
       console.error('[JobDetail] exportToSpreadsheet error:', error);
-      Utils.showToast('シート出力エラー: ' + error.message, 'error');
+      Utils.showToast('Excel出力エラー: ' + error.message, 'error');
     }
   },
 
@@ -3660,6 +3665,40 @@ const JobDetail = {
       container.appendChild(line);
       y += contentHeight;
     }
+  },
+
+  /**
+   * 印刷範囲ガイド（何日まで1枚に収まるか）を更新
+   */
+  updateDaysPerPageIndicator() {
+    const indicator = document.getElementById('job-detail-days-per-page');
+    if (!indicator) return;
+
+    if (!this.config.showPrintBoundaries) {
+      indicator.classList.add('hidden');
+      return;
+    }
+
+    const paper = this.paperSizes[this.config.paperSize];
+    if (!paper) {
+      indicator.classList.add('hidden');
+      return;
+    }
+
+    // 工程名カラム幅（140px）を引いた残りが日付セル領域
+    const processColumnWidth = 140;
+    const contentWidth = paper.width - processColumnWidth;
+
+    // 表示モードによってセル幅が異なる
+    const cellWidth = this.config.viewMode === 'weekly' ? this.config.weeklyCellWidth : this.config.cellWidth;
+
+    // 1ページに収まる日数/週数を計算
+    const unitsPerPage = Math.floor(contentWidth / cellWidth);
+
+    // 表示テキストを設定
+    const unitLabel = this.config.viewMode === 'weekly' ? '週' : '日';
+    indicator.textContent = `(約${unitsPerPage}${unitLabel}/枚)`;
+    indicator.classList.remove('hidden');
   },
 
   /**

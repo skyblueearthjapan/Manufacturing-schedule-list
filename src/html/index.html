@@ -373,7 +373,7 @@
             <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
             </svg>
-            シート出力
+            Excel出力
           </button>
           <button id="btn-print-job" class="btn btn-secondary text-sm">
             <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -400,6 +400,7 @@
             <label class="text-sm text-gray-600">日数:</label>
             <select id="job-detail-days" class="border border-gray-300 rounded px-2 py-1 text-sm">
               <option value="30">30日</option>
+              <option value="45">45日</option>
               <option value="60">60日</option>
               <option value="90" selected>90日</option>
               <option value="120">120日</option>
@@ -428,6 +429,7 @@
               <option value="a4">A4横</option>
               <option value="a3">A3横</option>
             </select>
+            <span id="job-detail-days-per-page" class="text-xs text-gray-500 hidden"></span>
           </div>
         </div>
         <div class="text-sm text-gray-500">

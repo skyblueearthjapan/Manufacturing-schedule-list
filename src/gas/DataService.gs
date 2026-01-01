@@ -1976,6 +1976,146 @@ function exportJobDetailToSheet(exportData) {
 }
 
 /**
+ * 工番別工程表をExcel(.xlsx)形式でエクスポート
+ * @param {Object} exportData - エクスポートデータ
+ * @returns {Object} - { success: boolean, downloadUrl: string, filename: string }
+ */
+function exportJobDetailToXlsx(exportData) {
+  const job = exportData.job;
+  const processes = exportData.processes;
+  const schedules = exportData.schedules;
+  const dates = exportData.dates;
+
+  // 一時スプレッドシートを作成
+  const timestamp = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyyMMdd_HHmmss');
+  const filename = `工程表_${job.jobNo}_${timestamp}`;
+  const tempSs = SpreadsheetApp.create(filename);
+  const sheet = tempSs.getActiveSheet();
+  sheet.setName('工程表');
+
+  try {
+    // ヘッダー情報を書き込み
+    sheet.getRange('A1').setValue('工番別工程表');
+    sheet.getRange('A1').setFontWeight('bold').setFontSize(14);
+
+    sheet.getRange('A2').setValue(`工番: ${job.jobNo}`);
+    sheet.getRange('B2').setValue(`顧客: ${job.customer}`);
+    sheet.getRange('C2').setValue(`製品: ${job.product}`);
+    sheet.getRange('D2').setValue(`出荷予定: ${job.shipDate}`);
+    sheet.getRange('E2').setValue(`出図予定: ${job.drawDate}`);
+
+    // 日付ヘッダー行を作成（4行目）
+    const headerRow = 4;
+    sheet.getRange(headerRow, 1).setValue('工程');
+    sheet.getRange(headerRow, 1).setBackground('#f3f4f6').setFontWeight('bold');
+
+    // 日付を書き込み
+    dates.forEach((date, i) => {
+      const cell = sheet.getRange(headerRow, i + 2);
+      const d = new Date(date);
+      const month = d.getMonth() + 1;
+      const day = d.getDate();
+      const dow = ['日', '月', '火', '水', '木', '金', '土'][d.getDay()];
+      cell.setValue(`${month}/${day}\n${dow}`);
+      cell.setHorizontalAlignment('center');
+      cell.setVerticalAlignment('middle');
+      cell.setFontSize(8);
+      cell.setWrap(true);
+
+      if (d.getDay() === 0) {
+        cell.setBackground('#fee2e2');
+      } else if (d.getDay() === 6) {
+        cell.setBackground('#fef3c7');
+      } else {
+        cell.setBackground('#f3f4f6');
+      }
+    });
+
+    // 工程行を書き込み
+    processes.forEach((process, pIdx) => {
+      const row = headerRow + 1 + pIdx;
+      const nameCell = sheet.getRange(row, 1);
+      const displayName = process.isMilestone ? `★${process.name}` : process.name;
+      nameCell.setValue(displayName);
+      nameCell.setBackground(hexToRgbLight(process.color));
+      nameCell.setFontWeight('bold');
+
+      dates.forEach((date, dIdx) => {
+        const cell = sheet.getRange(row, dIdx + 2);
+        const d = new Date(date);
+        if (d.getDay() === 0) {
+          cell.setBackground('#fef2f2');
+        } else if (d.getDay() === 6) {
+          cell.setBackground('#fffbeb');
+        }
+      });
+
+      const processSchedules = schedules.filter(s => s.processId === process.processId);
+      processSchedules.forEach(schedule => {
+        const startIdx = dates.indexOf(schedule.start);
+        const endIdx = dates.indexOf(schedule.end);
+
+        if (startIdx >= 0 && endIdx >= 0) {
+          for (let i = startIdx; i <= endIdx; i++) {
+            const cell = sheet.getRange(row, i + 2);
+            cell.setBackground(process.color);
+            if (i === startIdx && schedule.label) {
+              cell.setValue(schedule.label);
+              cell.setFontColor('#ffffff');
+              cell.setFontSize(8);
+            }
+          }
+        } else if (process.isMilestone && startIdx >= 0) {
+          const cell = sheet.getRange(row, startIdx + 2);
+          cell.setValue('◆');
+          cell.setBackground('#fef3c7');
+          cell.setFontColor('#f59e0b');
+          cell.setHorizontalAlignment('center');
+        }
+      });
+    });
+
+    // 列幅・行高さ・罫線
+    sheet.setColumnWidth(1, 120);
+    for (let i = 2; i <= dates.length + 1; i++) {
+      sheet.setColumnWidth(i, 35);
+    }
+    sheet.setRowHeight(headerRow, 40);
+    for (let i = headerRow + 1; i <= headerRow + processes.length; i++) {
+      sheet.setRowHeight(i, 25);
+    }
+    const dataRange = sheet.getRange(headerRow, 1, processes.length + 1, dates.length + 1);
+    dataRange.setBorder(true, true, true, true, true, true, '#d1d5db', SpreadsheetApp.BorderStyle.SOLID);
+
+    // スプレッドシートをExcel形式でエクスポート
+    SpreadsheetApp.flush();
+    const fileId = tempSs.getId();
+    const xlsxBlob = DriveApp.getFileById(fileId).getAs('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    xlsxBlob.setName(filename + '.xlsx');
+
+    // 元のスプレッドシートと同じフォルダにファイルを保存
+    const originalSs = SpreadsheetApp.getActiveSpreadsheet();
+    const parentFolder = DriveApp.getFileById(originalSs.getId()).getParents().next();
+    const xlsxFile = parentFolder.createFile(xlsxBlob);
+
+    // 一時スプレッドシートを削除
+    DriveApp.getFileById(fileId).setTrashed(true);
+
+    return {
+      success: true,
+      downloadUrl: xlsxFile.getDownloadUrl(),
+      filename: filename + '.xlsx'
+    };
+  } catch (e) {
+    // エラー時は一時ファイルを削除
+    try {
+      DriveApp.getFileById(tempSs.getId()).setTrashed(true);
+    } catch (cleanupError) {}
+    throw e;
+  }
+}
+
+/**
  * HEXカラーを薄い背景色に変換
  * @param {string} hex - HEXカラー (#RRGGBB)
  * @returns {string}
