@@ -2160,10 +2160,15 @@ function pickNavyShade(processId) {
 
 /**
  * テーマに応じた工程色を取得
+ * mono_navy (緑黄2色): 通常=緑、★付き=濃い黄色
  */
 function resolveProcessColor(theme, process) {
   if (theme === 'mono_navy') {
-    return pickNavyShade(process.processId);
+    // 緑黄2色配色: ★付きは濃い黄色、通常は緑
+    if (process.isMilestone) {
+      return '#DAA520'; // ゴールデンロッド（濃いめの黄色）
+    }
+    return '#5CB85C'; // きつすぎない緑
   }
   return process.color || '#6B7280';
 }
@@ -2182,25 +2187,18 @@ function exportJobDetailToSpreadsheet(exportData) {
 
   // スプレッドシートを作成
   const timestamp = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyyMMdd_HHmm');
-  const themeLabel = theme === 'mono_navy' ? '_紺' : '';
+  const themeLabel = theme === 'mono_navy' ? '_緑黄' : '';
   const fileName = `工番別工程表_${job.jobNo}_${job.product}${themeLabel}_${timestamp}`;
   const ss = SpreadsheetApp.create(fileName);
   const sheet = ss.getActiveSheet();
   sheet.setName('工番別工程表');
 
   // ヘッダー情報を書き込み
-  // A1: タイトル（結合して中央寄せ）
-  sheet.getRange('A1:D1').merge().setValue('工番別工程表');
-  sheet.getRange('A1').setFontWeight('bold').setFontSize(14).setHorizontalAlignment('center');
-
-  // A2: 工番、B1: 顧客、B2: 製品（出荷/出図は出さない）
-  sheet.getRange('A2').setValue(`工番: ${job.jobNo}`);
+  // A1: タイトル、B1: 顧客、A2: 工番、B2: 製品
+  sheet.getRange('A1').setValue('工番別工程表').setFontWeight('bold').setFontSize(14);
   sheet.getRange('B1').setValue(`顧客: ${job.customer}`);
+  sheet.getRange('A2').setValue(`工番: ${job.jobNo}`);
   sheet.getRange('B2').setValue(`製品: ${job.product}`);
-
-  // テーマ表示（右上）
-  const themeText = theme === 'mono_navy' ? '出力: 紺一色' : '出力: カラー';
-  sheet.getRange('E1').setValue(themeText).setFontSize(9).setFontColor('#6B7280');
 
   // 日付ヘッダー行を作成（4行目）
   const headerRow = 4;
@@ -2220,21 +2218,13 @@ function exportJobDetailToSpreadsheet(exportData) {
     cell.setFontSize(8);
     cell.setWrap(true);
 
-    // 休日背景（紺テーマでは薄グレー統一）
-    if (theme === 'mono_navy') {
-      if (d.getDay() === 0 || d.getDay() === 6) {
-        cell.setBackground('#E5E7EB');
-      } else {
-        cell.setBackground('#f3f4f6');
-      }
+    // 休日背景（両テーマ共通: 土曜=薄黄、日曜=ピンク）
+    if (d.getDay() === 0) {
+      cell.setBackground('#fee2e2'); // 日曜: ピンク
+    } else if (d.getDay() === 6) {
+      cell.setBackground('#fef3c7'); // 土曜: 薄黄
     } else {
-      if (d.getDay() === 0) {
-        cell.setBackground('#fee2e2');
-      } else if (d.getDay() === 6) {
-        cell.setBackground('#fef3c7');
-      } else {
-        cell.setBackground('#f3f4f6');
-      }
+      cell.setBackground('#f3f4f6');
     }
   });
 
@@ -2244,26 +2234,22 @@ function exportJobDetailToSpreadsheet(exportData) {
     const nameCell = sheet.getRange(row, 1);
     const displayName = process.isMilestone ? `★${process.name}` : process.name;
     nameCell.setValue(displayName);
-
-    // 工程名セルの背景色
-    const processColor = resolveProcessColor(theme, process);
-    nameCell.setBackground(hexToRgbLight(processColor));
     nameCell.setFontWeight('bold');
 
-    // 休日背景を設定
+    // 工程名セルの背景色（緑黄テーマでは背景なし）
+    if (theme !== 'mono_navy') {
+      const processColor = resolveProcessColor(theme, process);
+      nameCell.setBackground(hexToRgbLight(processColor));
+    }
+
+    // 休日背景を設定（両テーマ共通: 土曜=薄黄、日曜=ピンク）
     dates.forEach((date, dIdx) => {
       const cell = sheet.getRange(row, dIdx + 2);
       const d = new Date(date);
-      if (theme === 'mono_navy') {
-        if (d.getDay() === 0 || d.getDay() === 6) {
-          cell.setBackground('#F3F4F6');
-        }
-      } else {
-        if (d.getDay() === 0) {
-          cell.setBackground('#fef2f2');
-        } else if (d.getDay() === 6) {
-          cell.setBackground('#fffbeb');
-        }
+      if (d.getDay() === 0) {
+        cell.setBackground('#fef2f2'); // 日曜: 薄ピンク
+      } else if (d.getDay() === 6) {
+        cell.setBackground('#fffbeb'); // 土曜: 薄黄
       }
     });
 
