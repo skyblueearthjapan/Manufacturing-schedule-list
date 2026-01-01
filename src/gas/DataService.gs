@@ -1995,14 +1995,14 @@ function exportJobDetailToXlsx(exportData) {
 
   try {
     // ヘッダー情報を書き込み
-    sheet.getRange('A1').setValue('工番別工程表');
-    sheet.getRange('A1').setFontWeight('bold').setFontSize(14);
+    // A1: タイトル（結合して中央寄せ）
+    sheet.getRange('A1:D1').merge().setValue('工番別工程表');
+    sheet.getRange('A1').setFontWeight('bold').setFontSize(14).setHorizontalAlignment('center');
 
+    // A2: 工番、B1: 顧客、B2: 製品（出荷/出図は出さない）
     sheet.getRange('A2').setValue(`工番: ${job.jobNo}`);
-    sheet.getRange('B2').setValue(`顧客: ${job.customer}`);
-    sheet.getRange('C2').setValue(`製品: ${job.product}`);
-    sheet.getRange('D2').setValue(`出荷予定: ${job.shipDate}`);
-    sheet.getRange('E2').setValue(`出図予定: ${job.drawDate}`);
+    sheet.getRange('B1').setValue(`顧客: ${job.customer}`);
+    sheet.getRange('B2').setValue(`製品: ${job.product}`);
 
     // 日付ヘッダー行を作成（4行目）
     const headerRow = 4;
@@ -2091,20 +2091,18 @@ function exportJobDetailToXlsx(exportData) {
     SpreadsheetApp.flush();
     const fileId = tempSs.getId();
     const xlsxBlob = DriveApp.getFileById(fileId).getAs('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    xlsxBlob.setName(filename + '.xlsx');
 
-    // 元のスプレッドシートと同じフォルダにファイルを保存
-    const originalSs = SpreadsheetApp.getActiveSpreadsheet();
-    const parentFolder = DriveApp.getFileById(originalSs.getId()).getParents().next();
-    const xlsxFile = parentFolder.createFile(xlsxBlob);
+    // base64エンコードして返す（フロントでダウンロード処理）
+    const base64Data = Utilities.base64Encode(xlsxBlob.getBytes());
 
     // 一時スプレッドシートを削除
     DriveApp.getFileById(fileId).setTrashed(true);
 
     return {
       success: true,
-      downloadUrl: xlsxFile.getDownloadUrl(),
-      filename: filename + '.xlsx'
+      base64: base64Data,
+      filename: filename + '.xlsx',
+      mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     };
   } catch (e) {
     // エラー時は一時ファイルを削除

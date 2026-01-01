@@ -3576,10 +3576,27 @@ const JobDetail = {
           .exportJobDetailToXlsx(exportData);
       });
 
-      if (result.success && result.downloadUrl) {
-        Utils.showToast(`${result.filename} を作成しました`, 'success');
-        // ダウンロードURLを新しいタブで開く
-        window.open(result.downloadUrl, '_blank');
+      if (result.success && result.base64) {
+        // base64 → Blob に変換
+        const byteCharacters = atob(result.base64);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: result.mimeType });
+
+        // ダウンロードリンクを作成してクリック
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = result.filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        Utils.showToast(`${result.filename} をダウンロードしました`, 'success');
       } else {
         Utils.showToast('Excel出力に失敗しました', 'error');
       }
