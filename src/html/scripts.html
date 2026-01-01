@@ -3013,11 +3013,11 @@ const JobDetail = {
     hideUnusedProcesses: true,  // デフォルトで未使用工程を隠す
     showPrintBoundaries: false, // 印刷境界線表示
     paperSize: 'a4',           // 用紙サイズ: 'a4' or 'a3'
-    exportTheme: 'color'       // 出力テーマ: 'color' or 'mono_navy'(緑黄2色)
+    exportTheme: 'color'       // 出力テーマ: 'color' or 'mono_navy'(黒一色)
   },
 
-  // 緑黄テーマ用色定義（GAS側で使用、フロント参照用）
-  greenYellowTheme: { green: '#5CB85C', yellow: '#DAA520' },
+  // 黒一色テーマ用色定義（GAS側で使用、フロント参照用）
+  monoBlackTheme: { black: '#333333' },
 
   // 工番別の工程表示順（jobId -> [{processId, orderIndex}]）
   jobProcessLayouts: {},
@@ -3839,7 +3839,7 @@ const JobDetail = {
 
       if (result.success && result.url) {
         // 成功時：リンク付きToastを表示
-        const themeLabel = this.config.exportTheme === 'mono_navy' ? '（緑・黄）' : '';
+        const themeLabel = this.config.exportTheme === 'mono_navy' ? '（黒一色）' : '';
         Utils.showToast(`スプレッドシートを作成しました${themeLabel}`, 'success');
 
         // 「開く」リンクを表示（5秒後に自動消去）

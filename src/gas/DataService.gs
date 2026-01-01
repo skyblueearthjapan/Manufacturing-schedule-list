@@ -2160,15 +2160,11 @@ function pickNavyShade(processId) {
 
 /**
  * テーマに応じた工程色を取得
- * mono_navy (緑黄2色): 通常=緑、★付き=濃い黄色
+ * mono_navy (黒一色): 全て黒色
  */
 function resolveProcessColor(theme, process) {
   if (theme === 'mono_navy') {
-    // 緑黄2色配色: ★付きは濃い黄色、通常は緑
-    if (process.isMilestone) {
-      return '#DAA520'; // ゴールデンロッド（濃いめの黄色）
-    }
-    return '#5CB85C'; // きつすぎない緑
+    return '#333333'; // 黒一色
   }
   return process.color || '#6B7280';
 }
@@ -2187,7 +2183,7 @@ function exportJobDetailToSpreadsheet(exportData) {
 
   // スプレッドシートを作成
   const timestamp = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyyMMdd_HHmm');
-  const themeLabel = theme === 'mono_navy' ? '_緑黄' : '';
+  const themeLabel = theme === 'mono_navy' ? '_黒' : '';
   const fileName = `工番別工程表_${job.jobNo}_${job.product}${themeLabel}_${timestamp}`;
   const ss = SpreadsheetApp.create(fileName);
   const sheet = ss.getActiveSheet();
