@@ -2160,11 +2160,11 @@ function pickNavyShade(processId) {
 
 /**
  * テーマに応じた工程色を取得
- * mono_navy (黒一色): 全て黒色
+ * mono_navy (単色): 全て水色
  */
 function resolveProcessColor(theme, process) {
   if (theme === 'mono_navy') {
-    return '#333333'; // 黒一色
+    return '#4A90D9'; // 水色
   }
   return process.color || '#6B7280';
 }
