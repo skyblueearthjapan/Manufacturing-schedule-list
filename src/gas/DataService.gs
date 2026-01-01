@@ -2183,7 +2183,7 @@ function exportJobDetailToSpreadsheet(exportData) {
 
   // スプレッドシートを作成
   const timestamp = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyyMMdd_HHmm');
-  const themeLabel = theme === 'mono_navy' ? '_黒' : '';
+  const themeLabel = theme === 'mono_navy' ? '_青' : '';
   const fileName = `工番別工程表_${job.jobNo}_${job.product}${themeLabel}_${timestamp}`;
   const ss = SpreadsheetApp.create(fileName);
   const sheet = ss.getActiveSheet();
