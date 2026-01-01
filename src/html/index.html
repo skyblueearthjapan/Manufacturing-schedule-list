@@ -369,11 +369,23 @@
             <span class="text-gray-500 ml-2">出図予定:</span>
             <span id="job-detail-draw-date" class="font-medium"></span>
           </div>
+          <!-- 出力テーマ選択 -->
+          <div class="flex items-center space-x-2 text-sm border-l pl-3">
+            <span class="text-gray-500">出力:</span>
+            <label class="flex items-center space-x-1 cursor-pointer">
+              <input type="radio" name="export-theme" value="color" id="export-theme-color" checked class="text-blue-600">
+              <span>カラー</span>
+            </label>
+            <label class="flex items-center space-x-1 cursor-pointer">
+              <input type="radio" name="export-theme" value="mono_navy" id="export-theme-navy" class="text-blue-600">
+              <span>紺一色</span>
+            </label>
+          </div>
           <button id="btn-export-sheet" class="btn btn-secondary text-sm">
             <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
             </svg>
-            Excel出力
+            スプレッドシートへ出力
           </button>
           <button id="btn-print-job" class="btn btn-secondary text-sm">
             <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">

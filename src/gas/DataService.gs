@@ -1976,52 +1976,95 @@ function exportJobDetailToSheet(exportData) {
 }
 
 /**
- * 工番別工程表をExcel(.xlsx)形式でエクスポート
- * @param {Object} exportData - エクスポートデータ
- * @returns {Object} - { success: boolean, downloadUrl: string, filename: string }
+ * 紺一色テーマ用パレット（4段階濃淡）
  */
-function exportJobDetailToXlsx(exportData) {
+const NAVY_PALETTE = ['#0B1F4B', '#123A7A', '#1E55B3', '#4B7BD8'];
+
+/**
+ * processIdから紺パレットの色を決定（安定的に同じ色になる）
+ */
+function pickNavyShade(processId) {
+  // 簡易ハッシュ: processIdの文字コードを合計して4で割った余り
+  let hash = 0;
+  const str = String(processId);
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash) + str.charCodeAt(i);
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  const idx = Math.abs(hash) % NAVY_PALETTE.length;
+  return NAVY_PALETTE[idx];
+}
+
+/**
+ * テーマに応じた工程色を取得
+ */
+function resolveProcessColor(theme, process) {
+  if (theme === 'mono_navy') {
+    return pickNavyShade(process.processId);
+  }
+  return process.color || '#6B7280';
+}
+
+/**
+ * 工番別工程表をGoogleスプレッドシートとしてDriveに保存
+ * @param {Object} exportData - エクスポートデータ
+ * @returns {Object} - { success: boolean, url: string, fileName: string }
+ */
+function exportJobDetailToSpreadsheet(exportData) {
   const job = exportData.job;
   const processes = exportData.processes;
   const schedules = exportData.schedules;
   const dates = exportData.dates;
+  const theme = exportData.theme || 'color'; // 'color' or 'mono_navy'
 
-  // 一時スプレッドシートを作成
-  const timestamp = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyyMMdd_HHmmss');
-  const filename = `工程表_${job.jobNo}_${timestamp}`;
-  const tempSs = SpreadsheetApp.create(filename);
-  const sheet = tempSs.getActiveSheet();
-  sheet.setName('工程表');
+  // スプレッドシートを作成
+  const timestamp = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyyMMdd_HHmm');
+  const themeLabel = theme === 'mono_navy' ? '_紺' : '';
+  const fileName = `工番別工程表_${job.jobNo}_${job.product}${themeLabel}_${timestamp}`;
+  const ss = SpreadsheetApp.create(fileName);
+  const sheet = ss.getActiveSheet();
+  sheet.setName('工番別工程表');
 
-  try {
-    // ヘッダー情報を書き込み
-    // A1: タイトル（結合して中央寄せ）
-    sheet.getRange('A1:D1').merge().setValue('工番別工程表');
-    sheet.getRange('A1').setFontWeight('bold').setFontSize(14).setHorizontalAlignment('center');
+  // ヘッダー情報を書き込み
+  // A1: タイトル（結合して中央寄せ）
+  sheet.getRange('A1:D1').merge().setValue('工番別工程表');
+  sheet.getRange('A1').setFontWeight('bold').setFontSize(14).setHorizontalAlignment('center');
 
-    // A2: 工番、B1: 顧客、B2: 製品（出荷/出図は出さない）
-    sheet.getRange('A2').setValue(`工番: ${job.jobNo}`);
-    sheet.getRange('B1').setValue(`顧客: ${job.customer}`);
-    sheet.getRange('B2').setValue(`製品: ${job.product}`);
+  // A2: 工番、B1: 顧客、B2: 製品（出荷/出図は出さない）
+  sheet.getRange('A2').setValue(`工番: ${job.jobNo}`);
+  sheet.getRange('B1').setValue(`顧客: ${job.customer}`);
+  sheet.getRange('B2').setValue(`製品: ${job.product}`);
 
-    // 日付ヘッダー行を作成（4行目）
-    const headerRow = 4;
-    sheet.getRange(headerRow, 1).setValue('工程');
-    sheet.getRange(headerRow, 1).setBackground('#f3f4f6').setFontWeight('bold');
+  // テーマ表示（右上）
+  const themeText = theme === 'mono_navy' ? '出力: 紺一色' : '出力: カラー';
+  sheet.getRange('E1').setValue(themeText).setFontSize(9).setFontColor('#6B7280');
 
-    // 日付を書き込み
-    dates.forEach((date, i) => {
-      const cell = sheet.getRange(headerRow, i + 2);
-      const d = new Date(date);
-      const month = d.getMonth() + 1;
-      const day = d.getDate();
-      const dow = ['日', '月', '火', '水', '木', '金', '土'][d.getDay()];
-      cell.setValue(`${month}/${day}\n${dow}`);
-      cell.setHorizontalAlignment('center');
-      cell.setVerticalAlignment('middle');
-      cell.setFontSize(8);
-      cell.setWrap(true);
+  // 日付ヘッダー行を作成（4行目）
+  const headerRow = 4;
+  sheet.getRange(headerRow, 1).setValue('工程');
+  sheet.getRange(headerRow, 1).setBackground('#f3f4f6').setFontWeight('bold');
 
+  // 日付を書き込み
+  dates.forEach((date, i) => {
+    const cell = sheet.getRange(headerRow, i + 2);
+    const d = new Date(date);
+    const month = d.getMonth() + 1;
+    const day = d.getDate();
+    const dow = ['日', '月', '火', '水', '木', '金', '土'][d.getDay()];
+    cell.setValue(`${month}/${day}\n${dow}`);
+    cell.setHorizontalAlignment('center');
+    cell.setVerticalAlignment('middle');
+    cell.setFontSize(8);
+    cell.setWrap(true);
+
+    // 休日背景（紺テーマでは薄グレー統一）
+    if (theme === 'mono_navy') {
+      if (d.getDay() === 0 || d.getDay() === 6) {
+        cell.setBackground('#E5E7EB');
+      } else {
+        cell.setBackground('#f3f4f6');
+      }
+    } else {
       if (d.getDay() === 0) {
         cell.setBackground('#fee2e2');
       } else if (d.getDay() === 6) {
@@ -2029,88 +2072,101 @@ function exportJobDetailToXlsx(exportData) {
       } else {
         cell.setBackground('#f3f4f6');
       }
-    });
+    }
+  });
 
-    // 工程行を書き込み
-    processes.forEach((process, pIdx) => {
-      const row = headerRow + 1 + pIdx;
-      const nameCell = sheet.getRange(row, 1);
-      const displayName = process.isMilestone ? `★${process.name}` : process.name;
-      nameCell.setValue(displayName);
-      nameCell.setBackground(hexToRgbLight(process.color));
-      nameCell.setFontWeight('bold');
+  // 工程行を書き込み
+  processes.forEach((process, pIdx) => {
+    const row = headerRow + 1 + pIdx;
+    const nameCell = sheet.getRange(row, 1);
+    const displayName = process.isMilestone ? `★${process.name}` : process.name;
+    nameCell.setValue(displayName);
 
-      dates.forEach((date, dIdx) => {
-        const cell = sheet.getRange(row, dIdx + 2);
-        const d = new Date(date);
+    // 工程名セルの背景色
+    const processColor = resolveProcessColor(theme, process);
+    nameCell.setBackground(hexToRgbLight(processColor));
+    nameCell.setFontWeight('bold');
+
+    // 休日背景を設定
+    dates.forEach((date, dIdx) => {
+      const cell = sheet.getRange(row, dIdx + 2);
+      const d = new Date(date);
+      if (theme === 'mono_navy') {
+        if (d.getDay() === 0 || d.getDay() === 6) {
+          cell.setBackground('#F3F4F6');
+        }
+      } else {
         if (d.getDay() === 0) {
           cell.setBackground('#fef2f2');
         } else if (d.getDay() === 6) {
           cell.setBackground('#fffbeb');
         }
-      });
-
-      const processSchedules = schedules.filter(s => s.processId === process.processId);
-      processSchedules.forEach(schedule => {
-        const startIdx = dates.indexOf(schedule.start);
-        const endIdx = dates.indexOf(schedule.end);
-
-        if (startIdx >= 0 && endIdx >= 0) {
-          for (let i = startIdx; i <= endIdx; i++) {
-            const cell = sheet.getRange(row, i + 2);
-            cell.setBackground(process.color);
-            if (i === startIdx && schedule.label) {
-              cell.setValue(schedule.label);
-              cell.setFontColor('#ffffff');
-              cell.setFontSize(8);
-            }
-          }
-        } else if (process.isMilestone && startIdx >= 0) {
-          const cell = sheet.getRange(row, startIdx + 2);
-          cell.setValue('◆');
-          cell.setBackground('#fef3c7');
-          cell.setFontColor('#f59e0b');
-          cell.setHorizontalAlignment('center');
-        }
-      });
+      }
     });
 
-    // 列幅・行高さ・罫線
-    sheet.setColumnWidth(1, 120);
-    for (let i = 2; i <= dates.length + 1; i++) {
-      sheet.setColumnWidth(i, 35);
-    }
-    sheet.setRowHeight(headerRow, 40);
-    for (let i = headerRow + 1; i <= headerRow + processes.length; i++) {
-      sheet.setRowHeight(i, 25);
-    }
-    const dataRange = sheet.getRange(headerRow, 1, processes.length + 1, dates.length + 1);
-    dataRange.setBorder(true, true, true, true, true, true, '#d1d5db', SpreadsheetApp.BorderStyle.SOLID);
+    // スケジュールバーを描画
+    const processSchedules = schedules.filter(s => s.processId === process.processId);
+    processSchedules.forEach(schedule => {
+      const startIdx = dates.indexOf(schedule.start);
+      const endIdx = dates.indexOf(schedule.end);
 
-    // スプレッドシートをExcel形式でエクスポート
-    SpreadsheetApp.flush();
-    const fileId = tempSs.getId();
-    const xlsxBlob = DriveApp.getFileById(fileId).getAs('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      if (startIdx >= 0 && endIdx >= 0) {
+        const barColor = resolveProcessColor(theme, process);
+        for (let i = startIdx; i <= endIdx; i++) {
+          const cell = sheet.getRange(row, i + 2);
+          cell.setBackground(barColor);
+          if (i === startIdx && schedule.label) {
+            cell.setValue(schedule.label);
+            cell.setFontColor('#ffffff');
+            cell.setFontSize(8);
+          }
+        }
+      } else if (process.isMilestone && startIdx >= 0) {
+        const cell = sheet.getRange(row, startIdx + 2);
+        cell.setValue('◆');
+        if (theme === 'mono_navy') {
+          cell.setBackground('#E5E7EB');
+          cell.setFontColor('#1E3A8A');
+        } else {
+          cell.setBackground('#fef3c7');
+          cell.setFontColor('#f59e0b');
+        }
+        cell.setHorizontalAlignment('center');
+      }
+    });
+  });
 
-    // base64エンコードして返す（フロントでダウンロード処理）
-    const base64Data = Utilities.base64Encode(xlsxBlob.getBytes());
-
-    // 一時スプレッドシートを削除
-    DriveApp.getFileById(fileId).setTrashed(true);
-
-    return {
-      success: true,
-      base64: base64Data,
-      filename: filename + '.xlsx',
-      mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    };
-  } catch (e) {
-    // エラー時は一時ファイルを削除
-    try {
-      DriveApp.getFileById(tempSs.getId()).setTrashed(true);
-    } catch (cleanupError) {}
-    throw e;
+  // 列幅・行高さ・罫線
+  sheet.setColumnWidth(1, 120);
+  for (let i = 2; i <= dates.length + 1; i++) {
+    sheet.setColumnWidth(i, 35);
   }
+  sheet.setRowHeight(headerRow, 40);
+  for (let i = headerRow + 1; i <= headerRow + processes.length; i++) {
+    sheet.setRowHeight(i, 25);
+  }
+  const dataRange = sheet.getRange(headerRow, 1, processes.length + 1, dates.length + 1);
+  dataRange.setBorder(true, true, true, true, true, true, '#d1d5db', SpreadsheetApp.BorderStyle.SOLID);
+
+  // 元のスプレッドシートと同じフォルダに移動
+  SpreadsheetApp.flush();
+  try {
+    const originalSs = SpreadsheetApp.getActiveSpreadsheet();
+    const parentFolder = DriveApp.getFileById(originalSs.getId()).getParents().next();
+    const file = DriveApp.getFileById(ss.getId());
+    parentFolder.addFile(file);
+    DriveApp.getRootFolder().removeFile(file);
+  } catch (e) {
+    // フォルダ移動に失敗してもルートにあるので続行
+    console.log('フォルダ移動スキップ: ' + e.message);
+  }
+
+  return {
+    success: true,
+    url: ss.getUrl(),
+    fileName: fileName,
+    spreadsheetId: ss.getId()
+  };
 }
 
 /**

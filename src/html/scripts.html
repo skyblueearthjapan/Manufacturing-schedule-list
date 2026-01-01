@@ -2985,8 +2985,12 @@ const JobDetail = {
     rowHeight: 32,
     hideUnusedProcesses: true,  // デフォルトで未使用工程を隠す
     showPrintBoundaries: false, // 印刷境界線表示
-    paperSize: 'a4'            // 用紙サイズ: 'a4' or 'a3'
+    paperSize: 'a4',           // 用紙サイズ: 'a4' or 'a3'
+    exportTheme: 'color'       // 出力テーマ: 'color' or 'mono_navy'
   },
+
+  // 紺一色テーマ用パレット（4段階濃淡）
+  navyPalette: ['#0B1F4B', '#123A7A', '#1E55B3', '#4B7BD8'],
 
   // 用紙サイズ定義（横向き、マージン考慮）
   // A4横: 297mm x 210mm → 実効幅約250mm, 高さ約180mm
@@ -3047,6 +3051,12 @@ const JobDetail = {
       this.config.paperSize = e.target.value;
       this.updatePrintBoundaries();
       this.updateDaysPerPageIndicator();
+    });
+    // 出力テーマ選択
+    document.querySelectorAll('input[name="export-theme"]').forEach(radio => {
+      radio.addEventListener('change', (e) => {
+        this.config.exportTheme = e.target.value;
+      });
     });
   },
 
@@ -3517,8 +3527,8 @@ const JobDetail = {
   },
 
   /**
-   * Excelファイル(xlsx)をエクスポート
-   * - 工程表をxlsxファイルとしてダウンロード
+   * スプレッドシートへ出力
+   * - Googleドライブに保存してURLを表示
    */
   async exportToSpreadsheet() {
     const job = this.currentJob;
@@ -3527,7 +3537,18 @@ const JobDetail = {
       return;
     }
 
-    Utils.showToast('Excel出力中...', 'info');
+    // 未保存変更があれば先に保存
+    if (ChangeBuffer.hasPendingChanges()) {
+      Utils.showToast('変更を保存中...', 'info');
+      try {
+        await ChangeBuffer.flushNow();
+      } catch (e) {
+        Utils.showToast('保存に失敗したため出力できません', 'error');
+        return;
+      }
+    }
+
+    Utils.showToast('スプレッドシート作成中...', 'info');
 
     const dates = Utils.generateDateRange(this.config.displayStartDate, this.config.displayDays);
     const schedules = Store.getSchedulesByJobId(this.currentJobId);
@@ -3545,11 +3566,10 @@ const JobDetail = {
       job: {
         jobNo: job['工番'] || '',
         customer: job['顧客名'] || '',
-        product: job['設備/製品名'] || '',
-        shipDate: job['出荷予定日'] || '',
-        drawDate: job['出図予定日'] || ''
+        product: job['設備/製品名'] || ''
       },
-      viewMode: this.config.viewMode,
+      theme: this.config.exportTheme,  // 'color' or 'mono_navy'
+      hideUnused: this.config.hideUnusedProcesses,
       displayStartDate: this.config.displayStartDate,
       displayDays: this.config.displayDays,
       dates: dates,
@@ -3573,37 +3593,62 @@ const JobDetail = {
         google.script.run
           .withSuccessHandler(resolve)
           .withFailureHandler(reject)
-          .exportJobDetailToXlsx(exportData);
+          .exportJobDetailToSpreadsheet(exportData);
       });
 
-      if (result.success && result.base64) {
-        // base64 → Blob に変換
-        const byteCharacters = atob(result.base64);
-        const byteNumbers = new Array(byteCharacters.length);
-        for (let i = 0; i < byteCharacters.length; i++) {
-          byteNumbers[i] = byteCharacters.charCodeAt(i);
-        }
-        const byteArray = new Uint8Array(byteNumbers);
-        const blob = new Blob([byteArray], { type: result.mimeType });
+      if (result.success && result.url) {
+        // 成功時：リンク付きToastを表示
+        const themeLabel = this.config.exportTheme === 'mono_navy' ? '（紺一色）' : '';
+        Utils.showToast(`スプレッドシートを作成しました${themeLabel}`, 'success');
 
-        // ダウンロードリンクを作成してクリック
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = result.filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-
-        Utils.showToast(`${result.filename} をダウンロードしました`, 'success');
+        // 「開く」リンクを表示（5秒後に自動消去）
+        this.showSpreadsheetLink(result.url, result.fileName);
       } else {
-        Utils.showToast('Excel出力に失敗しました', 'error');
+        Utils.showToast('スプレッドシート作成に失敗しました', 'error');
       }
     } catch (error) {
       console.error('[JobDetail] exportToSpreadsheet error:', error);
-      Utils.showToast('Excel出力エラー: ' + error.message, 'error');
+      Utils.showToast('出力エラー: ' + error.message, 'error');
     }
+  },
+
+  /**
+   * スプレッドシートへのリンクを表示
+   */
+  showSpreadsheetLink(url, fileName) {
+    // 既存のリンク表示を削除
+    const existingLink = document.getElementById('spreadsheet-link-popup');
+    if (existingLink) existingLink.remove();
+
+    // リンクポップアップを作成
+    const popup = document.createElement('div');
+    popup.id = 'spreadsheet-link-popup';
+    popup.className = 'fixed bottom-20 right-4 bg-white border border-gray-300 rounded-lg shadow-lg p-4 z-50';
+    popup.innerHTML = `
+      <div class="flex items-center space-x-3">
+        <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        <div>
+          <div class="text-sm text-gray-600">${Utils.escapeHtml(fileName)}</div>
+          <a href="${url}" target="_blank" class="text-blue-600 hover:underline font-medium">
+            作成したシートを開く →
+          </a>
+        </div>
+        <button id="spreadsheet-link-close" class="ml-2 text-gray-400 hover:text-gray-600">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+    `;
+    document.body.appendChild(popup);
+
+    // 閉じるボタン
+    document.getElementById('spreadsheet-link-close')?.addEventListener('click', () => popup.remove());
+
+    // 10秒後に自動消去
+    setTimeout(() => popup.remove(), 10000);
   },
 
   /**
