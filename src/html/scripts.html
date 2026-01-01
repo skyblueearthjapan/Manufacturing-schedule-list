@@ -542,6 +542,22 @@ const ChangeBuffer = {
   },
 
   /**
+   * 未保存があるか（メソッド版）
+   * @returns {boolean}
+   */
+  hasPendingChanges() {
+    return this.isDirty;
+  },
+
+  /**
+   * 即座に保存（Promise返却）
+   * @returns {Promise}
+   */
+  async flushNow() {
+    return this.flush('export');
+  },
+
+  /**
    * 保存実行（バッチ）
    */
   async flush(reason = 'manual') {
