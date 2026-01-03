@@ -2198,9 +2198,9 @@ function exportJobDetailToSpreadsheet(exportData) {
   const paperSize = exportData.paperSize || 'a4'; // 'a4' or 'a3'
 
   // 用紙サイズに応じた1段あたりの最大日付列数
-  // A4横: 約28列、A3横: 約42列（工程列を除く）
-  const MAX_COLS_A4 = 28;
-  const MAX_COLS_A3 = 42;
+  // A4横: 30日、A3横: 45日（列幅22pxで収まるよう調整）
+  const MAX_COLS_A4 = 30;
+  const MAX_COLS_A3 = 45;
   const maxColsPerBlock = paperSize === 'a3' ? MAX_COLS_A3 : MAX_COLS_A4;
 
   // 日付を複数ブロックに分割
@@ -2226,25 +2226,26 @@ function exportJobDetailToSpreadsheet(exportData) {
     const blockStartRow = currentRow;
 
     // ヘッダー情報（各ブロックの先頭に配置）
-    sheet.getRange(currentRow, 1).setValue('工番別工程表').setFontWeight('bold').setFontSize(14);
-    sheet.getRange(currentRow, 2).setValue(`顧客: ${job.customer}`);
+    // A1: タイトル、B1: 顧客
+    sheet.getRange(currentRow, 1).setValue('工番別工程表').setFontWeight('bold').setFontSize(12);
+    sheet.getRange(currentRow, 2).setValue(`顧客: ${job.customer}`).setFontSize(10);
     currentRow++;
-    sheet.getRange(currentRow, 1).setValue(`工番: ${job.jobNo}`);
-    sheet.getRange(currentRow, 2).setValue(`製品: ${job.product}`);
 
-    // ブロック番号表示（2段以上の場合）
+    // A2: 工番、B2: 製品
+    sheet.getRange(currentRow, 1).setValue(`工番: ${job.jobNo}`).setFontSize(10);
+    sheet.getRange(currentRow, 2).setValue(`製品: ${job.product}`).setFontSize(10);
+    currentRow++;
+
+    // A3: ブロック番号表示（2段以上の場合）
     if (blockCount > 1) {
-      const blockLabel = `(${blockIdx + 1}/${blockCount})`;
-      sheet.getRange(currentRow, 3).setValue(blockLabel).setFontColor('#6B7280').setFontSize(10);
+      const blockLabel = `（${blockIdx + 1}/${blockCount}）`;
+      sheet.getRange(currentRow, 1).setValue(blockLabel).setFontColor('#6B7280').setFontSize(9);
     }
-    currentRow++;
-
-    // 空行
     currentRow++;
 
     // 日付ヘッダー行
     const headerRow = currentRow;
-    sheet.getRange(headerRow, 1).setValue('工程').setBackground('#f3f4f6').setFontWeight('bold');
+    sheet.getRange(headerRow, 1).setValue('工程').setBackground('#f3f4f6').setFontWeight('bold').setFontSize(9);
 
     // 日付を書き込み
     blockDates.forEach((date, i) => {
@@ -2277,6 +2278,7 @@ function exportJobDetailToSpreadsheet(exportData) {
       const displayName = process.isMilestone ? `★${process.name}` : process.name;
       nameCell.setValue(displayName);
       nameCell.setFontWeight('bold');
+      nameCell.setFontSize(9);
 
       // 工程名セルの背景色
       if (theme !== 'mono_navy') {
@@ -2361,21 +2363,21 @@ function exportJobDetailToSpreadsheet(exportData) {
     const dataRange = sheet.getRange(headerRow, 1, processes.length + 1, blockDates.length + 1);
     dataRange.setBorder(true, true, true, true, true, true, '#d1d5db', SpreadsheetApp.BorderStyle.SOLID);
 
-    // 行高さ設定
-    sheet.setRowHeight(headerRow, 40);
+    // 行高さ設定（コンパクト化）
+    sheet.setRowHeight(headerRow, 35);
     for (let i = 0; i < processes.length; i++) {
-      sheet.setRowHeight(headerRow + 1 + i, 25);
+      sheet.setRowHeight(headerRow + 1 + i, 22);
     }
 
     // 次のブロックの開始位置（空行2行分）
     currentRow = headerRow + processes.length + 3;
   }
 
-  // 列幅設定（工程列 + 最大ブロックの日付列数）
-  sheet.setColumnWidth(1, 120);
+  // 列幅設定（コンパクト化: 工程列140px、日付列22px）
+  sheet.setColumnWidth(1, 140);
   const maxBlockCols = Math.max(...dateBlocks.map(b => b.length));
   for (let i = 2; i <= maxBlockCols + 1; i++) {
-    sheet.setColumnWidth(i, 35);
+    sheet.setColumnWidth(i, 22);
   }
 
   // 「生産工程表ファイル追加」フォルダに保存
