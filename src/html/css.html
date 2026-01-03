@@ -1882,6 +1882,144 @@
     font-size: 14px;
   }
 
+  /* 横スクロールバープロキシ（作業者一覧直下） */
+  .travel-scroll-proxy-container {
+    display: flex;
+    border-bottom: 1px solid #e5e7eb;
+    background: #f1f5f9;
+    flex-shrink: 0;
+  }
+
+  .travel-scroll-proxy-spacer {
+    width: 200px;
+    flex-shrink: 0;
+    border-right: 1px solid #e5e7eb;
+  }
+
+  .travel-scroll-proxy {
+    flex: 1;
+    overflow-x: auto;
+    overflow-y: hidden;
+    height: 14px;
+  }
+
+  .travel-scroll-proxy-inner {
+    height: 1px;
+  }
+
+  /* ========================================
+     今週の予定 印刷用CSS
+     ======================================== */
+
+  /* 印刷ルート（印刷時のみ表示） */
+  #weekly-print-root {
+    display: none;
+  }
+
+  @media print {
+    /* 印刷時は印刷ルート以外を非表示 */
+    body > *:not(#weekly-print-root) {
+      display: none !important;
+    }
+
+    #weekly-print-root {
+      display: block !important;
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+    }
+
+    /* 印刷用レイアウト */
+    .weekly-print-container {
+      padding: 16px;
+      font-family: sans-serif;
+    }
+
+    .weekly-print-header {
+      margin-bottom: 16px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid #333;
+    }
+
+    .weekly-print-title {
+      font-size: 18px;
+      font-weight: bold;
+      margin-bottom: 4px;
+    }
+
+    .weekly-print-range {
+      font-size: 12px;
+      color: #666;
+    }
+
+    /* 印刷用テーブル */
+    .weekly-print-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11px;
+    }
+
+    .weekly-print-table th,
+    .weekly-print-table td {
+      border: 1px solid #333;
+      padding: 6px 8px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    .weekly-print-table th {
+      background-color: #f0f0f0;
+      font-weight: bold;
+    }
+
+    .weekly-print-table th.weekend {
+      background-color: #e8e8e8;
+    }
+
+    .weekly-print-table td.weekend {
+      background-color: #fafafa;
+    }
+
+    /* 行の途中で分割しない */
+    .weekly-print-table tr {
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+
+    /* 工番情報セル */
+    .weekly-print-job {
+      width: 25%;
+      min-width: 120px;
+    }
+
+    .weekly-print-job .job-line1 {
+      font-weight: bold;
+      font-size: 12px;
+    }
+
+    .weekly-print-job .job-line2,
+    .weekly-print-job .job-line3 {
+      font-size: 10px;
+      color: #555;
+    }
+
+    /* 日付セル */
+    .weekly-print-day {
+      width: 10.7%;
+      text-align: center;
+    }
+
+    .weekly-print-process {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 10px;
+      font-weight: 500;
+      color: #fff;
+    }
+  }
+
   /* ========================================
      WorkerJobAssignView（作業者別担当工番カード）
      ======================================== */

@@ -5122,39 +5122,91 @@ const WeeklyPlan = {
     tbody.innerHTML = html;
   },
 
-  exportCSV() {
+  /**
+   * 今週の予定を印刷
+   * 印刷専用DOMを生成して印刷することで、他タブの内容が混ざらないようにする
+   */
+  print() {
     const { rows, dates } = this.buildImportantWeekRows();
+    const weekEnd = this.getWeekEnd(this.weekStart);
 
-    const headers = ['工番', '製品名', '顧客名', '出荷予定日', '月', '火', '水', '木', '金', '土', '日'];
-    const csvRows = rows.map(row => {
-      const job = row.job;
-      const dayCells = row.dayCells.map(dayProcesses =>
-        dayProcesses.map(p => p.name).join(' / ')
-      );
-      return [
-        job['工番'] || '',
-        job['設備/製品名'] || '',
-        job['顧客名'] || '',
-        job['出荷予定日'] || '',
-        ...dayCells
-      ];
-    });
+    // 週範囲テキスト
+    const startMonth = Utils.getMonth(this.weekStart);
+    const startDay = Utils.getDay(this.weekStart);
+    const endMonth = Utils.getMonth(weekEnd);
+    const endDay = Utils.getDay(weekEnd);
+    const rangeText = `${startMonth}/${startDay}（${Utils.getDayOfWeek(this.weekStart)}）〜 ${endMonth}/${endDay}（${Utils.getDayOfWeek(weekEnd)}）`;
 
-    const csv = [headers, ...csvRows]
-      .map(row => row.map(cell => `"${(cell || '').replace(/"/g, '""')}"`).join(','))
-      .join('\n');
+    // 曜日ヘッダー
+    const dayNames = ['月', '火', '水', '木', '金', '土', '日'];
 
-    const bom = '\uFEFF';
-    const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
+    // 印刷用HTML生成
+    let tableHtml = `
+      <table class="weekly-print-table">
+        <thead>
+          <tr>
+            <th class="weekly-print-job">工番情報</th>
+            ${dayNames.map((d, i) => `<th class="weekly-print-day${i >= 5 ? ' weekend' : ''}">${d}<br>${Utils.getMonth(dates[i])}/${Utils.getDay(dates[i])}</th>`).join('')}
+          </tr>
+        </thead>
+        <tbody>
+    `;
 
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `週刊重要工程_${this.weekStart}.csv`;
-    a.click();
+    if (rows.length === 0) {
+      tableHtml += `<tr><td colspan="8" style="text-align:center; padding:24px; color:#666;">この週に重要工程（★）がある工番はありません</td></tr>`;
+    } else {
+      rows.forEach(row => {
+        tableHtml += '<tr>';
 
-    URL.revokeObjectURL(url);
-    Utils.showToast('CSVをダウンロードしました', 'success');
+        // 工番情報セル
+        tableHtml += `<td class="weekly-print-job">${this.buildJobInfoCell(row.job)}</td>`;
+
+        // 曜日セル
+        row.dayCells.forEach((dayProcesses, index) => {
+          const isWeekend = index >= 5;
+          let cellContent = '';
+          if (dayProcesses.length > 0) {
+            const names = dayProcesses.map(p => p.name).join(' / ');
+            const color = dayProcesses[0].color;
+            cellContent = `<span class="weekly-print-process" style="background-color: ${color};">${Utils.escapeHtml(names)}</span>`;
+          }
+          tableHtml += `<td class="weekly-print-day${isWeekend ? ' weekend' : ''}">${cellContent}</td>`;
+        });
+
+        tableHtml += '</tr>';
+      });
+    }
+
+    tableHtml += '</tbody></table>';
+
+    const printHtml = `
+      <div class="weekly-print-container">
+        <div class="weekly-print-header">
+          <div class="weekly-print-title">今週の予定</div>
+          <div class="weekly-print-range">${rangeText}</div>
+        </div>
+        ${tableHtml}
+      </div>
+    `;
+
+    // 印刷用ルート要素を作成
+    let printRoot = document.getElementById('weekly-print-root');
+    if (!printRoot) {
+      printRoot = document.createElement('div');
+      printRoot.id = 'weekly-print-root';
+      document.body.appendChild(printRoot);
+    }
+    printRoot.innerHTML = printHtml;
+
+    // 印刷実行
+    window.print();
+
+    // 印刷後にクリーンアップ（少し待ってから削除）
+    setTimeout(() => {
+      if (printRoot && printRoot.parentNode) {
+        printRoot.parentNode.removeChild(printRoot);
+      }
+    }, 1000);
   }
 };
 
@@ -5658,6 +5710,60 @@ const TravelPlan = {
     // 日付ヘッダーとボディをレンダリング
     this.renderDateHeader();
     this.renderBody(people, trips);
+
+    // 横スクロールプロキシの幅とスクロール同期をセットアップ
+    this.setupScrollProxy();
+  },
+
+  /**
+   * 横スクロールプロキシを設定
+   * 作業者一覧直下のスクロールバーと本体のスクロールを同期する
+   */
+  setupScrollProxy() {
+    const scrollArea = document.getElementById('travel-scroll-area');
+    const scrollProxy = document.getElementById('travel-scroll-proxy');
+    const scrollProxyInner = document.getElementById('travel-scroll-proxy-inner');
+    const dateHeader = document.getElementById('travel-date-header');
+
+    if (!scrollArea || !scrollProxy || !scrollProxyInner || !dateHeader) return;
+
+    // プロキシの内部幅を本体と同じにする
+    const totalWidth = this.getTotalGridWidth();
+    scrollProxyInner.style.width = `${totalWidth}px`;
+
+    // 既存のリスナーを削除するためにフラグを使用
+    if (this._scrollSyncCleanup) {
+      this._scrollSyncCleanup();
+    }
+
+    let syncing = false;
+
+    // プロキシ→本体＆ヘッダー同期
+    const onProxyScroll = () => {
+      if (syncing) return;
+      syncing = true;
+      scrollArea.scrollLeft = scrollProxy.scrollLeft;
+      dateHeader.parentElement.scrollLeft = scrollProxy.scrollLeft;
+      syncing = false;
+    };
+
+    // 本体→プロキシ＆ヘッダー同期
+    const onAreaScroll = () => {
+      if (syncing) return;
+      syncing = true;
+      scrollProxy.scrollLeft = scrollArea.scrollLeft;
+      dateHeader.parentElement.scrollLeft = scrollArea.scrollLeft;
+      syncing = false;
+    };
+
+    scrollProxy.addEventListener('scroll', onProxyScroll);
+    scrollArea.addEventListener('scroll', onAreaScroll);
+
+    // クリーンアップ関数を保存
+    this._scrollSyncCleanup = () => {
+      scrollProxy.removeEventListener('scroll', onProxyScroll);
+      scrollArea.removeEventListener('scroll', onAreaScroll);
+    };
   },
 
   renderDateHeader() {
