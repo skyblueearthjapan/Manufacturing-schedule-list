@@ -2758,6 +2758,8 @@ const JobModal = {
     order: null,      // { file: File, base64: string, fileName: string }
     instruction: null
   },
+  // 削除確認用の合言葉（定数）
+  CONFIRM_DELETE_TEXT: '削除OK',
 
   init() {
     this.setupEventListeners();
@@ -2786,7 +2788,8 @@ const JobModal = {
     document.getElementById('btn-job-delete-execute')?.addEventListener('click', () => this.executeDelete());
     document.getElementById('job-delete-confirm-input')?.addEventListener('input', (e) => {
       const btn = document.getElementById('btn-job-delete-execute');
-      if (btn) btn.disabled = e.target.value !== 'DELETE';
+      // trim()で前後空白のみ許可、完全一致で有効化
+      if (btn) btn.disabled = e.target.value.trim() !== this.CONFIRM_DELETE_TEXT;
     });
 
     // 工番マスター検索
@@ -3039,6 +3042,13 @@ const JobModal = {
   // 削除を実行
   executeDelete() {
     if (!this.currentJob) return;
+
+    // 二重防御: 入力値が一致しない場合は削除しない
+    const confirmInput = document.getElementById('job-delete-confirm-input');
+    if (!confirmInput || confirmInput.value.trim() !== this.CONFIRM_DELETE_TEXT) {
+      console.warn('[JobModal.executeDelete] Blocked: confirm text mismatch');
+      return;
+    }
 
     const jobId = this.currentJob.jobId;
     const jobNo = this.currentJob['工番'];
