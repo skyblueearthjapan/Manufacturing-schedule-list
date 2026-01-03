@@ -2753,6 +2753,11 @@ const JobModal = {
   currentJob: null,
   isEditMode: false,
   searchDebounceTimer: null,
+  // 新規モード時のPDF添付予約（保存後にアップロード）
+  pendingPdfFiles: {
+    order: null,      // { file: File, base64: string, fileName: string }
+    instruction: null
+  },
 
   init() {
     this.setupEventListeners();
@@ -2902,6 +2907,8 @@ const JobModal = {
     this.currentJob = null;
     this.resetForm();
     this.populatePersonSelects();
+    // pending PDF をリセット
+    this.pendingPdfFiles = { order: null, instruction: null };
     document.getElementById('job-modal-title').textContent = '工番登録';
     // 新規時はマスター検索エリアを表示
     const searchArea = document.getElementById('job-master-search-area');
@@ -2910,9 +2917,9 @@ const JobModal = {
     document.getElementById('btn-job-modal-close')?.classList.add('hidden');
     document.getElementById('btn-job-modal-reopen')?.classList.add('hidden');
     document.getElementById('btn-job-modal-delete')?.classList.add('hidden');
-    // PDF セクションを表示（新規モードではdisabled状態）
+    // PDF セクションを表示（新規モードでも選択可能・保存後に自動アップロード）
     document.getElementById('job-pdf-section')?.classList.remove('hidden');
-    this.setPdfSectionDisabled(true, '保存後にアップロード可能');
+    this.setPdfSectionForNewMode();
     this.open();
   },
 
@@ -2921,6 +2928,8 @@ const JobModal = {
     this.currentJob = job;
     this.resetForm();
     this.populatePersonSelects(job.mainPersonId || '', job.subPersonId || '');
+    // pending PDF をリセット（編集モードでは即時アップロード）
+    this.pendingPdfFiles = { order: null, instruction: null };
 
     document.getElementById('job-jobno').value = job['工番'] || '';
     document.getElementById('job-customer').value = job['顧客名'] || '';
@@ -2932,6 +2941,9 @@ const JobModal = {
     document.getElementById('job-status-text').value = job['重要メモ'] || '';
     document.getElementById('job-job-id').value = job.jobId || '';
     document.getElementById('job-updated-at').value = job.updatedAt || '';
+
+    // デバッグログ: 編集モード開始
+    console.log('[JobModal.openEdit] jobId:', job.jobId, '工番:', job['工番']);
 
     document.getElementById('job-modal-title').textContent = '工番編集';
     // 編集時はマスター検索エリアを非表示
@@ -3101,12 +3113,28 @@ const JobModal = {
     };
   },
 
-  save() {
+  async save() {
     const payload = this.validate();
     if (!payload) return;
 
+    const jobNo = payload['工番'];
+
+    // デバッグログ: 保存開始
+    console.log('[JobModal.save] mode:', this.isEditMode ? 'edit' : 'new');
+
     if (this.isEditMode) {
       const jobId = document.getElementById('job-job-id').value;
+
+      // 二重生成対策: jobIdが空または無効な場合はエラー
+      if (!jobId || jobId.trim() === '') {
+        console.error('[JobModal.save] ERROR: jobId is empty in edit mode!');
+        Utils.showToast('工番IDが不正です。画面を更新してください。', 'error');
+        return;
+      }
+
+      // デバッグログ
+      console.log('[JobModal.save] edit: jobId=', jobId, 'API=updateJob');
+
       // 編集時は状態を保持
       payload['状態'] = this.currentJob?.['状態'] || '未着手';
       // 楽観的更新
@@ -3116,6 +3144,10 @@ const JobModal = {
     } else {
       // 新規作成：仮IDで楽観的更新
       const tempId = 'temp_' + Utils.generateId();
+
+      // デバッグログ
+      console.log('[JobModal.save] new: tempId=', tempId, 'API=createJob');
+
       const newJob = {
         jobId: tempId,
         ...payload,
@@ -3123,10 +3155,72 @@ const JobModal = {
       };
       Store.addJob(newJob);
       ChangeBuffer.add('job', 'upsert', tempId, payload, 'master');
-      Utils.showToast('工番を登録しました（保存待ち）', 'info');
+
+      // 新規モード時のpending PDFがあれば、保存完了後にアップロード
+      if (this.pendingPdfFiles.order || this.pendingPdfFiles.instruction) {
+        Utils.showToast('工番を登録中...', 'info');
+        // ChangeBufferを即時フラッシュしてjobIdを確定
+        try {
+          const flushResult = await ChangeBuffer.flush('new_job_pdf');
+          if (flushResult.ok) {
+            // 工番が保存された後、PDFをアップロード
+            await this.uploadPendingPdfs(jobNo);
+            Utils.showToast('工番とPDFを登録しました', 'success');
+          } else {
+            Utils.showToast('工番の登録に失敗しました', 'error');
+          }
+        } catch (error) {
+          console.error('[JobModal.save] Failed to save and upload PDF:', error);
+          Utils.showToast('保存に失敗しました: ' + error.message, 'error');
+        }
+      } else {
+        Utils.showToast('工番を登録しました（保存待ち）', 'info');
+      }
     }
 
     this.close();
+  },
+
+  /**
+   * pending PDFをアップロード（新規モード用）
+   * @param {string} jobNo - 工番
+   */
+  async uploadPendingPdfs(jobNo) {
+    const pending = this.pendingPdfFiles;
+
+    if (pending.order) {
+      console.log('[JobModal] Uploading pending order PDF:', pending.order.fileName);
+      try {
+        const result = await API.uploadJobPdf(jobNo, 'order', pending.order.fileName, pending.order.base64);
+        const currentInfo = Store.getJobPdfInfo(jobNo) || { order: null, instruction: null };
+        currentInfo.order = result;
+        Store.setJobPdfInfo(jobNo, currentInfo);
+      } catch (error) {
+        console.error('[JobModal] Failed to upload order PDF:', error);
+        Utils.showToast('受注表PDFのアップロードに失敗しました', 'error');
+      }
+    }
+
+    if (pending.instruction) {
+      console.log('[JobModal] Uploading pending instruction PDF:', pending.instruction.fileName);
+      try {
+        const result = await API.uploadJobPdf(jobNo, 'instruction', pending.instruction.fileName, pending.instruction.base64);
+        const currentInfo = Store.getJobPdfInfo(jobNo) || { order: null, instruction: null };
+        currentInfo.instruction = result;
+        Store.setJobPdfInfo(jobNo, currentInfo);
+      } catch (error) {
+        console.error('[JobModal] Failed to upload instruction PDF:', error);
+        Utils.showToast('工番別指示書PDFのアップロードに失敗しました', 'error');
+      }
+    }
+
+    // pending をクリア
+    this.pendingPdfFiles = { order: null, instruction: null };
+
+    // ガントビューを再描画
+    if (typeof Gantt !== 'undefined') {
+      Gantt.render();
+    }
   },
 
   // ========== PDF関連 ==========
@@ -3155,6 +3249,40 @@ const JobModal = {
       document.getElementById('job-order-pdf-status').className = 'pdf-status no-file';
       document.getElementById('job-instruction-pdf-status').textContent = message;
       document.getElementById('job-instruction-pdf-status').className = 'pdf-status no-file';
+    }
+
+    // 削除ボタンを非表示
+    document.getElementById('btn-order-pdf-delete')?.classList.add('hidden');
+    document.getElementById('btn-instruction-pdf-delete')?.classList.add('hidden');
+  },
+
+  /**
+   * 新規モード用のPDFセクション設定
+   * ファイル選択は可能、保存後に自動アップロード
+   */
+  setPdfSectionForNewMode() {
+    const section = document.getElementById('job-pdf-section');
+    if (!section) return;
+
+    // 選択ボタンを有効化
+    const uploadBtns = section.querySelectorAll('button:not([id*="delete"])');
+    uploadBtns.forEach(btn => {
+      if (btn.textContent.includes('選択')) {
+        btn.disabled = false;
+        btn.style.opacity = '1';
+      }
+    });
+
+    // ステータス表示（未選択状態）
+    const orderStatus = document.getElementById('job-order-pdf-status');
+    const instructionStatus = document.getElementById('job-instruction-pdf-status');
+    if (orderStatus) {
+      orderStatus.textContent = '（保存後に自動アップロード）';
+      orderStatus.className = 'pdf-status no-file';
+    }
+    if (instructionStatus) {
+      instructionStatus.textContent = '（保存後に自動アップロード）';
+      instructionStatus.className = 'pdf-status no-file';
     }
 
     // 削除ボタンを非表示
@@ -3224,6 +3352,8 @@ const JobModal = {
 
   /**
    * PDFファイル選択時
+   * - 新規モード: pendingとして保存（保存後にアップロード）
+   * - 編集モード: 即座にアップロード
    * @param {string} pdfType
    * @param {HTMLInputElement} input
    */
@@ -3248,12 +3378,36 @@ const JobModal = {
 
     const jobNo = document.getElementById('job-jobno').value;
     if (!jobNo) {
-      Utils.showToast('工番が設定されていません', 'error');
+      Utils.showToast('工番を入力してからPDFを選択してください', 'error');
       input.value = '';
       return;
     }
 
-    // UIを更新（アップロード中）
+    // ファイルをBase64に変換
+    const base64Data = await this.fileToBase64(file);
+
+    // 新規モードの場合: pendingとして保存（保存後にアップロード）
+    if (!this.isEditMode) {
+      this.pendingPdfFiles[pdfType] = {
+        file: file,
+        base64: base64Data,
+        fileName: file.name
+      };
+
+      // UI更新（pending状態表示）
+      const statusEl = document.getElementById(`job-${pdfType}-pdf-status`);
+      if (statusEl) {
+        statusEl.textContent = `${file.name}（保存時にアップロード）`;
+        statusEl.className = 'pdf-status pending';
+      }
+
+      const typeName = pdfType === 'order' ? '受注表' : '工番別指示書';
+      Utils.showToast(`${typeName}を選択しました。保存時に自動アップロードされます`, 'info');
+      input.value = '';
+      return;
+    }
+
+    // 編集モードの場合: 即座にアップロード
     const statusEl = document.getElementById(`job-${pdfType}-pdf-status`);
     if (statusEl) {
       statusEl.textContent = 'アップロード中...';
@@ -3261,9 +3415,6 @@ const JobModal = {
     }
 
     try {
-      // ファイルをBase64に変換
-      const base64Data = await this.fileToBase64(file);
-
       // アップロード実行
       const result = await API.uploadJobPdf(jobNo, pdfType, file.name, base64Data);
 
