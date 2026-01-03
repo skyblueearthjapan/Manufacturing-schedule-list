@@ -56,6 +56,10 @@ const JobModal = {
     // UI調整
     document.getElementById('job-modal-title').textContent = '工番登録';
 
+    // PDF セクションを表示（新規モードではdisabled状態）
+    document.getElementById('job-pdf-section').classList.remove('hidden');
+    this.setPdfSectionDisabled(true, '保存後にアップロード可能');
+
     this.open();
   },
 
@@ -84,8 +88,9 @@ const JobModal = {
     // UI調整
     document.getElementById('job-modal-title').textContent = '工番編集';
 
-    // PDF セクションを表示
+    // PDF セクションを表示（編集モードでは有効化）
     document.getElementById('job-pdf-section').classList.remove('hidden');
+    this.setPdfSectionDisabled(false);
     this.loadPdfStatus(job['工番']);
 
     this.open();
@@ -120,9 +125,39 @@ const JobModal = {
 
     // PDF関連をリセット
     this.pendingPdfs = { order: null, instruction: null };
-    document.getElementById('job-pdf-section').classList.add('hidden');
     this.resetPdfStatus('order');
     this.resetPdfStatus('instruction');
+  },
+
+  /**
+   * PDFセクション全体を有効/無効化
+   * @param {boolean} disabled
+   * @param {string} message - disabled時のステータスメッセージ
+   */
+  setPdfSectionDisabled(disabled, message = '') {
+    const section = document.getElementById('job-pdf-section');
+    if (!section) return;
+
+    // アップロードボタンを有効/無効化
+    const uploadBtns = section.querySelectorAll('button:not([id*="delete"])');
+    uploadBtns.forEach(btn => {
+      if (btn.textContent.includes('選択')) {
+        btn.disabled = disabled;
+        btn.style.opacity = disabled ? '0.5' : '1';
+      }
+    });
+
+    // ステータス表示
+    if (disabled && message) {
+      document.getElementById('job-order-pdf-status').textContent = message;
+      document.getElementById('job-order-pdf-status').className = 'pdf-status no-file';
+      document.getElementById('job-instruction-pdf-status').textContent = message;
+      document.getElementById('job-instruction-pdf-status').className = 'pdf-status no-file';
+    }
+
+    // 削除ボタンを非表示
+    document.getElementById('btn-order-pdf-delete').classList.add('hidden');
+    document.getElementById('btn-instruction-pdf-delete').classList.add('hidden');
   },
 
   /**

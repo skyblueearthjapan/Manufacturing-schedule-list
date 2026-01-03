@@ -31,6 +31,9 @@ const App = {
     // データロード
     await Store.loadBootstrapData();
 
+    // PDF情報を非同期で読み込み（UIブロックしない）
+    Store.loadAllJobPdfInfo();
+
     console.log('App initialized successfully');
   },
 
