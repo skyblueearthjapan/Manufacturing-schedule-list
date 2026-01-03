@@ -175,7 +175,19 @@
             <!-- 左ヘッダ：固定 -->
             <div class="w-[360px] shrink-0 border-r border-gray-300 bg-gray-100 px-3 py-2 flex items-center justify-between">
               <div class="text-xs text-gray-600 font-semibold">工番情報</div>
-              <button type="button" class="btn btn-primary text-xs py-1 px-2" onclick="JobModal.openNew()">＋ 工番追加</button>
+              <div class="flex items-center space-x-2">
+                <!-- 工番検索 -->
+                <div class="relative" id="job-search-container">
+                  <input type="text" id="job-search-input" class="border border-gray-300 rounded px-2 py-1 text-xs w-32 focus:ring-1 focus:ring-primary focus:border-primary" placeholder="工番/顧客/製品">
+                  <button type="button" id="job-search-clear" class="absolute right-1 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 hidden" title="クリア">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                  </button>
+                </div>
+                <span id="job-search-count" class="text-xs text-gray-500 hidden"></span>
+                <button type="button" class="btn btn-primary text-xs py-1 px-2" onclick="JobModal.openNew()">＋ 工番追加</button>
+              </div>
             </div>
 
             <!-- 右ヘッダ：横スクロール（ボディと連動） -->

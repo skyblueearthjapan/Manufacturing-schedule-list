@@ -251,6 +251,46 @@ const Utils = {
   isValidHexColor(input) {
     if (!input || typeof input !== 'string') return false;
     return /^#[0-9A-Fa-f]{6}$/.test(input.trim());
+  },
+
+  /**
+   * 全角英数字を半角に変換（検索用正規化の内部関数）
+   * @param {string} s
+   * @returns {string}
+   */
+  zenkakuToHankakuAscii(s) {
+    if (!s) return '';
+    // 全角英数字（Ａ-Ｚａ-ｚ０-９）→ 半角
+    // コードポイント差分: 0xFEE0
+    return s.replace(/[Ａ-Ｚａ-ｚ０-９]/g, (char) => {
+      return String.fromCharCode(char.charCodeAt(0) - 0xFEE0);
+    });
+  },
+
+  /**
+   * 検索用文字列正規化
+   * - 全角英数字→半角
+   * - 全角スペース→半角スペース
+   * - trim
+   * - 連続スペース→1つ
+   * - 小文字化
+   * @param {string} s
+   * @returns {string}
+   */
+  normalizeText(s) {
+    if (!s) return '';
+    let result = String(s);
+    // 全角英数字→半角
+    result = this.zenkakuToHankakuAscii(result);
+    // 全角スペース→半角
+    result = result.replace(/\u3000/g, ' ');
+    // trim
+    result = result.trim();
+    // 連続スペース→1つ
+    result = result.replace(/\s+/g, ' ');
+    // 小文字化
+    result = result.toLowerCase();
+    return result;
   }
 };
 
@@ -914,6 +954,7 @@ const Store = {
     topMemos: [], // 上部メモ
     topMemoExpanded: false, // 上部メモ展開状態（デフォルトOFF）
     showHiddenJobs: false, // 完了（非表示）工番を表示するか
+    jobSearchQuery: '', // 工番検索クエリ（大工程表用）
     displayStartDate: null,
     displayDays: 120,
     currentView: 'master',
@@ -1338,18 +1379,42 @@ const Store = {
     return this.state.jobs.find(j => j.jobId === jobId) || null;
   },
 
-  // 表示対象の工番を取得（非表示フィルタ適用）
+  // 表示対象の工番を取得（非表示フィルタ + 検索フィルタ適用）
   getVisibleJobs() {
+    let jobs;
     if (this.state.showHiddenJobs) {
       // 全て表示（deletedは除く）
-      return this.state.jobs.filter(j => j.status !== 'deleted');
+      jobs = this.state.jobs.filter(j => j.status !== 'deleted');
+    } else {
+      // 非表示工番を除外
+      jobs = this.state.jobs.filter(j => {
+        if (j.status === 'closed' || j.status === 'deleted') return false;
+        if (j.isHidden === true || j.isHidden === 'TRUE') return false;
+        return true;
+      });
     }
-    // 非表示工番を除外
-    return this.state.jobs.filter(j => {
-      if (j.status === 'closed' || j.status === 'deleted') return false;
-      if (j.isHidden === true || j.isHidden === 'TRUE') return false;
-      return true;
-    });
+
+    // 検索フィルタ適用
+    const query = this.state.jobSearchQuery;
+    if (query && query.trim()) {
+      const normalizedQuery = Utils.normalizeText(query);
+      jobs = jobs.filter(job => {
+        // 工番・顧客名・製品名を連結して正規化
+        const searchKey = Utils.normalizeText(
+          String(job['工番'] || '') + ' ' +
+          String(job['顧客名'] || '') + ' ' +
+          String(job['設備/製品名'] || '')
+        );
+        return searchKey.includes(normalizedQuery);
+      });
+    }
+
+    return jobs;
+  },
+
+  // 工番検索クエリを設定
+  setJobSearchQuery(query) {
+    this.setState({ jobSearchQuery: query });
   },
 
   // 工番のステータスを更新（完了/再開）
@@ -2680,14 +2745,15 @@ const JobModal = {
 
     let filtered = jobMaster;
     if (query && query.trim()) {
-      const lowerQuery = query.toLowerCase();
+      const normalizedQuery = Utils.normalizeText(query);
       filtered = jobMaster.filter(item => {
-        const jobNo = String(item['工番'] || '').toLowerCase();
-        const customer = String(item['客先名'] || '').toLowerCase();
-        const product = String(item['製品名'] || '').toLowerCase();
-        return jobNo.includes(lowerQuery) ||
-               customer.includes(lowerQuery) ||
-               product.includes(lowerQuery);
+        // 工番・客先名・製品名を連結して正規化
+        const searchKey = Utils.normalizeText(
+          String(item['工番'] || '') + ' ' +
+          String(item['客先名'] || '') + ' ' +
+          String(item['製品名'] || '')
+        );
+        return searchKey.includes(normalizedQuery);
       });
     }
 
@@ -5943,6 +6009,70 @@ const App = {
     document.getElementById('show-hidden-jobs')?.addEventListener('change', (e) => {
       Store.setShowHiddenJobs(e.target.checked);
     });
+
+    // 工番検索（大工程表用）
+    this.setupJobSearch();
+  },
+
+  // 工番検索のセットアップ
+  setupJobSearch() {
+    const input = document.getElementById('job-search-input');
+    const clearBtn = document.getElementById('job-search-clear');
+    const countEl = document.getElementById('job-search-count');
+
+    if (!input) return;
+
+    let debounceTimer;
+    input.addEventListener('input', (e) => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        Store.setJobSearchQuery(e.target.value);
+        this.updateJobSearchUI();
+      }, 200);
+    });
+
+    // クリアボタン
+    clearBtn?.addEventListener('click', () => {
+      input.value = '';
+      Store.setJobSearchQuery('');
+      this.updateJobSearchUI();
+      input.focus();
+    });
+
+    // 初期状態更新
+    this.updateJobSearchUI();
+
+    // Store変更時にUI更新
+    Store.subscribe(() => this.updateJobSearchUI());
+  },
+
+  // 工番検索UIの状態更新（ヒット件数、クリアボタン表示）
+  updateJobSearchUI() {
+    const input = document.getElementById('job-search-input');
+    const clearBtn = document.getElementById('job-search-clear');
+    const countEl = document.getElementById('job-search-count');
+
+    const query = Store.state.jobSearchQuery;
+    const hasQuery = query && query.trim().length > 0;
+
+    // クリアボタン表示/非表示
+    if (clearBtn) {
+      clearBtn.classList.toggle('hidden', !hasQuery);
+    }
+
+    // ヒット件数表示
+    if (countEl) {
+      if (hasQuery) {
+        const visibleCount = Store.getVisibleJobs().length;
+        const totalCount = Store.state.showHiddenJobs
+          ? Store.state.jobs.filter(j => j.status !== 'deleted').length
+          : Store.state.jobs.filter(j => j.status !== 'closed' && j.status !== 'deleted' && j.isHidden !== true && j.isHidden !== 'TRUE').length;
+        countEl.textContent = `${visibleCount}/${totalCount}件`;
+        countEl.classList.remove('hidden');
+      } else {
+        countEl.classList.add('hidden');
+      }
+    }
   },
 
   onDisplayRangeChange() {
