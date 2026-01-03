@@ -703,6 +703,27 @@
             <input type="text" id="job-status-text" class="form-input" placeholder="例: 出荷先:後報">
           </div>
 
+          <!-- PDF添付（編集モードのみ表示） -->
+          <div id="job-pdf-section" class="form-group hidden">
+            <label class="form-label">PDF添付</label>
+            <div class="pdf-upload-row">
+              <div class="pdf-upload-item">
+                <span class="pdf-upload-label">受注表:</span>
+                <span id="job-order-pdf-status" class="pdf-status no-file">未登録</span>
+                <input type="file" id="job-order-pdf-input" accept=".pdf" class="hidden" onchange="JobModal.onPdfSelected('order', this)">
+                <button type="button" class="btn btn-sm btn-outline" onclick="document.getElementById('job-order-pdf-input').click()">選択</button>
+                <button type="button" id="btn-order-pdf-delete" class="btn btn-sm btn-danger-outline hidden" onclick="JobModal.deletePdf('order')">削除</button>
+              </div>
+              <div class="pdf-upload-item">
+                <span class="pdf-upload-label">指示書:</span>
+                <span id="job-instruction-pdf-status" class="pdf-status no-file">未登録</span>
+                <input type="file" id="job-instruction-pdf-input" accept=".pdf" class="hidden" onchange="JobModal.onPdfSelected('instruction', this)">
+                <button type="button" class="btn btn-sm btn-outline" onclick="document.getElementById('job-instruction-pdf-input').click()">選択</button>
+                <button type="button" id="btn-instruction-pdf-delete" class="btn btn-sm btn-danger-outline hidden" onclick="JobModal.deletePdf('instruction')">削除</button>
+              </div>
+            </div>
+          </div>
+
           <!-- 担当者（横並び） -->
           <div class="form-row">
             <div class="form-group flex-1">

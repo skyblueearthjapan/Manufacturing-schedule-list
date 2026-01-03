@@ -220,6 +220,19 @@ function api_setTopMemoActive(memoId, isActive) {
   return sanitizeForClient(setTopMemoActive(memoId, isActive));
 }
 
+// ========== PDF管理 API ==========
+function api_uploadJobPdf(jobNo, pdfType, fileName, base64Data) {
+  return sanitizeForClient(uploadJobPdf(jobNo, pdfType, fileName, base64Data));
+}
+
+function api_deleteJobPdf(jobNo, pdfType) {
+  return sanitizeForClient(deleteJobPdf(jobNo, pdfType));
+}
+
+function api_getJobPdfInfo(jobNo) {
+  return sanitizeForClient(getJobPdfInfo(jobNo));
+}
+
 /**
  * テスト用：スプレッドシート接続確認
  * GASエディタで実行して確認してください

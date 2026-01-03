@@ -15,6 +15,9 @@ const Store = {
     attachments: [],
     trips: [],
 
+    // PDF情報キャッシュ (工番 -> { order: {fileId, url}, instruction: {fileId, url} })
+    pdfInfoCache: {},
+
     // 表示設定
     displayStartDate: null, // init()で設定
     displayDays: 70,
@@ -265,6 +268,57 @@ const Store = {
    */
   hasAttachments(jobId) {
     return this.state.attachments.some(a => a.jobId === jobId);
+  },
+
+  // ========== PDF情報管理 ==========
+
+  /**
+   * 工番のPDF情報を取得（キャッシュから）
+   * @param {string} jobNo - 工番
+   * @returns {Object|null} - { order: { fileId, url } | null, instruction: { fileId, url } | null }
+   */
+  getJobPdfInfo(jobNo) {
+    return this.state.pdfInfoCache[jobNo] || null;
+  },
+
+  /**
+   * 工番のPDF情報をキャッシュに設定
+   * @param {string} jobNo - 工番
+   * @param {Object} pdfInfo - { order: {...}, instruction: {...} }
+   */
+  setJobPdfInfo(jobNo, pdfInfo) {
+    const pdfInfoCache = { ...this.state.pdfInfoCache, [jobNo]: pdfInfo };
+    this.setState({ pdfInfoCache });
+  },
+
+  /**
+   * 工番のPDF情報をサーバーから読み込み
+   * @param {string} jobNo - 工番
+   * @returns {Promise<Object>}
+   */
+  async loadJobPdfInfo(jobNo) {
+    try {
+      const pdfInfo = await API.getJobPdfInfo(jobNo);
+      this.setJobPdfInfo(jobNo, pdfInfo);
+      return pdfInfo;
+    } catch (error) {
+      console.error('Failed to load PDF info:', jobNo, error);
+      return null;
+    }
+  },
+
+  /**
+   * 全ての工番のPDF情報を読み込み（バッチ）
+   */
+  async loadAllJobPdfInfo() {
+    const jobs = this.state.jobs;
+    for (const job of jobs) {
+      const jobNo = job['工番'];
+      if (jobNo && !this.state.pdfInfoCache[jobNo]) {
+        // 非同期で読み込み（UIをブロックしない）
+        this.loadJobPdfInfo(jobNo);
+      }
+    }
   }
 };
 </script>

@@ -133,6 +133,39 @@ const API = {
    */
   async createJob(payload) {
     return await this.call('api_createJob', payload);
+  },
+
+  // ========== PDF管理 ==========
+
+  /**
+   * PDFアップロード
+   * @param {string} jobNo - 工番
+   * @param {string} pdfType - PDFタイプ ('order' | 'instruction')
+   * @param {string} fileName - ファイル名
+   * @param {string} base64Data - Base64エンコードされたPDFデータ
+   * @returns {Promise<Object>} - { fileId, fileName, url }
+   */
+  async uploadJobPdf(jobNo, pdfType, fileName, base64Data) {
+    return await this.call('api_uploadJobPdf', jobNo, pdfType, fileName, base64Data);
+  },
+
+  /**
+   * PDF削除
+   * @param {string} jobNo - 工番
+   * @param {string} pdfType - PDFタイプ ('order' | 'instruction')
+   * @returns {Promise<Object>} - { success: true }
+   */
+  async deleteJobPdf(jobNo, pdfType) {
+    return await this.call('api_deleteJobPdf', jobNo, pdfType);
+  },
+
+  /**
+   * PDF情報取得
+   * @param {string} jobNo - 工番
+   * @returns {Promise<Object>} - { order: { fileId, url } | null, instruction: { fileId, url } | null }
+   */
+  async getJobPdfInfo(jobNo) {
+    return await this.call('api_getJobPdfInfo', jobNo);
   }
 };
 </script>

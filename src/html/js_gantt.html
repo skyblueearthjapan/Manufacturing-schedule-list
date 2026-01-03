@@ -133,6 +133,11 @@ const Gantt = {
       const shipDate = this.formatShortDate(job['出荷予定日']);
       const drawDate = this.formatShortDate(job['出図予定日']);
 
+      // PDF情報（Storeから取得、なければ空オブジェクト）
+      const pdfInfo = Store.getJobPdfInfo(job['工番']) || { order: null, instruction: null };
+      const hasOrderPdf = !!pdfInfo.order;
+      const hasInstructionPdf = !!pdfInfo.instruction;
+
       html += `
         <div class="job-info-block" data-job-id="${job.jobId}" onclick="Gantt.onJobClick('${job.jobId}')">
           <div class="job-info-content">
@@ -157,6 +162,19 @@ const Gantt = {
               <div class="job-info-product">${Utils.escapeHtml(job['設備/製品名'] || '-')}</div>
               <div class="job-info-qty">台数：${job['台数'] || '-'}</div>
               <div class="job-info-ship-date">出荷予定：${shipDate || '-'}</div>
+            </div>
+            <!-- 4行目：PDFボタン -->
+            <div class="job-info-row4 job-pdf-buttons">
+              <button type="button" class="job-pdf-btn ${hasOrderPdf ? 'has-pdf' : 'no-pdf'}"
+                      onclick="event.stopPropagation(); Gantt.openJobPdf('${Utils.escapeHtml(job['工番'])}', 'order');"
+                      title="${hasOrderPdf ? '受注表を開く' : '受注表なし'}">
+                <span class="pdf-icon">📄</span>受注表
+              </button>
+              <button type="button" class="job-pdf-btn ${hasInstructionPdf ? 'has-pdf' : 'no-pdf'}"
+                      onclick="event.stopPropagation(); Gantt.openJobPdf('${Utils.escapeHtml(job['工番'])}', 'instruction');"
+                      title="${hasInstructionPdf ? '工番別指示書を開く' : '工番別指示書なし'}">
+                <span class="pdf-icon">📄</span>指示書
+              </button>
             </div>
           </div>
         </div>
@@ -384,6 +402,27 @@ const Gantt = {
   onJobClick(jobId) {
     console.log('Job clicked:', jobId);
     JobDetail.open(jobId);
+  },
+
+  /**
+   * PDFを開く
+   * @param {string} jobNo - 工番
+   * @param {string} pdfType - 'order' | 'instruction'
+   */
+  async openJobPdf(jobNo, pdfType) {
+    console.log('Opening PDF:', jobNo, pdfType);
+
+    const pdfInfo = Store.getJobPdfInfo(jobNo);
+    const targetPdf = pdfInfo?.[pdfType];
+
+    if (targetPdf && targetPdf.url) {
+      // PDFがある場合は新しいタブで開く
+      window.open(targetPdf.url, '_blank');
+    } else {
+      // PDFがない場合はアップロードを促す
+      const typeName = pdfType === 'order' ? '受注表' : '工番別指示書';
+      Utils.showToast(`${typeName}が登録されていません。工番編集からアップロードしてください。`, 'info');
+    }
   },
 
   /**

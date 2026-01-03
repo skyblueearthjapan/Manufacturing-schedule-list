@@ -2661,3 +2661,249 @@ function deleteRowsByJobId(sheetName, columnName, value) {
   }
 }
 
+// ============================================
+// PDF ファイル管理（共有ドライブ）
+// ============================================
+
+// PDF保存先フォルダID（共有ドライブ内のフォルダ）
+const PDF_FOLDER_ID = '1Om_Rq22kyVIrRLi0yyvJD8lrBvPD3uGm';
+
+// PDFタイプの列名マッピング
+const PDF_TYPE_COLUMNS = {
+  'order': 'orderPdfFileId',        // 受注表
+  'instruction': 'instructionPdfFileId'  // 工番別指示書
+};
+
+/**
+ * 工番用のPDFサブフォルダを取得または作成
+ * @param {string} jobNo - 工番
+ * @returns {GoogleAppsScript.Drive.Folder}
+ */
+function getOrCreateJobPdfFolder_(jobNo) {
+  console.log('[getOrCreateJobPdfFolder_] 工番:', jobNo);
+
+  const parentFolder = DriveApp.getFolderById(PDF_FOLDER_ID);
+  const folderName = jobNo;
+
+  // 既存フォルダを検索
+  const folders = parentFolder.getFoldersByName(folderName);
+  if (folders.hasNext()) {
+    const existingFolder = folders.next();
+    console.log('[getOrCreateJobPdfFolder_] 既存フォルダ使用:', existingFolder.getId());
+    return existingFolder;
+  }
+
+  // 新規作成
+  const newFolder = parentFolder.createFolder(folderName);
+  console.log('[getOrCreateJobPdfFolder_] 新規フォルダ作成:', newFolder.getId());
+  return newFolder;
+}
+
+/**
+ * PDFをアップロード
+ * @param {string} jobNo - 工番
+ * @param {string} pdfType - PDFタイプ ('order' | 'instruction')
+ * @param {string} fileName - ファイル名
+ * @param {string} base64Data - Base64エンコードされたPDFデータ
+ * @returns {Object} - { fileId, fileName, url }
+ */
+function uploadJobPdf(jobNo, pdfType, fileName, base64Data) {
+  console.log('[uploadJobPdf] 開始:', jobNo, pdfType, fileName);
+
+  // PDFタイプの検証
+  if (!PDF_TYPE_COLUMNS[pdfType]) {
+    throw new Error('無効なPDFタイプ: ' + pdfType);
+  }
+
+  // 工番の存在確認
+  const job = findJobByJobNo_(jobNo);
+  if (!job) {
+    throw new Error('工番が見つかりません: ' + jobNo);
+  }
+
+  // 既存ファイルがあれば削除
+  const columnName = PDF_TYPE_COLUMNS[pdfType];
+  const existingFileId = job[columnName];
+  if (existingFileId) {
+    try {
+      DriveApp.getFileById(existingFileId).setTrashed(true);
+      console.log('[uploadJobPdf] 既存ファイル削除:', existingFileId);
+    } catch (e) {
+      console.log('[uploadJobPdf] 既存ファイル削除スキップ:', e.message);
+    }
+  }
+
+  // フォルダ取得/作成
+  const folder = getOrCreateJobPdfFolder_(jobNo);
+
+  // Base64デコードしてBlobを作成
+  const decodedData = Utilities.base64Decode(base64Data);
+  const blob = Utilities.newBlob(decodedData, 'application/pdf', fileName);
+
+  // ファイル作成
+  const file = folder.createFile(blob);
+  const fileId = file.getId();
+  const url = file.getUrl();
+
+  console.log('[uploadJobPdf] ファイル作成:', fileId, url);
+
+  // Jobsシートにファイル IDを保存
+  updateJobPdfFileId_(job.jobId, columnName, fileId);
+
+  return {
+    fileId: fileId,
+    fileName: fileName,
+    url: url
+  };
+}
+
+/**
+ * PDFを削除
+ * @param {string} jobNo - 工番
+ * @param {string} pdfType - PDFタイプ ('order' | 'instruction')
+ * @returns {Object} - { success: true }
+ */
+function deleteJobPdf(jobNo, pdfType) {
+  console.log('[deleteJobPdf] 開始:', jobNo, pdfType);
+
+  // PDFタイプの検証
+  if (!PDF_TYPE_COLUMNS[pdfType]) {
+    throw new Error('無効なPDFタイプ: ' + pdfType);
+  }
+
+  // 工番の存在確認
+  const job = findJobByJobNo_(jobNo);
+  if (!job) {
+    throw new Error('工番が見つかりません: ' + jobNo);
+  }
+
+  const columnName = PDF_TYPE_COLUMNS[pdfType];
+  const fileId = job[columnName];
+
+  if (!fileId) {
+    console.log('[deleteJobPdf] ファイルIDなし、スキップ');
+    return { success: true };
+  }
+
+  // ファイル削除（ゴミ箱へ移動）
+  try {
+    DriveApp.getFileById(fileId).setTrashed(true);
+    console.log('[deleteJobPdf] ファイル削除:', fileId);
+  } catch (e) {
+    console.log('[deleteJobPdf] ファイル削除エラー:', e.message);
+  }
+
+  // JobsシートからファイルIDをクリア
+  updateJobPdfFileId_(job.jobId, columnName, '');
+
+  return { success: true };
+}
+
+/**
+ * 工番のPDF情報を取得
+ * @param {string} jobNo - 工番
+ * @returns {Object} - { order: { fileId, url } | null, instruction: { fileId, url } | null }
+ */
+function getJobPdfInfo(jobNo) {
+  console.log('[getJobPdfInfo] 工番:', jobNo);
+
+  const job = findJobByJobNo_(jobNo);
+  if (!job) {
+    return { order: null, instruction: null };
+  }
+
+  const result = {
+    order: null,
+    instruction: null
+  };
+
+  // 受注表
+  if (job.orderPdfFileId) {
+    try {
+      const file = DriveApp.getFileById(job.orderPdfFileId);
+      result.order = {
+        fileId: job.orderPdfFileId,
+        fileName: file.getName(),
+        url: file.getUrl()
+      };
+    } catch (e) {
+      console.log('[getJobPdfInfo] 受注表ファイル取得エラー:', e.message);
+    }
+  }
+
+  // 工番別指示書
+  if (job.instructionPdfFileId) {
+    try {
+      const file = DriveApp.getFileById(job.instructionPdfFileId);
+      result.instruction = {
+        fileId: job.instructionPdfFileId,
+        fileName: file.getName(),
+        url: file.getUrl()
+      };
+    } catch (e) {
+      console.log('[getJobPdfInfo] 指示書ファイル取得エラー:', e.message);
+    }
+  }
+
+  return result;
+}
+
+/**
+ * 工番（工番文字列）でJobを検索
+ * @param {string} jobNo - 工番
+ * @returns {Object|null}
+ */
+function findJobByJobNo_(jobNo) {
+  const sheet = getSheet(CONFIG.SHEETS.JOBS);
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+
+  const jobNoIndex = headers.indexOf('工番');
+  if (jobNoIndex === -1) return null;
+
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][jobNoIndex] === jobNo) {
+      const job = {};
+      headers.forEach((header, index) => {
+        job[header] = data[i][index];
+      });
+      return job;
+    }
+  }
+  return null;
+}
+
+/**
+ * JobsシートのPDFファイルIDを更新
+ * @param {string} jobId - jobId
+ * @param {string} columnName - 列名 (orderPdfFileId | instructionPdfFileId)
+ * @param {string} fileId - ファイルID（削除時は空文字）
+ */
+function updateJobPdfFileId_(jobId, columnName, fileId) {
+  const sheet = getSheet(CONFIG.SHEETS.JOBS);
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+
+  const jobIdIndex = headers.indexOf('jobId');
+  let columnIndex = headers.indexOf(columnName);
+
+  // 列が存在しない場合は追加
+  if (columnIndex === -1) {
+    const lastCol = headers.length;
+    sheet.getRange(1, lastCol + 1).setValue(columnName);
+    columnIndex = lastCol;
+    console.log('[updateJobPdfFileId_] 列追加:', columnName, '位置:', columnIndex + 1);
+  }
+
+  // 対象行を検索して更新
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][jobIdIndex] === jobId) {
+      sheet.getRange(i + 1, columnIndex + 1).setValue(fileId);
+      console.log('[updateJobPdfFileId_] 更新完了: row=', i + 1, 'col=', columnIndex + 1, 'value=', fileId);
+      return;
+    }
+  }
+
+  throw new Error('Job更新対象が見つかりません: ' + jobId);
+}
+
