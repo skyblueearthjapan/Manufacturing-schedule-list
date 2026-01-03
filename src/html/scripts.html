@@ -5042,10 +5042,16 @@ const WeeklyPlan = {
     const endMonth = Utils.getMonth(weekEnd);
     const endDay = Utils.getDay(weekEnd);
 
-    document.getElementById('weekly-range-display').textContent =
-      `${startMonth}/${startDay}（${Utils.getDayOfWeek(this.weekStart)}）〜 ${endMonth}/${endDay}（${Utils.getDayOfWeek(weekEnd)}）`;
+    const rangeText = `${startMonth}/${startDay}（${Utils.getDayOfWeek(this.weekStart)}）〜 ${endMonth}/${endDay}（${Utils.getDayOfWeek(weekEnd)}）`;
 
+    document.getElementById('weekly-range-display').textContent = rangeText;
     document.getElementById('weekly-start-date').value = this.weekStart;
+
+    // 印刷用ヘッダーにも日付範囲を設定
+    const printRange = document.getElementById('weekly-print-range');
+    if (printRange) {
+      printRange.textContent = rangeText;
+    }
   },
 
   renderDateRow() {
@@ -5120,41 +5126,6 @@ const WeeklyPlan = {
     });
 
     tbody.innerHTML = html;
-  },
-
-  exportCSV() {
-    const { rows, dates } = this.buildImportantWeekRows();
-
-    const headers = ['工番', '製品名', '顧客名', '出荷予定日', '月', '火', '水', '木', '金', '土', '日'];
-    const csvRows = rows.map(row => {
-      const job = row.job;
-      const dayCells = row.dayCells.map(dayProcesses =>
-        dayProcesses.map(p => p.name).join(' / ')
-      );
-      return [
-        job['工番'] || '',
-        job['設備/製品名'] || '',
-        job['顧客名'] || '',
-        job['出荷予定日'] || '',
-        ...dayCells
-      ];
-    });
-
-    const csv = [headers, ...csvRows]
-      .map(row => row.map(cell => `"${(cell || '').replace(/"/g, '""')}"`).join(','))
-      .join('\n');
-
-    const bom = '\uFEFF';
-    const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `週刊重要工程_${this.weekStart}.csv`;
-    a.click();
-
-    URL.revokeObjectURL(url);
-    Utils.showToast('CSVをダウンロードしました', 'success');
   }
 };
 
