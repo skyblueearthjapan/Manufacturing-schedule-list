@@ -250,8 +250,8 @@
     <!-- WeeklyPlanView（今週の予定 - 週刊重要工程形式） -->
     <div id="view-weekly" class="view-container hidden">
       <div class="weekly-container p-4">
-        <!-- ヘッダー（印刷時は非表示） -->
-        <div class="flex items-center justify-between mb-4 weekly-no-print">
+        <!-- ヘッダー -->
+        <div class="flex items-center justify-between mb-4">
           <div class="flex items-center space-x-4">
             <h2 class="text-lg font-bold text-gray-800">今週の予定</h2>
             <div class="flex items-center space-x-2">
@@ -271,7 +271,7 @@
             <input type="date" id="weekly-start-date" onchange="WeeklyPlan.onDateChange()"
                    class="border border-gray-300 rounded px-2 py-1 text-sm">
           </div>
-          <button onclick="window.print()" class="btn btn-primary text-sm">
+          <button onclick="WeeklyPlan.print()" class="btn btn-primary text-sm">
             <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
             </svg>
@@ -279,38 +279,29 @@
           </button>
         </div>
 
-        <!-- 印刷対象エリア -->
-        <div id="weekly-print-area">
-          <!-- 印刷用ヘッダー（印刷時のみ表示） -->
-          <div class="weekly-print-header">
-            <div class="text-lg font-bold">今週の予定</div>
-            <div id="weekly-print-range" class="text-sm text-gray-600"></div>
-          </div>
-
-          <!-- 週間重要工程テーブル -->
-          <div class="bg-white rounded-lg shadow overflow-hidden">
-            <table class="w-full weekly-important-table">
-              <thead class="bg-gray-100">
-                <tr>
-                  <th class="weekly-th-job">工番情報</th>
-                  <th class="weekly-th-day">月</th>
-                  <th class="weekly-th-day">火</th>
-                  <th class="weekly-th-day">水</th>
-                  <th class="weekly-th-day">木</th>
-                  <th class="weekly-th-day">金</th>
-                  <th class="weekly-th-day weekend">土</th>
-                  <th class="weekly-th-day weekend">日</th>
-                </tr>
-                <tr id="weekly-date-row" class="bg-gray-50 text-xs text-gray-500">
-                  <th></th>
-                  <!-- JSで日付を埋める -->
+        <!-- 週間重要工程テーブル -->
+        <div id="weekly-print-area" class="bg-white rounded-lg shadow overflow-hidden">
+          <table class="w-full weekly-important-table">
+            <thead class="bg-gray-100">
+              <tr>
+                <th class="weekly-th-job">工番情報</th>
+                <th class="weekly-th-day">月</th>
+                <th class="weekly-th-day">火</th>
+                <th class="weekly-th-day">水</th>
+                <th class="weekly-th-day">木</th>
+                <th class="weekly-th-day">金</th>
+                <th class="weekly-th-day weekend">土</th>
+                <th class="weekly-th-day weekend">日</th>
+              </tr>
+              <tr id="weekly-date-row" class="bg-gray-50 text-xs text-gray-500">
+                <th></th>
+                <!-- JSで日付を埋める -->
               </tr>
             </thead>
             <tbody id="weekly-tbody">
               <!-- JSで生成 -->
             </tbody>
           </table>
-          </div>
         </div>
       </div>
     </div>

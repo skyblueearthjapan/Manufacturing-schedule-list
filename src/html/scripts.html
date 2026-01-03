@@ -5046,12 +5046,6 @@ const WeeklyPlan = {
 
     document.getElementById('weekly-range-display').textContent = rangeText;
     document.getElementById('weekly-start-date').value = this.weekStart;
-
-    // 印刷用ヘッダーにも日付範囲を設定
-    const printRange = document.getElementById('weekly-print-range');
-    if (printRange) {
-      printRange.textContent = rangeText;
-    }
   },
 
   renderDateRow() {
@@ -5126,6 +5120,142 @@ const WeeklyPlan = {
     });
 
     tbody.innerHTML = html;
+  },
+
+  /**
+   * 今週の予定を新規ウィンドウで印刷
+   * 画面のDOMを複製し、CSSを注入して印刷する
+   */
+  print() {
+    // 週の開始日・終了日を取得
+    const weekEnd = this.getWeekEnd(this.weekStart);
+    const startMonth = Utils.getMonth(this.weekStart);
+    const startDay = Utils.getDay(this.weekStart);
+    const endMonth = Utils.getMonth(weekEnd);
+    const endDay = Utils.getDay(weekEnd);
+
+    // 印刷タイトル：今週の予定_MM/DD-MM/DD
+    const printTitle = `今週の予定_${startMonth}/${startDay}-${endMonth}/${endDay}`;
+
+    // 印刷対象DOMを取得（テーブル部分）
+    const printArea = document.getElementById('weekly-print-area');
+    if (!printArea) {
+      Utils.showToast('印刷対象が見つかりません', 'error');
+      return;
+    }
+
+    // 新規ウィンドウを開く
+    const win = window.open('', '_blank');
+    if (!win) {
+      Utils.showToast('ポップアップがブロックされました', 'error');
+      return;
+    }
+
+    // 元画面のスタイルを収集
+    const styles = [];
+
+    // link要素（外部CSS）を収集
+    document.querySelectorAll('link[rel="stylesheet"]').forEach(link => {
+      styles.push(`<link rel="stylesheet" href="${link.href}">`);
+    });
+
+    // style要素（インラインCSS）を収集
+    document.querySelectorAll('style').forEach(style => {
+      styles.push(`<style>${style.innerHTML}</style>`);
+    });
+
+    // 印刷用の追加CSS
+    const printCSS = `
+      <style>
+        @page {
+          size: A4 landscape;
+          margin: 10mm;
+        }
+        @media print {
+          * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          body {
+            margin: 0;
+            padding: 16px;
+          }
+          /* overflow/transform問題対策 */
+          .weekly-important-table,
+          .weekly-important-table * {
+            overflow: visible !important;
+            transform: none !important;
+          }
+          /* 行の途中で分割しない */
+          .weekly-important-table tr {
+            break-inside: avoid;
+            page-break-inside: avoid;
+          }
+        }
+        /* 印刷ヘッダー */
+        .print-header {
+          margin-bottom: 16px;
+          padding-bottom: 8px;
+          border-bottom: 2px solid #333;
+        }
+        .print-header h1 {
+          font-size: 18px;
+          font-weight: bold;
+          margin: 0 0 4px 0;
+        }
+        .print-header .date-range {
+          font-size: 12px;
+          color: #666;
+        }
+        /* テーブル調整 */
+        .weekly-important-table {
+          width: 100%;
+          border-collapse: collapse;
+        }
+        .weekly-important-table th,
+        .weekly-important-table td {
+          border: 1px solid #d1d5db;
+        }
+      </style>
+    `;
+
+    // 印刷対象をクローン
+    const clone = printArea.cloneNode(true);
+
+    // 印刷用HTML生成
+    const rangeText = `${startMonth}/${startDay}（${Utils.getDayOfWeek(this.weekStart)}）〜 ${endMonth}/${endDay}（${Utils.getDayOfWeek(weekEnd)}）`;
+
+    win.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>${printTitle}</title>
+        ${styles.join('\n')}
+        ${printCSS}
+      </head>
+      <body>
+        <div class="print-header">
+          <h1>今週の予定</h1>
+          <div class="date-range">${rangeText}</div>
+        </div>
+        ${clone.outerHTML}
+      </body>
+      </html>
+    `);
+    win.document.close();
+
+    // レンダリング待ちして印刷実行
+    win.onload = () => {
+      setTimeout(() => {
+        win.focus();
+        win.print();
+        // 印刷ダイアログが閉じたらウィンドウを閉じる（ブラウザによっては閉じられない場合あり）
+        setTimeout(() => {
+          win.close();
+        }, 500);
+      }, 300);
+    };
   }
 };
 
