@@ -2380,41 +2380,68 @@ function exportJobDetailToSpreadsheet(exportData) {
     sheet.setColumnWidth(i, 22);
   }
 
-  // 「生産工程表ファイル追加」フォルダに保存
+  // スプレッドシートをフラッシュして確定
   SpreadsheetApp.flush();
+
+  const spreadsheetId = ss.getId();
+  console.log('[exportJobDetailToSpreadsheet] createdSpreadsheetId:', spreadsheetId);
+
+  // 「工番別工程表」フォルダに移動
   try {
-    const targetFolder = getOrCreateExportFolder();
-    const file = DriveApp.getFileById(ss.getId());
-    file.moveTo(targetFolder);
+    moveFileToOutputFolder_(spreadsheetId);
+    console.log('[exportJobDetailToSpreadsheet] ファイルをフォルダに移動完了');
   } catch (e) {
     // フォルダ移動に失敗してもルートにあるので続行
-    console.log('フォルダ移動スキップ: ' + e.message);
+    console.error('[exportJobDetailToSpreadsheet] フォルダ移動失敗:', e, e.stack);
   }
 
   return {
     success: true,
     url: ss.getUrl(),
     fileName: fileName,
-    spreadsheetId: ss.getId(),
+    spreadsheetId: spreadsheetId,
     blockCount: blockCount // 分割数を返す
   };
 }
 
+// 出力先フォルダ名（固定）
+const OUTPUT_FOLDER_NAME = '工番別工程表';
+
 /**
- * 出力用フォルダを取得または作成
- * フォルダ名: 「生産工程表ファイル追加」
+ * 出力先フォルダを取得。なければMyDrive直下に作成して返す。
  */
-function getOrCreateExportFolder() {
-  const FOLDER_NAME = '生産工程表ファイル追加';
-
-  // 既存フォルダを検索
-  const folders = DriveApp.getFoldersByName(FOLDER_NAME);
-  if (folders.hasNext()) {
-    return folders.next();
+function getOrCreateOutputFolder_() {
+  console.log('[getOrCreateOutputFolder_] フォルダ検索:', OUTPUT_FOLDER_NAME);
+  const it = DriveApp.getFoldersByName(OUTPUT_FOLDER_NAME);
+  if (it.hasNext()) {
+    const folder = it.next();
+    console.log('[getOrCreateOutputFolder_] 既存フォルダ発見:', folder.getId());
+    return folder;
   }
+  console.log('[getOrCreateOutputFolder_] フォルダ作成');
+  const newFolder = DriveApp.createFolder(OUTPUT_FOLDER_NAME);
+  console.log('[getOrCreateOutputFolder_] 作成完了:', newFolder.getId());
+  return newFolder;
+}
 
-  // なければ作成（マイドライブ直下）
-  return DriveApp.createFolder(FOLDER_NAME);
+/**
+ * 作成したスプレッドシート(ファイル)を出力フォルダへ移動（MyDrive直下から外す）
+ * @param {string} spreadsheetId - スプレッドシートのID
+ */
+function moveFileToOutputFolder_(spreadsheetId) {
+  console.log('[moveFileToOutputFolder_] 開始:', spreadsheetId);
+
+  const folder = getOrCreateOutputFolder_();
+  const file = DriveApp.getFileById(spreadsheetId);
+  console.log('[moveFileToOutputFolder_] ファイル取得:', file.getName());
+
+  // フォルダに追加
+  folder.addFile(file);
+  console.log('[moveFileToOutputFolder_] フォルダに追加完了');
+
+  // MyDrive直下から削除（ファイル自体は削除されない）
+  DriveApp.getRootFolder().removeFile(file);
+  console.log('[moveFileToOutputFolder_] ルートから除外完了');
 }
 
 /**
