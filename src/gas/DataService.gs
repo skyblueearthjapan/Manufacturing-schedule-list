@@ -2195,6 +2195,20 @@ function exportJobDetailToSpreadsheet(exportData) {
   const schedules = exportData.schedules;
   const dates = exportData.dates;
   const theme = exportData.theme || 'color'; // 'color' or 'mono_navy'
+  const paperSize = exportData.paperSize || 'a4'; // 'a4' or 'a3'
+
+  // 用紙サイズに応じた1段あたりの最大日付列数
+  // A4横: 約28列、A3横: 約42列（工程列を除く）
+  const MAX_COLS_A4 = 28;
+  const MAX_COLS_A3 = 42;
+  const maxColsPerBlock = paperSize === 'a3' ? MAX_COLS_A3 : MAX_COLS_A4;
+
+  // 日付を複数ブロックに分割
+  const dateBlocks = [];
+  for (let i = 0; i < dates.length; i += maxColsPerBlock) {
+    dateBlocks.push(dates.slice(i, i + maxColsPerBlock));
+  }
+  const blockCount = dateBlocks.length;
 
   // スプレッドシートを作成
   const timestamp = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyyMMdd_HHmm');
@@ -2204,109 +2218,165 @@ function exportJobDetailToSpreadsheet(exportData) {
   const sheet = ss.getActiveSheet();
   sheet.setName('工番別工程表');
 
-  // ヘッダー情報を書き込み
-  // A1: タイトル、B1: 顧客、A2: 工番、B2: 製品
-  sheet.getRange('A1').setValue('工番別工程表').setFontWeight('bold').setFontSize(14);
-  sheet.getRange('B1').setValue(`顧客: ${job.customer}`);
-  sheet.getRange('A2').setValue(`工番: ${job.jobNo}`);
-  sheet.getRange('B2').setValue(`製品: ${job.product}`);
+  // 各ブロックを縦に積み上げる
+  let currentRow = 1;
 
-  // 日付ヘッダー行を作成（4行目）
-  const headerRow = 4;
-  sheet.getRange(headerRow, 1).setValue('工程');
-  sheet.getRange(headerRow, 1).setBackground('#f3f4f6').setFontWeight('bold');
+  for (let blockIdx = 0; blockIdx < blockCount; blockIdx++) {
+    const blockDates = dateBlocks[blockIdx];
+    const blockStartRow = currentRow;
 
-  // 日付を書き込み
-  dates.forEach((date, i) => {
-    const cell = sheet.getRange(headerRow, i + 2);
-    const d = new Date(date);
-    const month = d.getMonth() + 1;
-    const day = d.getDate();
-    const dow = ['日', '月', '火', '水', '木', '金', '土'][d.getDay()];
-    cell.setValue(`${month}/${day}\n${dow}`);
-    cell.setHorizontalAlignment('center');
-    cell.setVerticalAlignment('middle');
-    cell.setFontSize(8);
-    cell.setWrap(true);
+    // ヘッダー情報（各ブロックの先頭に配置）
+    sheet.getRange(currentRow, 1).setValue('工番別工程表').setFontWeight('bold').setFontSize(14);
+    sheet.getRange(currentRow, 2).setValue(`顧客: ${job.customer}`);
+    currentRow++;
+    sheet.getRange(currentRow, 1).setValue(`工番: ${job.jobNo}`);
+    sheet.getRange(currentRow, 2).setValue(`製品: ${job.product}`);
 
-    // 休日背景（両テーマ共通: 土曜=薄黄、日曜=ピンク）
-    if (d.getDay() === 0) {
-      cell.setBackground('#fee2e2'); // 日曜: ピンク
-    } else if (d.getDay() === 6) {
-      cell.setBackground('#fef3c7'); // 土曜: 薄黄
-    } else {
-      cell.setBackground('#f3f4f6');
+    // ブロック番号表示（2段以上の場合）
+    if (blockCount > 1) {
+      const blockLabel = `(${blockIdx + 1}/${blockCount})`;
+      sheet.getRange(currentRow, 3).setValue(blockLabel).setFontColor('#6B7280').setFontSize(10);
     }
-  });
+    currentRow++;
 
-  // 工程行を書き込み
-  processes.forEach((process, pIdx) => {
-    const row = headerRow + 1 + pIdx;
-    const nameCell = sheet.getRange(row, 1);
-    const displayName = process.isMilestone ? `★${process.name}` : process.name;
-    nameCell.setValue(displayName);
-    nameCell.setFontWeight('bold');
+    // 空行
+    currentRow++;
 
-    // 工程名セルの背景色（緑黄テーマでは背景なし）
-    if (theme !== 'mono_navy') {
-      const processColor = resolveProcessColor(theme, process);
-      nameCell.setBackground(hexToRgbLight(processColor));
-    }
+    // 日付ヘッダー行
+    const headerRow = currentRow;
+    sheet.getRange(headerRow, 1).setValue('工程').setBackground('#f3f4f6').setFontWeight('bold');
 
-    // 休日背景を設定（両テーマ共通: 土曜=薄黄、日曜=ピンク）
-    dates.forEach((date, dIdx) => {
-      const cell = sheet.getRange(row, dIdx + 2);
+    // 日付を書き込み
+    blockDates.forEach((date, i) => {
+      const cell = sheet.getRange(headerRow, i + 2);
       const d = new Date(date);
+      const month = d.getMonth() + 1;
+      const day = d.getDate();
+      const dow = ['日', '月', '火', '水', '木', '金', '土'][d.getDay()];
+      cell.setValue(`${month}/${day}\n${dow}`);
+      cell.setHorizontalAlignment('center');
+      cell.setVerticalAlignment('middle');
+      cell.setFontSize(8);
+      cell.setWrap(true);
+
+      // 休日背景（両テーマ共通: 土曜=薄黄、日曜=ピンク）
       if (d.getDay() === 0) {
-        cell.setBackground('#fef2f2'); // 日曜: 薄ピンク
+        cell.setBackground('#fee2e2'); // 日曜: ピンク
       } else if (d.getDay() === 6) {
-        cell.setBackground('#fffbeb'); // 土曜: 薄黄
+        cell.setBackground('#fef3c7'); // 土曜: 薄黄
+      } else {
+        cell.setBackground('#f3f4f6');
       }
     });
+    currentRow++;
 
-    // スケジュールバーを描画
-    const processSchedules = schedules.filter(s => s.processId === process.processId);
-    processSchedules.forEach(schedule => {
-      const startIdx = dates.indexOf(schedule.start);
-      const endIdx = dates.indexOf(schedule.end);
+    // 工程行を書き込み
+    processes.forEach((process, pIdx) => {
+      const row = currentRow + pIdx;
+      const nameCell = sheet.getRange(row, 1);
+      const displayName = process.isMilestone ? `★${process.name}` : process.name;
+      nameCell.setValue(displayName);
+      nameCell.setFontWeight('bold');
 
-      if (startIdx >= 0 && endIdx >= 0) {
-        const barColor = resolveProcessColor(theme, process);
-        for (let i = startIdx; i <= endIdx; i++) {
-          const cell = sheet.getRange(row, i + 2);
-          cell.setBackground(barColor);
-          if (i === startIdx && schedule.label) {
-            cell.setValue(schedule.label);
-            cell.setFontColor('#ffffff');
-            cell.setFontSize(8);
+      // 工程名セルの背景色
+      if (theme !== 'mono_navy') {
+        const processColor = resolveProcessColor(theme, process);
+        nameCell.setBackground(hexToRgbLight(processColor));
+      }
+
+      // 休日背景を設定
+      blockDates.forEach((date, dIdx) => {
+        const cell = sheet.getRange(row, dIdx + 2);
+        const d = new Date(date);
+        if (d.getDay() === 0) {
+          cell.setBackground('#fef2f2'); // 日曜: 薄ピンク
+        } else if (d.getDay() === 6) {
+          cell.setBackground('#fffbeb'); // 土曜: 薄黄
+        }
+      });
+
+      // スケジュールバーを描画（このブロックの日付範囲内のみ）
+      const processSchedules = schedules.filter(s => s.processId === process.processId);
+      processSchedules.forEach(schedule => {
+        // ブロック内での相対インデックスを計算
+        const startIdx = blockDates.indexOf(schedule.start);
+        const endIdx = blockDates.indexOf(schedule.end);
+
+        // スケジュールがこのブロックに含まれる場合
+        if (startIdx >= 0 || endIdx >= 0) {
+          const barColor = resolveProcessColor(theme, process);
+
+          // ブロック内での開始・終了を計算
+          let blockStartIdx = startIdx >= 0 ? startIdx : 0;
+          let blockEndIdx = endIdx >= 0 ? endIdx : blockDates.length - 1;
+
+          // 開始日がこのブロックより前の場合
+          if (startIdx < 0 && dates.indexOf(schedule.start) < blockIdx * maxColsPerBlock) {
+            blockStartIdx = 0;
           }
-        }
-      } else if (process.isMilestone && startIdx >= 0) {
-        const cell = sheet.getRange(row, startIdx + 2);
-        cell.setValue('◆');
-        if (theme === 'mono_navy') {
-          cell.setBackground('#E5E7EB');
-          cell.setFontColor('#1E3A8A');
-        } else {
-          cell.setBackground('#fef3c7');
-          cell.setFontColor('#f59e0b');
-        }
-        cell.setHorizontalAlignment('center');
-      }
-    });
-  });
+          // 終了日がこのブロックより後の場合
+          if (endIdx < 0 && dates.indexOf(schedule.end) >= (blockIdx + 1) * maxColsPerBlock) {
+            blockEndIdx = blockDates.length - 1;
+          }
+          // スケジュールがこのブロックと重ならない場合はスキップ
+          const scheduleStartGlobal = dates.indexOf(schedule.start);
+          const scheduleEndGlobal = dates.indexOf(schedule.end);
+          const blockStartGlobal = blockIdx * maxColsPerBlock;
+          const blockEndGlobal = blockStartGlobal + blockDates.length - 1;
 
-  // 列幅・行高さ・罫線
+          if (scheduleEndGlobal < blockStartGlobal || scheduleStartGlobal > blockEndGlobal) {
+            return; // このブロックには含まれない
+          }
+
+          // 実際の描画範囲を計算
+          const drawStart = Math.max(0, scheduleStartGlobal - blockStartGlobal);
+          const drawEnd = Math.min(blockDates.length - 1, scheduleEndGlobal - blockStartGlobal);
+
+          for (let i = drawStart; i <= drawEnd; i++) {
+            const cell = sheet.getRange(row, i + 2);
+            cell.setBackground(barColor);
+            // ラベルは最初のセルのみ（かつブロック内の開始位置）
+            if (i === drawStart && scheduleStartGlobal === blockStartGlobal + drawStart && schedule.label) {
+              cell.setValue(schedule.label);
+              cell.setFontColor('#ffffff');
+              cell.setFontSize(8);
+            }
+          }
+        } else if (process.isMilestone && startIdx >= 0) {
+          const cell = sheet.getRange(row, startIdx + 2);
+          cell.setValue('◆');
+          if (theme === 'mono_navy') {
+            cell.setBackground('#E5E7EB');
+            cell.setFontColor('#1E3A8A');
+          } else {
+            cell.setBackground('#fef3c7');
+            cell.setFontColor('#f59e0b');
+          }
+          cell.setHorizontalAlignment('center');
+        }
+      });
+    });
+
+    // 罫線を設定
+    const dataRange = sheet.getRange(headerRow, 1, processes.length + 1, blockDates.length + 1);
+    dataRange.setBorder(true, true, true, true, true, true, '#d1d5db', SpreadsheetApp.BorderStyle.SOLID);
+
+    // 行高さ設定
+    sheet.setRowHeight(headerRow, 40);
+    for (let i = 0; i < processes.length; i++) {
+      sheet.setRowHeight(headerRow + 1 + i, 25);
+    }
+
+    // 次のブロックの開始位置（空行2行分）
+    currentRow = headerRow + processes.length + 3;
+  }
+
+  // 列幅設定（工程列 + 最大ブロックの日付列数）
   sheet.setColumnWidth(1, 120);
-  for (let i = 2; i <= dates.length + 1; i++) {
+  const maxBlockCols = Math.max(...dateBlocks.map(b => b.length));
+  for (let i = 2; i <= maxBlockCols + 1; i++) {
     sheet.setColumnWidth(i, 35);
   }
-  sheet.setRowHeight(headerRow, 40);
-  for (let i = headerRow + 1; i <= headerRow + processes.length; i++) {
-    sheet.setRowHeight(i, 25);
-  }
-  const dataRange = sheet.getRange(headerRow, 1, processes.length + 1, dates.length + 1);
-  dataRange.setBorder(true, true, true, true, true, true, '#d1d5db', SpreadsheetApp.BorderStyle.SOLID);
 
   // 「生産工程表ファイル追加」フォルダに保存
   SpreadsheetApp.flush();
@@ -2323,7 +2393,8 @@ function exportJobDetailToSpreadsheet(exportData) {
     success: true,
     url: ss.getUrl(),
     fileName: fileName,
-    spreadsheetId: ss.getId()
+    spreadsheetId: ss.getId(),
+    blockCount: blockCount // 分割数を返す
   };
 }
 

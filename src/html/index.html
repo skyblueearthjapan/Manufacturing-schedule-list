@@ -399,6 +399,18 @@
               <span>青一色</span>
             </label>
           </div>
+          <!-- 用紙サイズ選択 -->
+          <div class="flex items-center space-x-2 text-sm border-l pl-3">
+            <span class="text-gray-500">用紙:</span>
+            <label class="flex items-center space-x-1 cursor-pointer">
+              <input type="radio" name="export-paper" value="a4" id="export-paper-a4" checked class="text-blue-600">
+              <span>A4横</span>
+            </label>
+            <label class="flex items-center space-x-1 cursor-pointer">
+              <input type="radio" name="export-paper" value="a3" id="export-paper-a3" class="text-blue-600">
+              <span>A3横</span>
+            </label>
+          </div>
           <button id="btn-export-sheet" class="btn btn-secondary text-sm">
             <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>

@@ -3329,6 +3329,12 @@ const JobDetail = {
         this.config.exportTheme = e.target.value;
       });
     });
+    // 出力用紙サイズ選択
+    document.querySelectorAll('input[name="export-paper"]').forEach(radio => {
+      radio.addEventListener('change', (e) => {
+        this.config.paperSize = e.target.value;
+      });
+    });
   },
 
   async open(jobId) {
@@ -4044,6 +4050,7 @@ const JobDetail = {
         product: job['設備/製品名'] || ''
       },
       theme: this.config.exportTheme,  // 'color' or 'mono_navy'
+      paperSize: this.config.paperSize, // 'a4' or 'a3'（自動分割用）
       hideUnused: this.config.hideUnusedProcesses,
       displayStartDate: this.config.displayStartDate,
       displayDays: this.config.displayDays,
@@ -4074,7 +4081,8 @@ const JobDetail = {
       if (result.success && result.url) {
         // 成功時：リンク付きToastを表示
         const themeLabel = this.config.exportTheme === 'mono_navy' ? '（青一色）' : '';
-        Utils.showToast(`スプレッドシートを作成しました${themeLabel}`, 'success');
+        const blockInfo = result.blockCount > 1 ? `（${result.blockCount}段）` : '';
+        Utils.showToast(`スプレッドシートを作成しました${themeLabel}${blockInfo}`, 'success');
 
         // 「開く」リンクを表示（5秒後に自動消去）
         this.showSpreadsheetLink(result.url, result.fileName);
