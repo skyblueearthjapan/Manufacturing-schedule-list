@@ -21,29 +21,27 @@ function sheetDataToObjects(data) {
 }
 
 /**
- * 日付をYYYY-MM-DD形式に変換
+ * 日付をYYYY-MM-DD形式に変換（JST）
  * @param {Date|string} date
  * @returns {string}
  */
 function formatDate(date) {
   if (!date) return '';
   if (typeof date === 'string') return date;
-  const d = new Date(date);
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+  // Utilities.formatDateを使用してタイムゾーンを明示的にJSTに設定
+  return Utilities.formatDate(new Date(date), 'Asia/Tokyo', 'yyyy-MM-dd');
 }
 
 /**
- * 日時をISO形式に変換
+ * 日時をISO形式に変換（JST、タイムゾーンオフセット付き）
  * @param {Date|string} datetime
  * @returns {string}
  */
 function formatDateTime(datetime) {
   if (!datetime) return '';
   if (typeof datetime === 'string') return datetime;
-  return new Date(datetime).toISOString();
+  // Utilities.formatDateを使用してJSTで出力（ISO 8601形式、+09:00オフセット付き）
+  return Utilities.formatDate(new Date(datetime), 'Asia/Tokyo', "yyyy-MM-dd'T'HH:mm:ss'+09:00'");
 }
 
 // ============================================
@@ -1400,7 +1398,7 @@ function upsertTopMemo(payload) {
       isOpenDefault: payload.isOpenDefault || false,
       isActive: payload.isActive !== undefined ? payload.isActive : true,
       sortOrder,
-      updatedAt: now.toISOString(),
+      updatedAt: formatDateTime(now),
       updatedBy: currentUser
     };
   }
@@ -1454,7 +1452,7 @@ function upsertTopMemo(payload) {
     isOpenDefault: payload.isOpenDefault,
     isActive: payload.isActive,
     sortOrder: payload.sortOrder,
-    updatedAt: now.toISOString(),
+    updatedAt: formatDateTime(now),
     updatedBy: currentUser
   };
 }
@@ -1545,7 +1543,7 @@ function setTopMemoActive(memoId, isActive) {
     sheet.getRange(rowIndex, updatedByCol + 1).setValue(currentUser);
   }
 
-  return { memoId, isActive, updatedAt: now.toISOString(), updatedBy: currentUser };
+  return { memoId, isActive, updatedAt: formatDateTime(now), updatedBy: currentUser };
 }
 
 // ============================================
@@ -1594,7 +1592,7 @@ function getBootstrapData(rangeStart, days = CONFIG.DEFAULT_DISPLAY_DAYS) {
       rangeStart: start,
       rangeEnd: end,
       days: days,
-      fetchedAt: new Date().toISOString()
+      fetchedAt: formatDateTime(new Date())
     }
   };
 }
@@ -1639,7 +1637,7 @@ function syncExternalJobMaster() {
     const syncResult = {
       success: true,
       rowCount: externalData.length - 1, // ヘッダー除く
-      syncedAt: new Date().toISOString()
+      syncedAt: formatDateTime(new Date())
     };
 
     Logger.log('外部工番マスター同期完了: ' + syncResult.rowCount + '件');
@@ -1970,7 +1968,7 @@ function saveJobProcessLayout(jobId, orderedProcessIds) {
         processId: processId,
         orderIndex: orderIndex,
         isHidden: data[rowIndex][isHiddenCol] === true,
-        updatedAt: now.toISOString()
+        updatedAt: formatDateTime(now)
       });
 
       existingMap.delete(processId); // 処理済みとしてマーク
@@ -1985,7 +1983,7 @@ function saveJobProcessLayout(jobId, orderedProcessIds) {
         processId: processId,
         orderIndex: orderIndex,
         isHidden: false,
-        updatedAt: now.toISOString()
+        updatedAt: formatDateTime(now)
       });
     }
   });
