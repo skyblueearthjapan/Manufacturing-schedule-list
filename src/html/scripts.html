@@ -1511,11 +1511,12 @@ console.log('[DEBUG] Store defined');
 const Gantt = {
   config: {
     cellWidth: 32,
-    baseRowHeight: 64,      // 1レーンの場合の行高さ
+    baseRowHeight: 64,      // 1レーンの場合の行高さ（基準）
     laneHeight: 28,         // 追加レーンあたりの高さ
     barHeight: 24,          // バーの高さ
     barTopPadding: 6,       // バー上部のパディング
-    jobPaneWidth: 360
+    jobPaneWidth: 360,
+    minLaneCount: 3         // 最小レーン数（工番行の最小段数）
   },
 
   dates: [],
@@ -1541,8 +1542,13 @@ const Gantt = {
   },
 
   // スケジュールにレーンを割り当てる（重なり対応）
+  // 最小レーン数は config.minLaneCount（デフォルト3）で確保
   assignLanes(schedules) {
-    if (schedules.length === 0) return { items: [], laneCount: 1 };
+    const minLanes = this.config.minLaneCount;
+
+    if (schedules.length === 0) {
+      return { items: [], laneCount: minLanes };
+    }
 
     // 開始日でソート
     const items = [...schedules].sort((a, b) => a.start.localeCompare(b.start));
@@ -1566,16 +1572,21 @@ const Gantt = {
       }
     }
 
+    // 実際に必要なレーン数と最小レーン数の大きい方を使用
+    const requiredLanes = laneEnds.length;
     return {
       items,
-      laneCount: Math.max(1, laneEnds.length)
+      laneCount: Math.max(minLanes, requiredLanes)
     };
   },
 
   // 工番の行の高さを計算
+  // 最小3レーン分の高さを確保し、それ以上の場合は追加分を加算
   getRowHeight(laneCount) {
-    if (laneCount <= 1) return this.config.baseRowHeight;
-    return this.config.baseRowHeight + (laneCount - 1) * this.config.laneHeight;
+    const minLanes = this.config.minLaneCount;
+    const effectiveLanes = Math.max(minLanes, laneCount);
+    // 基準高さ + (レーン数-1) × レーン高さ
+    return this.config.baseRowHeight + (effectiveLanes - 1) * this.config.laneHeight;
   },
 
   setupEventListeners() {
@@ -1673,7 +1684,7 @@ const Gantt = {
     jobs.forEach((job) => {
       const shipDate = this.formatShortDate(job['出荷予定日']);
       const drawDate = this.formatShortDate(job['出図予定日']);
-      const laneCount = this.jobLaneCounts[job.jobId] || 1;
+      const laneCount = this.jobLaneCounts[job.jobId] || this.config.minLaneCount;
       const rowHeight = this.getRowHeight(laneCount);
 
       // 担当者名を取得
@@ -1765,7 +1776,7 @@ const Gantt = {
 
     let html = '';
     jobs.forEach(job => {
-      const laneCount = this.jobLaneCounts[job.jobId] || 1;
+      const laneCount = this.jobLaneCounts[job.jobId] || this.config.minLaneCount;
       const rowHeight = this.getRowHeight(laneCount);
 
       html += `<div class="gantt-grid-row" data-job-id="${job.jobId}" style="height: ${rowHeight}px; min-height: ${rowHeight}px;">`;
