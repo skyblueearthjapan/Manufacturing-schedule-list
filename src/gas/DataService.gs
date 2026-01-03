@@ -2404,42 +2404,42 @@ function exportJobDetailToSpreadsheet(exportData) {
   };
 }
 
-// 出力先フォルダID（固定：手動で作成済みの「工番別工程表」フォルダ）
-const OUTPUT_FOLDER_ID = '1_EmofEI1inQ5qaa45833ODtZCyyx2mHq';
+// 出力先フォルダID（共有ドライブ内の「工番別工程表」フォルダ）
+const OUTPUT_FOLDER_ID = '1DH0vLRhrTYwBxctPEPshe9VZtSud8xeg';
 
 /**
- * 出力先フォルダを取得（IDで直接指定）
+ * 作成したスプレッドシート(ファイル)を出力フォルダへ移動
+ * Drive API を使用（共有ドライブ対応）
+ * @param {string} fileId - ファイルID（SpreadsheetのID）
  */
-function getOutputFolder_() {
-  console.log('[getOutputFolder_] フォルダID:', OUTPUT_FOLDER_ID);
+function moveFileToOutputFolder_(fileId) {
+  console.log('[moveFileToOutputFolder_] 開始:', fileId);
+
   try {
-    const folder = DriveApp.getFolderById(OUTPUT_FOLDER_ID);
-    console.log('[getOutputFolder_] フォルダ名:', folder.getName());
-    return folder;
+    // 現在の親フォルダを取得
+    const file = Drive.Files.get(fileId, { supportsAllDrives: true });
+    const parents = (file.parents || []).map(p => p.id);
+    const removeParents = parents.join(',');
+
+    console.log('[moveFileToOutputFolder_] 現在の親:', removeParents);
+
+    // 親フォルダを差し替え（MyDrive → 共有ドライブフォルダへ移動）
+    Drive.Files.update(
+      {},  // 更新するメタデータなし
+      fileId,
+      null,
+      {
+        addParents: OUTPUT_FOLDER_ID,
+        removeParents: removeParents,
+        supportsAllDrives: true
+      }
+    );
+
+    console.log('[moveFileToOutputFolder_] 移動完了:', OUTPUT_FOLDER_ID);
   } catch (e) {
-    console.error('[getOutputFolder_] フォルダ取得失敗:', e);
+    console.error('[moveFileToOutputFolder_] 移動失敗:', e);
     throw e;
   }
-}
-
-/**
- * 作成したスプレッドシート(ファイル)を出力フォルダへ移動（MyDrive直下から外す）
- * @param {string} spreadsheetId - スプレッドシートのID
- */
-function moveFileToOutputFolder_(spreadsheetId) {
-  console.log('[moveFileToOutputFolder_] 開始:', spreadsheetId);
-
-  const folder = getOutputFolder_();
-  const file = DriveApp.getFileById(spreadsheetId);
-  console.log('[moveFileToOutputFolder_] ファイル取得:', file.getName());
-
-  // フォルダに追加
-  folder.addFile(file);
-  console.log('[moveFileToOutputFolder_] フォルダに追加完了');
-
-  // MyDrive直下から削除（ファイル自体は削除されない）
-  DriveApp.getRootFolder().removeFile(file);
-  console.log('[moveFileToOutputFolder_] ルートから除外完了');
 }
 
 /**
