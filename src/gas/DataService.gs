@@ -1547,6 +1547,152 @@ function setTopMemoActive(memoId, isActive) {
 }
 
 // ============================================
+// DaySettings（日付設定：出勤日/休日）
+// ============================================
+
+/**
+ * 04_DaySettingsシートを確保（なければ作成）
+ * @returns {GoogleAppsScript.Spreadsheet.Sheet}
+ */
+function ensureDaySettingsSheet() {
+  const ss = getSpreadsheet();
+  let sheet = ss.getSheetByName(CONFIG.SHEETS.DAY_SETTINGS);
+
+  if (!sheet) {
+    sheet = ss.insertSheet(CONFIG.SHEETS.DAY_SETTINGS);
+    sheet.getRange(1, 1, 1, 5).setValues([['日付', '種別', 'メモ', '更新日時', '更新者']]);
+    sheet.setFrozenRows(1);
+    Logger.log('Created new sheet: ' + CONFIG.SHEETS.DAY_SETTINGS);
+  }
+
+  return sheet;
+}
+
+/**
+ * 指定期間の日付設定を取得
+ * @param {string} fromISO - 開始日 (YYYY-MM-DD)
+ * @param {string} toISO - 終了日 (YYYY-MM-DD)
+ * @returns {Object} { 'YYYY-MM-DD': 'WORKDAY'|'HOLIDAY' }
+ */
+function getDaySettingsMap(fromISO, toISO) {
+  const sheet = ensureDaySettingsSheet();
+  const lastRow = sheet.getLastRow();
+  const map = {};
+
+  if (lastRow < 2) return map;
+
+  const values = sheet.getRange(2, 1, lastRow - 1, 2).getValues(); // A:date, B:type
+
+  for (const [dateVal, type] of values) {
+    if (!dateVal) continue;
+
+    let key;
+    if (dateVal instanceof Date) {
+      // Date型の場合はタイムゾーンを考慮して変換
+      key = Utilities.formatDate(dateVal, 'Asia/Tokyo', 'yyyy-MM-dd');
+    } else {
+      // 文字列の場合はそのまま使用
+      key = String(dateVal).trim();
+    }
+
+    const typeStr = String(type || '').trim();
+    // YYYY-MM-DD形式かつ有効な種別のみ追加
+    if (typeStr && key.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      // 期間フィルタ（指定があれば）
+      if (fromISO && toISO) {
+        if (key >= fromISO && key <= toISO) {
+          map[key] = typeStr;  // 'WORKDAY' or 'HOLIDAY'（文字列のみ）
+        }
+      } else {
+        map[key] = typeStr;
+      }
+    }
+  }
+
+  return map;
+}
+
+/**
+ * 日付設定を追加/更新/削除
+ * @param {string} dateISO - YYYY-MM-DD
+ * @param {string|null} type - 'WORKDAY', 'HOLIDAY', または null（解除）
+ * @param {string} memo - メモ（任意）
+ * @returns {Object} { ok: boolean, action?: string, error?: string }
+ */
+function setDaySetting(dateISO, type, memo) {
+  const lock = LockService.getDocumentLock();
+  try {
+    lock.waitLock(10000);
+  } catch (e) {
+    return { ok: false, error: 'LOCK_TIMEOUT' };
+  }
+
+  try {
+    const currentUser = Session.getActiveUser().getEmail() || 'anonymous';
+    const now = new Date();
+
+    const sheet = ensureDaySettingsSheet();
+    const lastRow = sheet.getLastRow();
+
+    // 既存行を探索
+    let existingRow = null;
+    if (lastRow >= 2) {
+      const dates = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+      for (let i = 0; i < dates.length; i++) {
+        let key;
+        if (dates[i][0] instanceof Date) {
+          key = Utilities.formatDate(dates[i][0], 'Asia/Tokyo', 'yyyy-MM-dd');
+        } else {
+          key = String(dates[i][0]).trim();
+        }
+        if (key === dateISO) {
+          existingRow = 2 + i;
+          break;
+        }
+      }
+    }
+
+    if (type === null || type === '') {
+      // 解除: 行を削除
+      if (existingRow) {
+        sheet.deleteRow(existingRow);
+        Logger.log('DaySetting removed: ' + dateISO);
+      }
+      return { ok: true, action: 'removed' };
+    }
+
+    const timestamp = Utilities.formatDate(now, 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss');
+
+    if (existingRow) {
+      // 更新
+      sheet.getRange(existingRow, 2).setValue(type);
+      sheet.getRange(existingRow, 3).setValue(memo || '');
+      sheet.getRange(existingRow, 4).setValue(timestamp);
+      sheet.getRange(existingRow, 5).setValue(currentUser);
+      Logger.log('DaySetting updated: ' + dateISO + ' -> ' + type);
+      return { ok: true, action: 'updated' };
+    }
+
+    // 新規追加
+    sheet.appendRow([
+      dateISO,
+      type,
+      memo || '',
+      timestamp,
+      currentUser
+    ]);
+    Logger.log('DaySetting created: ' + dateISO + ' -> ' + type);
+
+    return { ok: true, action: 'created' };
+  } catch (e) {
+    Logger.log('setDaySetting error: ' + e.message);
+    return { ok: false, error: e.message || 'SAVE_FAILED' };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// ============================================
 // Bootstrap（初期データ一括取得）
 // ============================================
 
@@ -1578,6 +1724,14 @@ function getBootstrapData(rangeStart, days = CONFIG.DEFAULT_DISPLAY_DAYS) {
     Logger.log('TopMemo取得をスキップ: ' + e.message);
   }
 
+  // 日付設定を取得（失敗しても続行）
+  let daySettings = {};
+  try {
+    daySettings = getDaySettingsMap(start, end);
+  } catch (e) {
+    Logger.log('DaySettings取得をスキップ: ' + e.message);
+  }
+
   return {
     jobs: getAllJobs(),
     processes: getAllProcesses(),
@@ -1588,6 +1742,7 @@ function getBootstrapData(rangeStart, days = CONFIG.DEFAULT_DISPLAY_DAYS) {
     jobMaster: jobMaster,
     workerJobAssign: getAllWorkerJobAssigns(),
     topMemos: topMemos,
+    daySettings: daySettings,
     meta: {
       rangeStart: start,
       rangeEnd: end,

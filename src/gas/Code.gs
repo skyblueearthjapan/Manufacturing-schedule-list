@@ -233,6 +233,14 @@ function api_getJobPdfInfo(jobNo) {
   return sanitizeForClient(getJobPdfInfo(jobNo));
 }
 
+function api_setDaySetting(dateISO, type, memo) {
+  return sanitizeForClient(setDaySetting(dateISO, type, memo));
+}
+
+function api_getDaySettings(fromISO, toISO) {
+  return sanitizeForClient(getDaySettingsMap(fromISO, toISO));
+}
+
 /**
  * テスト用：スプレッドシート接続確認
  * GASエディタで実行して確認してください

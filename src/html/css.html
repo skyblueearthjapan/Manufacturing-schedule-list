@@ -797,6 +797,81 @@
     border-radius: 0 0 12px 12px;
   }
 
+  /* 日付設定ボタン（出勤日/休日） */
+  .day-setting-buttons {
+    display: flex;
+    gap: 8px;
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid #e5e7eb;
+  }
+
+  .day-setting-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 12px;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    background: #fff;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    transition: all 0.15s;
+  }
+
+  .day-setting-btn:hover {
+    border-color: #cbd5e1;
+    background: #f9fafb;
+  }
+
+  .day-setting-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  /* アクティブ状態 */
+  .day-setting-btn.active {
+    border-width: 2px;
+  }
+
+  .day-setting-btn--workday.active {
+    background: #dbeafe;
+    border-color: #3b82f6;
+    color: #1d4ed8;
+  }
+
+  .day-setting-btn--holiday.active {
+    background: #fce7f3;
+    border-color: #ec4899;
+    color: #be185d;
+  }
+
+  .day-setting-btn__icon {
+    font-size: 16px;
+  }
+
+  /* カレンダーセルの日付設定スタイル */
+  .gantt-date-cell.is-workday,
+  .gantt-grid-cell.is-workday {
+    background: #ffffff !important;
+  }
+
+  .gantt-date-cell.is-workday .dow {
+    color: #374151 !important;
+  }
+
+  .gantt-date-cell.is-holiday,
+  .gantt-grid-cell.is-holiday {
+    background: #fce7f3 !important;
+  }
+
+  .gantt-date-cell.is-holiday .dow {
+    color: #be185d !important;
+  }
+
   /* PDF添付UI */
   .pdf-upload-row {
     display: flex;

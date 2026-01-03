@@ -969,6 +969,7 @@ const Store = {
     showHiddenJobs: false, // 完了（非表示）工番を表示するか
     jobSearchQuery: '', // 工番検索クエリ（大工程表用）
     pdfInfoCache: {}, // PDF情報キャッシュ (工番 -> { order: {fileId, url}, instruction: {fileId, url} })
+    daySettings: {}, // 日付設定 { 'YYYY-MM-DD': 'WORKDAY' | 'HOLIDAY' }
     displayStartDate: null,
     displayDays: 120,
     currentView: 'master',
@@ -1033,6 +1034,7 @@ const Store = {
         workerJobAssign: data.workerJobAssign || [],
         topMemos: topMemos,
         topMemoExpanded: false, // 常に折りたたみで開始
+        daySettings: data.daySettings || {},
         lastFetchedAt: data.meta?.fetchedAt || new Date().toISOString(),
         isLoading: false
       });
@@ -1123,6 +1125,21 @@ const Store = {
   removeTrip(tripId) {
     const trips = this.state.trips.filter(t => t.tripId !== tripId);
     this.setState({ trips });
+  },
+
+  // DaySettings関連のStore操作
+  getDaySetting(dateISO) {
+    return this.state.daySettings[dateISO] || null;
+  },
+
+  setDaySettingInStore(dateISO, type) {
+    const daySettings = { ...this.state.daySettings };
+    if (type) {
+      daySettings[dateISO] = type;
+    } else {
+      delete daySettings[dateISO];
+    }
+    this.setState({ daySettings });
   },
 
   // TopMemo関連のStore操作（複数メモ対応・scope=global固定）
@@ -1691,10 +1708,14 @@ const Gantt = {
       const dow = Utils.getDayOfWeek(date);
       const isWeekend = Utils.isWeekend(date);
       const isToday = date === today;
+      const daySetting = Store.getDaySetting(date);
 
       let classes = 'gantt-date-cell';
       if (isWeekend) classes += ' weekend';
       if (isToday) classes += ' today';
+      // 日付設定による上書き（週末クラスより優先）
+      if (daySetting === 'WORKDAY') classes += ' is-workday';
+      if (daySetting === 'HOLIDAY') classes += ' is-holiday';
 
       const showMonth = month !== currentMonth;
       currentMonth = month;
@@ -1849,9 +1870,13 @@ const Gantt = {
       this.dates.forEach(date => {
         const isWeekend = Utils.isWeekend(date);
         const isToday = date === today;
+        const daySetting = Store.getDaySetting(date);
         let bgClass = 'bg-white';
         if (isWeekend) bgClass = 'bg-yellow-50';
         if (isToday) bgClass = 'bg-blue-50';
+        // 日付設定による上書き
+        if (daySetting === 'WORKDAY') bgClass = 'bg-white is-workday';
+        if (daySetting === 'HOLIDAY') bgClass = 'bg-pink-50 is-holiday';
 
         html += `
           <button
@@ -2127,6 +2152,100 @@ const Gantt = {
 console.log('[DEBUG] Gantt defined');
 
 // ========================================
+// DaySettingButtons - 日付設定ボタン制御
+// ========================================
+
+const DaySettingButtons = {
+  currentDateISO: null,
+
+  init() {
+    // イベントリスナー登録
+    document.getElementById('btn-day-workday')?.addEventListener('click', () => this.toggle('WORKDAY'));
+    document.getElementById('btn-day-holiday')?.addEventListener('click', () => this.toggle('HOLIDAY'));
+
+    // 日付変更時にボタン状態を更新
+    document.getElementById('entry-start')?.addEventListener('change', (e) => {
+      this.updateButtons(e.target.value);
+    });
+  },
+
+  /**
+   * ボタンの状態を更新
+   * @param {string} dateISO - YYYY-MM-DD形式の日付
+   */
+  updateButtons(dateISO) {
+    this.currentDateISO = dateISO;
+
+    const daySetting = Store.getDaySetting(dateISO);
+    const btnWorkday = document.getElementById('btn-day-workday');
+    const btnHoliday = document.getElementById('btn-day-holiday');
+
+    if (!btnWorkday || !btnHoliday) return;
+
+    // アクティブ状態をリセット
+    btnWorkday.classList.remove('active');
+    btnHoliday.classList.remove('active');
+
+    // 現在の設定に応じてアクティブ状態を設定
+    if (daySetting === 'WORKDAY') {
+      btnWorkday.classList.add('active');
+    } else if (daySetting === 'HOLIDAY') {
+      btnHoliday.classList.add('active');
+    }
+  },
+
+  /**
+   * 日付設定をトグル（楽観的UI更新）
+   * @param {string} type - 'WORKDAY' or 'HOLIDAY'
+   */
+  async toggle(type) {
+    const dateISO = this.currentDateISO;
+    if (!dateISO) return;
+
+    const currentSetting = Store.getDaySetting(dateISO);
+
+    // 同じボタンを押したら解除、違うボタンなら切り替え
+    let newSetting = null;
+    if (currentSetting === type) {
+      newSetting = null; // 解除
+    } else {
+      newSetting = type;
+    }
+
+    // 楽観的UI更新
+    Store.setDaySettingInStore(dateISO, newSetting);
+    this.updateButtons(dateISO);
+    Gantt.render(); // 大工程表を再描画
+
+    // バックグラウンドでサーバーに保存
+    try {
+      const result = await API.call('api_setDaySetting', dateISO, newSetting, '');
+
+      if (result && result.ok) {
+        const message = newSetting === 'WORKDAY' ? '出勤日に設定しました' :
+                       newSetting === 'HOLIDAY' ? '休日に設定しました' :
+                       '設定を解除しました';
+        Utils.showToast(message, 'success', 2000);
+      } else {
+        // 失敗したら元に戻す
+        Store.setDaySettingInStore(dateISO, currentSetting);
+        this.updateButtons(dateISO);
+        Gantt.render();
+        Utils.showToast('設定の保存に失敗しました: ' + (result?.error || '不明なエラー'), 'error', 4000);
+      }
+    } catch (error) {
+      // エラー時は元に戻す
+      Store.setDaySettingInStore(dateISO, currentSetting);
+      this.updateButtons(dateISO);
+      Gantt.render();
+      Utils.showToast('設定エラー: ' + error.message, 'error', 4000);
+    }
+  }
+};
+
+console.log('[DEBUG] DaySettingButtons defined');
+
+// ========================================
 // Modal - モーダル制御
 // ========================================
 
@@ -2226,6 +2345,11 @@ const Modal = {
 
   open() {
     document.getElementById('modal-entry').classList.remove('hidden');
+    // 日付設定ボタンを更新
+    const startDate = document.getElementById('entry-start').value;
+    if (startDate) {
+      DaySettingButtons.updateButtons(startDate);
+    }
   },
 
   close() {
@@ -6544,6 +6668,7 @@ const App = {
 
     Gantt.init();
     Modal.init();
+    DaySettingButtons.init();
     ProcessModal.init();
     TopMemoPanel.init();
     JobModal.init();

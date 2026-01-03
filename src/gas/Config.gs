@@ -22,7 +22,8 @@ const CONFIG = {
     EXTERNAL_JOB_MASTER: '外部_工番マスター',
     WORKER_JOB_ASSIGN: 'WorkerJobAssign',
     TOP_MEMO: 'TopMemo',
-    JOB_PROCESS_LAYOUT: 'JobProcessLayout'
+    JOB_PROCESS_LAYOUT: 'JobProcessLayout',
+    DAY_SETTINGS: '04_DaySettings'
   },
 
   // デフォルト表示日数

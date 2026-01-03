@@ -565,6 +565,18 @@
           <input type="hidden" id="entry-schedule-id">
           <input type="hidden" id="entry-updated-at">
         </form>
+
+        <!-- 日付設定ボタン（出勤日/休日） -->
+        <div class="day-setting-buttons" id="daySettingButtons">
+          <button type="button" class="day-setting-btn day-setting-btn--workday" id="btn-day-workday">
+            <span class="day-setting-btn__icon">🏭</span>
+            <span>出勤日に設定</span>
+          </button>
+          <button type="button" class="day-setting-btn day-setting-btn--holiday" id="btn-day-holiday">
+            <span class="day-setting-btn__icon">🎌</span>
+            <span>休日に設定</span>
+          </button>
+        </div>
       </div>
       <div class="modal-footer">
         <button type="button" id="btn-modal-cancel" class="btn btn-secondary">キャンセル</button>
