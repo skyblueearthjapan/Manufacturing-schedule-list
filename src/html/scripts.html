@@ -2157,6 +2157,7 @@ console.log('[DEBUG] Gantt defined');
 
 const DaySettingButtons = {
   currentDateISO: null,
+  hasChanged: false, // 日付設定が変更されたかどうか
 
   init() {
     // イベントリスナー登録
@@ -2167,6 +2168,13 @@ const DaySettingButtons = {
     document.getElementById('entry-start')?.addEventListener('change', (e) => {
       this.updateButtons(e.target.value);
     });
+  },
+
+  /**
+   * モーダルオープン時にリセット
+   */
+  reset() {
+    this.hasChanged = false;
   },
 
   /**
@@ -2211,6 +2219,9 @@ const DaySettingButtons = {
     } else {
       newSetting = type;
     }
+
+    // 変更フラグを立てる
+    this.hasChanged = true;
 
     // 楽観的UI更新
     Store.setDaySettingInStore(dateISO, newSetting);
@@ -2345,6 +2356,8 @@ const Modal = {
 
   open() {
     document.getElementById('modal-entry').classList.remove('hidden');
+    // 日付設定の変更フラグをリセット
+    DaySettingButtons.reset();
     // 日付設定ボタンを更新
     const startDate = document.getElementById('entry-start').value;
     if (startDate) {
@@ -2446,6 +2459,14 @@ const Modal = {
   },
 
   save() {
+    // 日付設定のみ変更された場合（工程未入力）は、バリデーションせずに閉じる
+    const processId = document.getElementById('entry-process').value;
+    if (DaySettingButtons.hasChanged && (!processId || processId === '__new__')) {
+      // 日付設定は既に保存済みなので、モーダルを閉じるだけ
+      this.close();
+      return;
+    }
+
     const payload = this.validate();
     if (!payload) return;
 
@@ -4080,6 +4101,7 @@ const JobDetail = {
         const dow = Utils.getDayOfWeek(date);
         const isWeekend = Utils.isWeekend(date);
         const isToday = date === today;
+        const daySetting = Store.getDaySetting(date);
 
         const showMonth = month !== currentMonth;
         currentMonth = month;
@@ -4087,6 +4109,9 @@ const JobDetail = {
         let classes = 'job-date-cell';
         if (isWeekend) classes += ' weekend';
         if (isToday) classes += ' today';
+        // 日付設定による上書き
+        if (daySetting === 'WORKDAY') classes += ' is-workday';
+        if (daySetting === 'HOLIDAY') classes += ' is-holiday';
 
         html += `
           <div class="${classes}" style="width: ${this.config.cellWidth}px">
@@ -4144,9 +4169,13 @@ const JobDetail = {
         dates.forEach(date => {
           const isWeekend = Utils.isWeekend(date);
           const isToday = date === today;
+          const daySetting = Store.getDaySetting(date);
           let classes = 'job-grid-cell';
           if (isWeekend) classes += ' weekend';
           if (isToday) classes += ' today';
+          // 日付設定による上書き
+          if (daySetting === 'WORKDAY') classes += ' is-workday';
+          if (daySetting === 'HOLIDAY') classes += ' is-holiday';
 
           html += `<div class="${classes}" data-date="${date}" style="width: ${cellWidth}px"></div>`;
         });
@@ -5652,10 +5681,16 @@ const WeeklyPlan = {
     dates.forEach((date, index) => {
       const isWeekend = index >= 5; // 土日
       const isToday = date === today;
-      const weekendClass = isWeekend ? 'weekend' : '';
-      const todayClass = isToday ? 'today' : '';
+      const daySetting = Store.getDaySetting(date);
 
-      html += `<th class="${weekendClass} ${todayClass}">${Utils.getMonth(date)}/${Utils.getDay(date)}</th>`;
+      let classes = [];
+      if (isWeekend) classes.push('weekend');
+      if (isToday) classes.push('today');
+      // 日付設定による上書き
+      if (daySetting === 'WORKDAY') classes.push('is-workday');
+      if (daySetting === 'HOLIDAY') classes.push('is-holiday');
+
+      html += `<th class="${classes.join(' ')}">${Utils.getMonth(date)}/${Utils.getDay(date)}</th>`;
     });
 
     dateRow.innerHTML = html;
@@ -5689,9 +5724,13 @@ const WeeklyPlan = {
         const date = dates[index];
         const isWeekend = index >= 5;
         const isToday = date === today;
+        const daySetting = Store.getDaySetting(date);
         let cellClass = 'weekly-day-cell';
         if (isWeekend) cellClass += ' weekend';
         if (isToday) cellClass += ' today';
+        // 日付設定による上書き
+        if (daySetting === 'WORKDAY') cellClass += ' is-workday';
+        if (daySetting === 'HOLIDAY') cellClass += ' is-holiday';
 
         let cellContent = '';
         if (dayProcesses.length > 0) {
@@ -6370,6 +6409,7 @@ const TravelPlan = {
       const dow = Utils.getDayOfWeek(date);
       const isWeekend = Utils.isWeekend(date);
       const isToday = date === today;
+      const daySetting = Store.getDaySetting(date);
 
       const showMonth = month !== currentMonth;
       currentMonth = month;
@@ -6380,6 +6420,9 @@ const TravelPlan = {
       let classes = 'travel-date-cell';
       if (isWeekend) classes += ' weekend';
       if (isToday) classes += ' today';
+      // 日付設定による上書き
+      if (daySetting === 'WORKDAY') classes += ' is-workday';
+      if (daySetting === 'HOLIDAY') classes += ' is-holiday';
 
       html += `
         <div class="${classes}" style="width: ${cellWidth}px; min-width: ${cellWidth}px;">
@@ -6430,11 +6473,15 @@ const TravelPlan = {
       this.dates.forEach(date => {
         const isWeekend = Utils.isWeekend(date);
         const isToday = date === today;
+        const daySetting = Store.getDaySetting(date);
         const cellWidth = this.getCellWidthForDate(date);
 
         let classes = 'travel-grid-cell';
         if (isWeekend) classes += ' weekend';
         if (isToday) classes += ' today';
+        // 日付設定による上書き
+        if (daySetting === 'WORKDAY') classes += ' is-workday';
+        if (daySetting === 'HOLIDAY') classes += ' is-holiday';
         html += `<div class="${classes}"
                       style="width: ${cellWidth}px; min-width: ${cellWidth}px;"
                       data-person-id="${person.personId}"

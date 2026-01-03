@@ -872,6 +872,55 @@
     color: #be185d !important;
   }
 
+  /* 工番別工程表の日付設定スタイル */
+  .job-date-cell.is-workday,
+  .job-grid-cell.is-workday {
+    background: #ffffff !important;
+  }
+
+  .job-date-cell.is-workday .dow {
+    color: #374151 !important;
+  }
+
+  .job-date-cell.is-holiday,
+  .job-grid-cell.is-holiday {
+    background: #fce7f3 !important;
+  }
+
+  .job-date-cell.is-holiday .dow {
+    color: #be185d !important;
+  }
+
+  /* 今週の予定の日付設定スタイル */
+  #weekly-date-row th.is-workday,
+  .weekly-day-cell.is-workday {
+    background: #ffffff !important;
+  }
+
+  #weekly-date-row th.is-holiday,
+  .weekly-day-cell.is-holiday {
+    background: #fce7f3 !important;
+  }
+
+  /* 出張計画の日付設定スタイル */
+  .travel-date-cell.is-workday,
+  .travel-grid-cell.is-workday {
+    background: #ffffff !important;
+  }
+
+  .travel-date-cell.is-workday .dow {
+    color: #374151 !important;
+  }
+
+  .travel-date-cell.is-holiday,
+  .travel-grid-cell.is-holiday {
+    background: #fce7f3 !important;
+  }
+
+  .travel-date-cell.is-holiday .dow {
+    color: #be185d !important;
+  }
+
   /* PDF添付UI */
   .pdf-upload-row {
     display: flex;
