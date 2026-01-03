@@ -2404,24 +2404,22 @@ function exportJobDetailToSpreadsheet(exportData) {
   };
 }
 
-// 出力先フォルダ名（固定）
-const OUTPUT_FOLDER_NAME = '工番別工程表';
+// 出力先フォルダID（固定：手動で作成済みの「工番別工程表」フォルダ）
+const OUTPUT_FOLDER_ID = '1_EmofEI1inQ5qaa45833ODtZCyyx2mHq';
 
 /**
- * 出力先フォルダを取得。なければMyDrive直下に作成して返す。
+ * 出力先フォルダを取得（IDで直接指定）
  */
-function getOrCreateOutputFolder_() {
-  console.log('[getOrCreateOutputFolder_] フォルダ検索:', OUTPUT_FOLDER_NAME);
-  const it = DriveApp.getFoldersByName(OUTPUT_FOLDER_NAME);
-  if (it.hasNext()) {
-    const folder = it.next();
-    console.log('[getOrCreateOutputFolder_] 既存フォルダ発見:', folder.getId());
+function getOutputFolder_() {
+  console.log('[getOutputFolder_] フォルダID:', OUTPUT_FOLDER_ID);
+  try {
+    const folder = DriveApp.getFolderById(OUTPUT_FOLDER_ID);
+    console.log('[getOutputFolder_] フォルダ名:', folder.getName());
     return folder;
+  } catch (e) {
+    console.error('[getOutputFolder_] フォルダ取得失敗:', e);
+    throw e;
   }
-  console.log('[getOrCreateOutputFolder_] フォルダ作成');
-  const newFolder = DriveApp.createFolder(OUTPUT_FOLDER_NAME);
-  console.log('[getOrCreateOutputFolder_] 作成完了:', newFolder.getId());
-  return newFolder;
 }
 
 /**
@@ -2431,7 +2429,7 @@ function getOrCreateOutputFolder_() {
 function moveFileToOutputFolder_(spreadsheetId) {
   console.log('[moveFileToOutputFolder_] 開始:', spreadsheetId);
 
-  const folder = getOrCreateOutputFolder_();
+  const folder = getOutputFolder_();
   const file = DriveApp.getFileById(spreadsheetId);
   console.log('[moveFileToOutputFolder_] ファイル取得:', file.getName());
 
