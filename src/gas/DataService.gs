@@ -1789,6 +1789,21 @@ function api_saveBatch(payload) {
               saved = updateJob(id, changePayload);
             }
             results.job.upserted.push(saved);
+          } else if (op === 'close' && !isNewRecord(id)) {
+            // 工番を完了（非表示）
+            const closed = closeJob(id);
+            results.job.closed = results.job.closed || [];
+            results.job.closed.push(closed);
+          } else if (op === 'reopen' && !isNewRecord(id)) {
+            // 工番の完了を解除
+            const reopened = reopenJob(id);
+            results.job.reopened = results.job.reopened || [];
+            results.job.reopened.push(reopened);
+          } else if (op === 'delete' && !isNewRecord(id)) {
+            // 工番を完全削除（カスケード）
+            const deleted = deleteJobCascade(id);
+            results.job.deleted = results.job.deleted || [];
+            results.job.deleted.push(deleted);
           }
           break;
 
@@ -2348,3 +2363,203 @@ function hexToRgbLight(hex) {
 
   return `#${lightR.toString(16).padStart(2, '0')}${lightG.toString(16).padStart(2, '0')}${lightB.toString(16).padStart(2, '0')}`;
 }
+
+// ============================================
+// 工番 完了（非表示）/ 削除
+// ============================================
+
+/**
+ * 工番を完了（非表示）にする
+ * @param {string} jobId
+ * @returns {Object} - { jobId, status, isHidden, closedAt, closedBy }
+ */
+function closeJob(jobId) {
+  const sheet = getSheet(CONFIG.SHEETS.JOBS);
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+
+  const jobIdIndex = headers.indexOf('jobId');
+  const statusIndex = headers.indexOf('status');
+  const isHiddenIndex = headers.indexOf('isHidden');
+  const closedAtIndex = headers.indexOf('closedAt');
+  const closedByIndex = headers.indexOf('closedBy');
+
+  if (jobIdIndex === -1) {
+    throw new Error('jobId列が見つかりません');
+  }
+
+  // 対象行を検索
+  let targetRowIndex = -1;
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][jobIdIndex] === jobId) {
+      targetRowIndex = i;
+      break;
+    }
+  }
+
+  if (targetRowIndex === -1) {
+    throw new Error('指定された工番が見つかりません');
+  }
+
+  const now = new Date();
+  const currentUser = Session.getActiveUser().getEmail() || 'system';
+
+  // 列が存在する場合のみ更新
+  if (statusIndex !== -1) {
+    sheet.getRange(targetRowIndex + 1, statusIndex + 1).setValue('closed');
+  }
+  if (isHiddenIndex !== -1) {
+    sheet.getRange(targetRowIndex + 1, isHiddenIndex + 1).setValue(true);
+  }
+  if (closedAtIndex !== -1) {
+    sheet.getRange(targetRowIndex + 1, closedAtIndex + 1).setValue(now);
+  }
+  if (closedByIndex !== -1) {
+    sheet.getRange(targetRowIndex + 1, closedByIndex + 1).setValue(currentUser);
+  }
+
+  return {
+    jobId,
+    status: 'closed',
+    isHidden: true,
+    closedAt: formatDateTime(now),
+    closedBy: currentUser
+  };
+}
+
+/**
+ * 工番の完了を解除（再開）する
+ * @param {string} jobId
+ * @returns {Object}
+ */
+function reopenJob(jobId) {
+  const sheet = getSheet(CONFIG.SHEETS.JOBS);
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+
+  const jobIdIndex = headers.indexOf('jobId');
+  const statusIndex = headers.indexOf('status');
+  const isHiddenIndex = headers.indexOf('isHidden');
+
+  if (jobIdIndex === -1) {
+    throw new Error('jobId列が見つかりません');
+  }
+
+  // 対象行を検索
+  let targetRowIndex = -1;
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][jobIdIndex] === jobId) {
+      targetRowIndex = i;
+      break;
+    }
+  }
+
+  if (targetRowIndex === -1) {
+    throw new Error('指定された工番が見つかりません');
+  }
+
+  // 列が存在する場合のみ更新
+  if (statusIndex !== -1) {
+    sheet.getRange(targetRowIndex + 1, statusIndex + 1).setValue('active');
+  }
+  if (isHiddenIndex !== -1) {
+    sheet.getRange(targetRowIndex + 1, isHiddenIndex + 1).setValue(false);
+  }
+
+  return {
+    jobId,
+    status: 'active',
+    isHidden: false
+  };
+}
+
+/**
+ * 工番を完全削除（関連データも削除）
+ * @param {string} jobId
+ * @returns {Object} - { jobId, deleted: true, deletedCounts: {...} }
+ */
+function deleteJobCascade(jobId) {
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(10000);
+  } catch (e) {
+    throw new Error('ロックの取得に失敗しました。しばらく待ってから再試行してください。');
+  }
+
+  try {
+    const deletedCounts = {
+      jobs: 0,
+      schedules: 0,
+      attachments: 0,
+      trips: 0,
+      jobProcessLayouts: 0
+    };
+
+    // 1. Scheduleから削除
+    deletedCounts.schedules = deleteRowsByJobId(CONFIG.SHEETS.SCHEDULE, 'jobId', jobId);
+
+    // 2. Attachmentsから削除
+    deletedCounts.attachments = deleteRowsByJobId(CONFIG.SHEETS.ATTACHMENTS, 'jobId', jobId);
+
+    // 3. JobProcessLayoutから削除
+    try {
+      deletedCounts.jobProcessLayouts = deleteRowsByJobId(CONFIG.SHEETS.JOB_PROCESS_LAYOUT, 'jobId', jobId);
+    } catch (e) {
+      // シートがない場合は無視
+      console.log('JobProcessLayout削除スキップ: ' + e.message);
+    }
+
+    // 4. Tripsから削除（jobId(任意)列）
+    deletedCounts.trips = deleteRowsByJobId(CONFIG.SHEETS.TRIPS, 'jobId(任意)', jobId);
+
+    // 5. Jobsから削除
+    deletedCounts.jobs = deleteRowsByJobId(CONFIG.SHEETS.JOBS, 'jobId', jobId);
+
+    return {
+      jobId,
+      deleted: true,
+      deletedCounts
+    };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/**
+ * 指定シートから指定列の値が一致する行を削除
+ * @param {string} sheetName
+ * @param {string} columnName
+ * @param {string} value
+ * @returns {number} - 削除した行数
+ */
+function deleteRowsByJobId(sheetName, columnName, value) {
+  try {
+    const sheet = getSheet(sheetName);
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+
+    const columnIndex = headers.indexOf(columnName);
+    if (columnIndex === -1) {
+      return 0; // 列がない場合は0件
+    }
+
+    // 削除対象行を逆順で収集（下から削除するため）
+    const rowsToDelete = [];
+    for (let i = data.length - 1; i >= 1; i--) {
+      if (data[i][columnIndex] === value) {
+        rowsToDelete.push(i + 1); // 1-indexed
+      }
+    }
+
+    // 逆順で削除
+    rowsToDelete.forEach(rowNum => {
+      sheet.deleteRow(rowNum);
+    });
+
+    return rowsToDelete.length;
+  } catch (e) {
+    console.log(`${sheetName}からの削除エラー: ${e.message}`);
+    return 0;
+  }
+}
+

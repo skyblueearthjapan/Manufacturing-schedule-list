@@ -913,6 +913,7 @@ const Store = {
     workerJobAssign: [], // 作業者別担当工番
     topMemos: [], // 上部メモ
     topMemoExpanded: false, // 上部メモ展開状態（デフォルトOFF）
+    showHiddenJobs: false, // 完了（非表示）工番を表示するか
     displayStartDate: null,
     displayDays: 120,
     currentView: 'master',
@@ -1212,6 +1213,8 @@ const Store = {
     // Job の差分反映
     if (results.job) {
       let jobs = [...this.state.jobs];
+      let schedules = [...this.state.schedules];
+      let trips = [...this.state.trips];
 
       if (results.job.upserted) {
         results.job.upserted.forEach(saved => {
@@ -1233,12 +1236,40 @@ const Store = {
         });
       }
 
-      if (results.job.deleted) {
-        const deletedIds = results.job.deleted.map(d => d.jobId || d);
-        jobs = jobs.filter(j => !deletedIds.includes(j.jobId));
+      // closed: 完了（非表示）
+      if (results.job.closed) {
+        results.job.closed.forEach(closed => {
+          const idx = jobs.findIndex(j => j.jobId === closed.jobId);
+          if (idx >= 0) {
+            jobs[idx] = { ...jobs[idx], ...closed };
+            console.log(`[Store] Job closed: ${closed.jobId}`);
+          }
+        });
       }
 
-      this.setState({ jobs });
+      // reopened: 再開
+      if (results.job.reopened) {
+        results.job.reopened.forEach(reopened => {
+          const idx = jobs.findIndex(j => j.jobId === reopened.jobId);
+          if (idx >= 0) {
+            jobs[idx] = { ...jobs[idx], ...reopened };
+            console.log(`[Store] Job reopened: ${reopened.jobId}`);
+          }
+        });
+      }
+
+      // deleted: 削除（カスケード）
+      if (results.job.deleted) {
+        results.job.deleted.forEach(deleted => {
+          const jobId = deleted.jobId || deleted;
+          jobs = jobs.filter(j => j.jobId !== jobId);
+          schedules = schedules.filter(s => s.jobId !== jobId);
+          trips = trips.filter(t => t['jobId(任意)'] !== jobId && t.jobId !== jobId);
+          console.log(`[Store] Job deleted: ${jobId}`, deleted.deletedCounts);
+        });
+      }
+
+      this.setState({ jobs, schedules, trips });
     }
 
     // TopMemo の差分反映
@@ -1305,6 +1336,49 @@ const Store = {
 
   getJobById(jobId) {
     return this.state.jobs.find(j => j.jobId === jobId) || null;
+  },
+
+  // 表示対象の工番を取得（非表示フィルタ適用）
+  getVisibleJobs() {
+    if (this.state.showHiddenJobs) {
+      // 全て表示（deletedは除く）
+      return this.state.jobs.filter(j => j.status !== 'deleted');
+    }
+    // 非表示工番を除外
+    return this.state.jobs.filter(j => {
+      if (j.status === 'closed' || j.status === 'deleted') return false;
+      if (j.isHidden === true || j.isHidden === 'TRUE') return false;
+      return true;
+    });
+  },
+
+  // 工番のステータスを更新（完了/再開）
+  updateJobStatus(jobId, status, isHidden) {
+    const jobs = [...this.state.jobs];
+    const idx = jobs.findIndex(j => j.jobId === jobId);
+    if (idx >= 0) {
+      jobs[idx] = {
+        ...jobs[idx],
+        status,
+        isHidden,
+        closedAt: status === 'closed' ? new Date().toISOString() : null,
+        closedBy: status === 'closed' ? 'user' : null
+      };
+      this.setState({ jobs });
+    }
+  },
+
+  // 工番と関連データを削除
+  deleteJob(jobId) {
+    const jobs = this.state.jobs.filter(j => j.jobId !== jobId);
+    const schedules = this.state.schedules.filter(s => s.jobId !== jobId);
+    const trips = this.state.trips.filter(t => t['jobId(任意)'] !== jobId && t.jobId !== jobId);
+    this.setState({ jobs, schedules, trips });
+  },
+
+  // 非表示工番表示トグル
+  setShowHiddenJobs(show) {
+    this.setState({ showHiddenJobs: show });
   },
 
   getProcessById(processId) {
@@ -1452,7 +1526,8 @@ const Gantt = {
   },
 
   render() {
-    const { jobs, displayStartDate, displayDays } = Store.state;
+    const { displayStartDate, displayDays } = Store.state;
+    const jobs = Store.getVisibleJobs(); // 非表示工番をフィルタ
     this.dates = Utils.generateDateRange(displayStartDate, displayDays);
     const gridWidth = this.dates.length * this.config.cellWidth;
     document.documentElement.style.setProperty('--grid-width', `${gridWidth}px`);
@@ -2531,6 +2606,21 @@ const JobModal = {
       }
     });
 
+    // 完了・再開・削除ボタン
+    document.getElementById('btn-job-modal-close')?.addEventListener('click', () => this.closeJob());
+    document.getElementById('btn-job-modal-reopen')?.addEventListener('click', () => this.reopenJob());
+    document.getElementById('btn-job-modal-delete')?.addEventListener('click', () => this.showDeleteConfirm());
+
+    // 削除確認モーダル
+    document.getElementById('job-delete-confirm-close')?.addEventListener('click', () => this.hideDeleteConfirm());
+    document.getElementById('btn-job-delete-cancel')?.addEventListener('click', () => this.hideDeleteConfirm());
+    document.querySelector('#modal-job-delete-confirm .modal-backdrop')?.addEventListener('click', () => this.hideDeleteConfirm());
+    document.getElementById('btn-job-delete-execute')?.addEventListener('click', () => this.executeDelete());
+    document.getElementById('job-delete-confirm-input')?.addEventListener('input', (e) => {
+      const btn = document.getElementById('btn-job-delete-execute');
+      if (btn) btn.disabled = e.target.value !== 'DELETE';
+    });
+
     // 工番マスター検索
     const searchInput = document.getElementById('job-master-search');
     if (searchInput) {
@@ -2652,6 +2742,10 @@ const JobModal = {
     // 新規時はマスター検索エリアを表示
     const searchArea = document.getElementById('job-master-search-area');
     if (searchArea) searchArea.classList.remove('hidden');
+    // 新規時は完了・再開・削除ボタンを非表示
+    document.getElementById('btn-job-modal-close')?.classList.add('hidden');
+    document.getElementById('btn-job-modal-reopen')?.classList.add('hidden');
+    document.getElementById('btn-job-modal-delete')?.classList.add('hidden');
     this.open();
   },
 
@@ -2676,6 +2770,13 @@ const JobModal = {
     // 編集時はマスター検索エリアを非表示
     const searchArea = document.getElementById('job-master-search-area');
     if (searchArea) searchArea.classList.add('hidden');
+
+    // 完了・再開・削除ボタンの表示制御
+    const isClosed = job.status === 'closed' || job.isHidden === true;
+    document.getElementById('btn-job-modal-close')?.classList.toggle('hidden', isClosed);
+    document.getElementById('btn-job-modal-reopen')?.classList.toggle('hidden', !isClosed);
+    document.getElementById('btn-job-modal-delete')?.classList.remove('hidden');
+
     this.open();
   },
 
@@ -2695,6 +2796,77 @@ const JobModal = {
     this.currentJob = null;
     this.isEditMode = false;
     this.hideSearchResults();
+  },
+
+  // 工番を完了（非表示）にする
+  closeJob() {
+    if (!this.currentJob) return;
+
+    const jobId = this.currentJob.jobId;
+    const jobNo = this.currentJob['工番'];
+
+    if (!confirm(`工番「${jobNo}」を完了（非表示）にしますか？\n完了した工番は一覧から非表示になります。`)) {
+      return;
+    }
+
+    // A: UIを即時更新
+    Store.updateJobStatus(jobId, 'closed', true);
+    this.close();
+    Utils.showToast(`工番「${jobNo}」を完了にしました`, 'success');
+
+    // C: ChangeBufferに追加（B: 自動保存へ）
+    ChangeBuffer.add('job', 'close', jobId, {}, 'master');
+  },
+
+  // 工番の完了を解除（再開）
+  reopenJob() {
+    if (!this.currentJob) return;
+
+    const jobId = this.currentJob.jobId;
+    const jobNo = this.currentJob['工番'];
+
+    // A: UIを即時更新
+    Store.updateJobStatus(jobId, 'active', false);
+    this.close();
+    Utils.showToast(`工番「${jobNo}」を再開しました`, 'success');
+
+    // C: ChangeBufferに追加（B: 自動保存へ）
+    ChangeBuffer.add('job', 'reopen', jobId, {}, 'master');
+  },
+
+  // 削除確認モーダルを表示
+  showDeleteConfirm() {
+    if (!this.currentJob) return;
+
+    const jobNo = this.currentJob['工番'];
+    const product = this.currentJob['設備/製品名'] || '';
+
+    document.getElementById('job-delete-target-name').textContent = `${jobNo} ${product}`;
+    document.getElementById('job-delete-confirm-input').value = '';
+    document.getElementById('btn-job-delete-execute').disabled = true;
+    document.getElementById('modal-job-delete-confirm').classList.remove('hidden');
+  },
+
+  // 削除確認モーダルを閉じる
+  hideDeleteConfirm() {
+    document.getElementById('modal-job-delete-confirm').classList.add('hidden');
+  },
+
+  // 削除を実行
+  executeDelete() {
+    if (!this.currentJob) return;
+
+    const jobId = this.currentJob.jobId;
+    const jobNo = this.currentJob['工番'];
+
+    // A: UIを即時更新（削除）
+    Store.deleteJob(jobId);
+    this.hideDeleteConfirm();
+    this.close();
+    Utils.showToast(`工番「${jobNo}」と関連データを削除しました`, 'success');
+
+    // C: ChangeBufferに追加（B: 自動保存へ）
+    ChangeBuffer.add('job', 'delete', jobId, {}, 'master');
   },
 
   resetForm() {
@@ -5766,6 +5938,11 @@ const App = {
     window.addEventListener('resize', Utils.debounce(() => {
       Gantt.updateTodayLinePosition();
     }, 200));
+
+    // 非表示工番を表示トグル
+    document.getElementById('show-hidden-jobs')?.addEventListener('change', (e) => {
+      Store.setShowHiddenJobs(e.target.checked);
+    });
   },
 
   onDisplayRangeChange() {
