@@ -14,7 +14,7 @@
 
   /* メインコンテンツ領域 */
   main {
-    height: calc(100vh - 64px); /* ヘッダー高さを除く */
+    height: calc(100vh - 64px - 40px); /* ヘッダー高さ + タスクバー分の余白 */
     overflow: hidden;
   }
 
@@ -467,9 +467,9 @@
   /* 横スクロールバー（view-masterの下部に固定表示） */
   .gantt-bottom-scrollbar {
     flex-shrink: 0;
-    height: 16px;
-    background: #f1f5f9;
-    border-top: 1px solid #e5e7eb;
+    height: 20px;
+    background: #e2e8f0;
+    border-top: 2px solid #cbd5e1;
     overflow-x: auto;
     overflow-y: hidden;
     margin-left: 360px; /* 工番情報ペインの幅 */
@@ -481,7 +481,7 @@
 
   /* スクロールバーのスタイル */
   .gantt-bottom-scrollbar::-webkit-scrollbar {
-    height: 12px;
+    height: 16px;
   }
 
   .gantt-bottom-scrollbar::-webkit-scrollbar-track {
