@@ -450,6 +450,45 @@
     font-weight: 600;
   }
 
+  /* スティッキー横スクロールバー（画面下部固定） */
+  .gantt-sticky-scrollbar {
+    position: sticky;
+    bottom: 0;
+    left: 360px; /* 工番情報ペインの幅 */
+    right: 0;
+    height: 16px;
+    background: #f1f5f9;
+    border-top: 1px solid #e5e7eb;
+    overflow-x: auto;
+    overflow-y: hidden;
+    z-index: 35;
+    margin-left: 360px; /* 工番情報ペインの幅 */
+  }
+
+  .gantt-scrollbar-content {
+    height: 1px; /* スクロールバーを表示するための最小高さ */
+  }
+
+  /* スクロールバーのスタイル */
+  .gantt-sticky-scrollbar::-webkit-scrollbar {
+    height: 12px;
+  }
+
+  .gantt-sticky-scrollbar::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 6px;
+  }
+
+  .gantt-sticky-scrollbar::-webkit-scrollbar-thumb {
+    background: #94a3b8;
+    border-radius: 6px;
+    border: 2px solid #f1f5f9;
+  }
+
+  .gantt-sticky-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #64748b;
+  }
+
   /* ========================================
      MasterView 2ペイン構造（縦スクロール統一）
      ======================================== */
@@ -487,22 +526,14 @@
     display: none;
   }
 
-  /* 横スクロールバーのカスタマイズ */
+  /* 横スクロールバーを非表示（スティッキースクロールバーを使用するため） */
+  #gantt-h-scroll-body {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
   #gantt-h-scroll-body::-webkit-scrollbar {
-    height: 10px;
-  }
-
-  #gantt-h-scroll-body::-webkit-scrollbar-track {
-    background: #f1f5f9;
-  }
-
-  #gantt-h-scroll-body::-webkit-scrollbar-thumb {
-    background: #94a3b8;
-    border-radius: 5px;
-  }
-
-  #gantt-h-scroll-body::-webkit-scrollbar-thumb:hover {
-    background: #64748b;
+    display: none;
   }
 
   /* 2ペイン用日付ヘッダー */

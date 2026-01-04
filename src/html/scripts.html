@@ -1655,10 +1655,24 @@ const Gantt = {
   setupEventListeners() {
     const hScrollBody = document.getElementById('gantt-h-scroll-body');
     const hScrollHeader = document.getElementById('gantt-h-scroll-header');
+    const stickyScrollbar = document.getElementById('gantt-sticky-scrollbar');
 
     if (hScrollBody && hScrollHeader) {
       hScrollBody.addEventListener('scroll', () => {
         hScrollHeader.scrollLeft = hScrollBody.scrollLeft;
+        // スティッキースクロールバーも同期
+        if (stickyScrollbar) {
+          stickyScrollbar.scrollLeft = hScrollBody.scrollLeft;
+        }
+        this.updateTodayLinePosition();
+      });
+    }
+
+    // スティッキースクロールバーのスクロールイベント
+    if (stickyScrollbar && hScrollBody && hScrollHeader) {
+      stickyScrollbar.addEventListener('scroll', () => {
+        hScrollBody.scrollLeft = stickyScrollbar.scrollLeft;
+        hScrollHeader.scrollLeft = stickyScrollbar.scrollLeft;
         this.updateTodayLinePosition();
       });
     }
@@ -1678,6 +1692,20 @@ const Gantt = {
     this.renderJobPane(jobs);
     this.renderGrid(jobs);
     this.updateTodayLinePosition();
+
+    // スティッキースクロールバーの幅を更新
+    this.updateStickyScrollbarWidth(gridWidth);
+  },
+
+  /**
+   * スティッキースクロールバーの幅を更新
+   * グリッド幅に合わせてスクロール可能範囲を設定
+   */
+  updateStickyScrollbarWidth(gridWidth) {
+    const scrollbarContent = document.getElementById('gantt-scrollbar-content');
+    if (scrollbarContent) {
+      scrollbarContent.style.width = `${gridWidth}px`;
+    }
   },
 
   // 全工番のレーン数を事前計算（行の高さ同期のため）
