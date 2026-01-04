@@ -165,9 +165,9 @@
     </div>
 
     <!-- MasterView（大工程表）- 2ペイン構造（縦スクロール統一） -->
-    <div id="view-master" class="view-container">
-      <!-- 縦スクロールコンテナ（全体を包む） -->
-      <div id="gantt-v-scroll" class="h-full overflow-y-auto relative">
+    <div id="view-master" class="view-container flex flex-col">
+      <!-- 縦スクロールコンテナ（横スクロールバー分を除く高さ） -->
+      <div id="gantt-v-scroll" class="flex-1 overflow-y-auto relative min-h-0">
 
         <!-- ヘッダ（sticky top） -->
         <div class="sticky top-0 z-30 bg-white border-b border-gray-300">
@@ -220,11 +220,11 @@
 
         <!-- 今日ライン -->
         <div class="today-line" id="today-line"></div>
+      </div>
 
-        <!-- スティッキー横スクロールバー（画面下部に固定） -->
-        <div id="gantt-sticky-scrollbar" class="gantt-sticky-scrollbar">
-          <div id="gantt-scrollbar-content" class="gantt-scrollbar-content"></div>
-        </div>
+      <!-- 横スクロールバー（縦スクロール領域の外、常に下部に表示） -->
+      <div id="gantt-sticky-scrollbar" class="gantt-bottom-scrollbar">
+        <div id="gantt-scrollbar-content" class="gantt-scrollbar-content"></div>
       </div>
     </div>
 
