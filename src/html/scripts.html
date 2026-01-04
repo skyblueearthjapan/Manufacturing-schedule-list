@@ -6211,10 +6211,22 @@ const TravelPlan = {
 
     // スクロール同期
     const scrollArea = document.getElementById('travel-scroll-area');
-    const scrollHeader = document.querySelector('.travel-scroll-header');
-    if (scrollArea && scrollHeader) {
+    const scrollHeader = document.getElementById('travel-scroll-header');
+    const bottomScrollbar = document.getElementById('travel-bottom-scrollbar');
+
+    // ボディスクロール → ヘッダー＆下部スクロールバー同期
+    if (scrollArea) {
       scrollArea.addEventListener('scroll', () => {
-        scrollHeader.scrollLeft = scrollArea.scrollLeft;
+        if (scrollHeader) scrollHeader.scrollLeft = scrollArea.scrollLeft;
+        if (bottomScrollbar) bottomScrollbar.scrollLeft = scrollArea.scrollLeft;
+      });
+    }
+
+    // 下部スクロールバー → ボディ＆ヘッダー同期
+    if (bottomScrollbar) {
+      bottomScrollbar.addEventListener('scroll', () => {
+        if (scrollArea) scrollArea.scrollLeft = bottomScrollbar.scrollLeft;
+        if (scrollHeader) scrollHeader.scrollLeft = bottomScrollbar.scrollLeft;
       });
     }
 
@@ -6420,6 +6432,20 @@ const TravelPlan = {
     // 日付ヘッダーとボディをレンダリング
     this.renderDateHeader();
     this.renderBody(people, trips);
+
+    // 横スクロールバーの幅を更新
+    this.updateBottomScrollbarWidth();
+  },
+
+  /**
+   * 下部横スクロールバーの幅を更新
+   */
+  updateBottomScrollbarWidth() {
+    const scrollbarContent = document.getElementById('travel-scrollbar-content');
+    if (scrollbarContent) {
+      const totalWidth = this.getTotalGridWidth();
+      scrollbarContent.style.width = `${totalWidth}px`;
+    }
   },
 
   renderDateHeader() {

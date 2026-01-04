@@ -353,18 +353,23 @@
             <div class="travel-fixed-header">
               <div class="travel-person-header">作業者情報</div>
             </div>
-            <div class="travel-scroll-header">
+            <div class="travel-scroll-header" id="travel-scroll-header">
               <div class="travel-date-header" id="travel-date-header">
                 <!-- JSで生成 -->
               </div>
             </div>
           </div>
 
-          <!-- スクロール領域 -->
+          <!-- スクロール領域（縦スクロールのみ） -->
           <div class="travel-scroll-area" id="travel-scroll-area">
             <div class="travel-body" id="travel-body">
               <!-- JSで生成 -->
             </div>
+          </div>
+
+          <!-- 横スクロールバー（縦スクロール領域の外、常に下部に表示） -->
+          <div id="travel-bottom-scrollbar" class="travel-bottom-scrollbar">
+            <div id="travel-scrollbar-content" class="travel-scrollbar-content"></div>
           </div>
         </div>
       </div>

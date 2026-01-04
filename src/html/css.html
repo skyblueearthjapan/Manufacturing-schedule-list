@@ -1891,7 +1891,7 @@
   }
 
   .travel-container {
-    height: calc(100vh - 70px);
+    height: calc(100vh - 70px - 40px); /* ヘッダー + タスクバー余白 */
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -1976,7 +1976,43 @@
 
   .travel-scroll-area {
     flex: 1;
-    overflow: auto;
+    overflow-y: auto;
+    overflow-x: hidden;
+    min-height: 0; /* flex childのスクロールに必要 */
+  }
+
+  /* 横スクロールバー（travel-mainの下部に固定表示） */
+  .travel-bottom-scrollbar {
+    flex-shrink: 0;
+    height: 20px;
+    background: #e2e8f0;
+    border-top: 2px solid #cbd5e1;
+    overflow-x: auto;
+    overflow-y: hidden;
+    margin-left: 200px; /* 作業者情報ペインの幅 */
+  }
+
+  .travel-scrollbar-content {
+    height: 1px;
+  }
+
+  .travel-bottom-scrollbar::-webkit-scrollbar {
+    height: 16px;
+  }
+
+  .travel-bottom-scrollbar::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 6px;
+  }
+
+  .travel-bottom-scrollbar::-webkit-scrollbar-thumb {
+    background: #94a3b8;
+    border-radius: 6px;
+    border: 2px solid #f1f5f9;
+  }
+
+  .travel-bottom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #64748b;
   }
 
   .travel-body {
