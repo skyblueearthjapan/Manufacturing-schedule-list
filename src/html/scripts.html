@@ -3011,6 +3011,7 @@ const JobModal = {
   },
 
   // 工番マスター検索実行
+  // 検索対象: 工番 / 受注先 / 品名
   searchJobMaster(query) {
     const results = document.getElementById('job-master-results');
     if (!results) return;
@@ -3026,11 +3027,11 @@ const JobModal = {
     if (query && query.trim()) {
       const normalizedQuery = Utils.normalizeText(query);
       filtered = jobMaster.filter(item => {
-        // 工番・客先名・製品名を連結して正規化
+        // 工番・受注先・品名を連結して正規化（外部シートの列名に合わせる）
         const searchKey = Utils.normalizeText(
           String(item['工番'] || '') + ' ' +
-          String(item['客先名'] || '') + ' ' +
-          String(item['製品名'] || '')
+          String(item['受注先'] || '') + ' ' +
+          String(item['品名'] || '')
         );
         return searchKey.includes(normalizedQuery);
       });
@@ -3044,11 +3045,23 @@ const JobModal = {
     } else {
       let html = '';
       filtered.forEach(item => {
+        // 5項目すべてをdata属性で渡す（onclick属性のエスケープ問題を回避）
+        const dataAttrs = `
+          data-jobno="${Utils.escapeHtml(item['工番'] || '')}"
+          data-customer="${Utils.escapeHtml(item['受注先'] || '')}"
+          data-product="${Utils.escapeHtml(item['品名'] || '')}"
+          data-destination="${Utils.escapeHtml(item['納入先'] || '')}"
+          data-quantity="${Utils.escapeHtml(String(item['数量'] || ''))}"
+        `;
         html += `
-          <div class="job-master-result-item" onclick="JobModal.selectJobMasterItem('${Utils.escapeHtml(item['工番'] || '')}', '${Utils.escapeHtml(item['客先名'] || '')}', '${Utils.escapeHtml(item['製品名'] || '')}')">
+          <div class="job-master-result-item" ${dataAttrs} onclick="JobModal.selectJobMasterItemFromElement(this)">
             <div class="job-master-result-jobno">${Utils.escapeHtml(item['工番'] || '-')}</div>
-            <div class="job-master-result-customer">${Utils.escapeHtml(item['客先名'] || '-')}</div>
-            <div class="job-master-result-product">${Utils.escapeHtml(item['製品名'] || '-')}</div>
+            <div class="job-master-result-customer">${Utils.escapeHtml(item['受注先'] || '-')}</div>
+            <div class="job-master-result-product">${Utils.escapeHtml(item['品名'] || '-')}</div>
+            <div class="job-master-result-extra">
+              <span class="job-master-result-destination">${Utils.escapeHtml(item['納入先'] || '-')}</span>
+              <span class="job-master-result-quantity">${Utils.escapeHtml(String(item['数量'] || '-'))}</span>
+            </div>
           </div>
         `;
       });
@@ -3058,7 +3071,27 @@ const JobModal = {
     results.classList.remove('hidden');
   },
 
-  // 工番マスター選択
+  // 工番マスター選択（要素から値を取得）
+  selectJobMasterItemFromElement(element) {
+    const jobNo = element.dataset.jobno || '';
+    const customer = element.dataset.customer || '';
+    const product = element.dataset.product || '';
+    const destination = element.dataset.destination || '';
+    const quantity = element.dataset.quantity || '';
+
+    // モーダルの各項目に自動入力
+    document.getElementById('job-jobno').value = jobNo;
+    document.getElementById('job-customer').value = customer;
+    document.getElementById('job-product').value = product;
+    document.getElementById('job-destination').value = destination;
+    document.getElementById('job-qty').value = quantity;
+
+    this.hideSearchResults();
+    document.getElementById('job-master-search').value = '';
+    Utils.showToast('工番マスターから5項目を入力しました', 'info');
+  },
+
+  // 工番マスター選択（旧互換: 3項目のみ）
   selectJobMasterItem(jobNo, customer, product) {
     document.getElementById('job-jobno').value = jobNo;
     document.getElementById('job-customer').value = customer;

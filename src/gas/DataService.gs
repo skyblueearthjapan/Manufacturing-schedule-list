@@ -1828,7 +1828,8 @@ function getExternalJobMaster() {
 
 /**
  * 外部工番マスターを検索
- * @param {string} query - 検索クエリ（工番/客先名/製品名に部分一致）
+ * 検索対象: 工番 / 受注先 / 品名
+ * @param {string} query - 検索クエリ（部分一致）
  * @param {number} limit - 最大件数
  * @returns {Object[]}
  */
@@ -1841,9 +1842,10 @@ function searchExternalJobMaster(query, limit = 20) {
 
   const lowerQuery = query.toLowerCase();
   const results = allData.filter(item => {
+    // 外部シートの列名に合わせる（工番/受注先/品名で検索）
     const jobNo = String(item['工番'] || '').toLowerCase();
-    const customer = String(item['客先名'] || '').toLowerCase();
-    const product = String(item['製品名'] || '').toLowerCase();
+    const customer = String(item['受注先'] || '').toLowerCase();
+    const product = String(item['品名'] || '').toLowerCase();
 
     return jobNo.includes(lowerQuery) ||
            customer.includes(lowerQuery) ||
