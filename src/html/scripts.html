@@ -4285,8 +4285,9 @@ const JobDetail = {
       const left = effectiveStart * this.config.weeklyCellWidth;
       const width = (effectiveEnd - effectiveStart + 1) * this.config.weeklyCellWidth - 2;
 
+      // scheduleId を data属性に保持（クリック編集用）
       return `
-        <div class="job-bar" style="left: ${left}px; width: ${width}px; background-color: ${color};"
+        <div class="job-bar" data-schedule-id="${schedule.scheduleId}" style="left: ${left}px; width: ${width}px; background-color: ${color};"
              title="${personName}${schedule.label ? ' - ' + schedule.label : ''}">
           ${schedule.label ? `<span class="job-bar-label">${Utils.escapeHtml(schedule.label)}</span>` : ''}
         </div>
@@ -4303,8 +4304,9 @@ const JobDetail = {
       const left = Math.max(0, startOffset) * this.config.cellWidth;
       const width = Math.min(duration, dates.length - Math.max(0, startOffset)) * this.config.cellWidth - 2;
 
+      // scheduleId を data属性に保持（クリック編集用）
       return `
-        <div class="job-bar" style="left: ${left}px; width: ${width}px; background-color: ${color};"
+        <div class="job-bar" data-schedule-id="${schedule.scheduleId}" style="left: ${left}px; width: ${width}px; background-color: ${color};"
              title="${personName}${schedule.label ? ' - ' + schedule.label : ''}">
           ${schedule.label ? `<span class="job-bar-label">${Utils.escapeHtml(schedule.label)}</span>` : ''}
         </div>
@@ -4324,8 +4326,9 @@ const JobDetail = {
 
       const left = weekIdx * this.config.weeklyCellWidth + (this.config.weeklyCellWidth / 2) - 8;
 
+      // scheduleId を data属性に保持（クリック編集用）
       return `
-        <div class="job-milestone" style="left: ${left}px;" title="${processName}">
+        <div class="job-milestone" data-schedule-id="${schedule.scheduleId}" style="left: ${left}px;" title="${processName}">
           ★${Utils.escapeHtml(processName)}
         </div>
       `;
@@ -4339,8 +4342,9 @@ const JobDetail = {
 
       const left = startOffset * this.config.cellWidth + (this.config.cellWidth / 2) - 8;
 
+      // scheduleId を data属性に保持（クリック編集用）
       return `
-        <div class="job-milestone" style="left: ${left}px;" title="${processName}">
+        <div class="job-milestone" data-schedule-id="${schedule.scheduleId}" style="left: ${left}px;" title="${processName}">
           ★${Utils.escapeHtml(processName)}
         </div>
       `;
@@ -4431,6 +4435,20 @@ const JobDetail = {
   attachGridEventListeners() {
     const body = document.getElementById('job-detail-body');
     if (!body) return;
+
+    // バー・マイルストーンのクリック（編集モーダルを開く）
+    // scheduleId をキーとして Scheduleシートの該当行を特定・編集する
+    body.addEventListener('click', (e) => {
+      const bar = e.target.closest('.job-bar, .job-milestone');
+      if (bar) {
+        e.stopPropagation();
+        const scheduleId = bar.dataset.scheduleId;
+        if (scheduleId) {
+          this.onBarClick(scheduleId);
+        }
+        return;
+      }
+    });
 
     // ドラッグ範囲選択：mousedown
     body.addEventListener('mousedown', (e) => {
@@ -4531,6 +4549,23 @@ const JobDetail = {
     document.querySelectorAll('#job-detail-body .selected-range').forEach(cell => {
       cell.classList.remove('selected-range');
     });
+  },
+
+  /**
+   * バー・マイルストーンのクリック時に編集モーダルを開く
+   * @param {string} scheduleId - スケジュールの一意ID（Scheduleシートの主キー）
+   */
+  onBarClick(scheduleId) {
+    console.log('[JobDetail] Bar clicked, scheduleId:', scheduleId);
+    // scheduleId をキーとして Scheduleシートの該当行を取得
+    const schedule = Store.state.schedules.find(s => s.scheduleId === scheduleId);
+    if (schedule) {
+      // 大工程表と同じ Modal.openEdit を使用（モーダル実装の二重化を防ぐ）
+      Modal.openEdit(schedule);
+    } else {
+      console.warn('[JobDetail] Schedule not found for scheduleId:', scheduleId);
+      Utils.showToast('スケジュールが見つかりません', 'error');
+    }
   },
 
   /**
