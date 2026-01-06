@@ -968,6 +968,7 @@ const Store = {
     topMemoExpanded: false, // 上部メモ展開状態（デフォルトOFF）
     showHiddenJobs: false, // 完了（非表示）工番を表示するか
     jobSearchQuery: '', // 工番検索クエリ（大工程表用）
+    personSearchQuery: '', // 担当者検索クエリ（大工程表用）
     pdfInfoCache: {}, // PDF情報キャッシュ (工番 -> { order: {fileId, url}, instruction: {fileId, url} })
     daySettings: {}, // 日付設定 { 'YYYY-MM-DD': 'WORKDAY' | 'HOLIDAY' }
     displayStartDate: null,
@@ -1425,7 +1426,7 @@ const Store = {
       });
     }
 
-    // 検索フィルタ適用
+    // 工番検索フィルタ適用
     const query = this.state.jobSearchQuery;
     if (query && query.trim()) {
       const normalizedQuery = Utils.normalizeText(query);
@@ -1440,12 +1441,86 @@ const Store = {
       });
     }
 
+    // 担当者検索フィルタ適用
+    const personQuery = this.state.personSearchQuery;
+    if (personQuery && personQuery.trim()) {
+      const matchedPersonIds = this.findPersonIdsByName(personQuery);
+      if (matchedPersonIds.length > 0) {
+        // 該当担当者に紐づくスケジュールがある工番のみ表示
+        const matchedJobIds = this.getJobIdsByPersonIds(matchedPersonIds);
+        jobs = jobs.filter(job => matchedJobIds.has(job.jobId));
+      } else {
+        // 担当者が見つからない場合は空配列
+        jobs = [];
+      }
+    }
+
     return jobs;
   },
 
   // 工番検索クエリを設定
   setJobSearchQuery(query) {
     this.setState({ jobSearchQuery: query });
+  },
+
+  // 担当者検索クエリを設定
+  setPersonSearchQuery(query) {
+    this.setState({ personSearchQuery: query });
+  },
+
+  /**
+   * 担当者名（部分一致）でpersonIdを検索
+   * @param {string} name - 担当者名（部分一致）
+   * @returns {string[]} - マッチしたpersonIdの配列
+   */
+  findPersonIdsByName(name) {
+    if (!name || !name.trim()) return [];
+    const normalizedName = Utils.normalizeText(name);
+    return this.state.people
+      .filter(p => {
+        const personName = Utils.normalizeText(p['氏名'] || '');
+        return personName.includes(normalizedName);
+      })
+      .map(p => p.personId);
+  },
+
+  /**
+   * 担当者検索：該当するスケジュールとその役割を取得
+   * @param {string[]} personIds - 検索対象のpersonId配列
+   * @returns {Map<string, 'main'|'sub'>} - scheduleId -> 'main' or 'sub' のマップ
+   */
+  getScheduleRolesByPersonIds(personIds) {
+    const roleMap = new Map();
+    if (!personIds || personIds.length === 0) return roleMap;
+
+    this.state.schedules.forEach(s => {
+      const isMain = personIds.includes(s.mainPersonId);
+      const isSub = personIds.includes(s.subPersonId);
+      // 主担当を優先（両方に該当する場合は主担当）
+      if (isMain) {
+        roleMap.set(s.scheduleId, 'main');
+      } else if (isSub) {
+        roleMap.set(s.scheduleId, 'sub');
+      }
+    });
+    return roleMap;
+  },
+
+  /**
+   * 担当者検索で該当するjobIdを取得
+   * @param {string[]} personIds - 検索対象のpersonId配列
+   * @returns {Set<string>} - 該当するjobIdのセット
+   */
+  getJobIdsByPersonIds(personIds) {
+    const jobIds = new Set();
+    if (!personIds || personIds.length === 0) return jobIds;
+
+    this.state.schedules.forEach(s => {
+      if (personIds.includes(s.mainPersonId) || personIds.includes(s.subPersonId)) {
+        jobIds.add(s.jobId);
+      }
+    });
+    return jobIds;
   },
 
   // 工番のステータスを更新（完了/再開）
@@ -1709,12 +1784,42 @@ const Gantt = {
   },
 
   // 全工番のレーン数を事前計算（行の高さ同期のため）
+  // 担当者検索時はスケジュールをフィルタし、主担当→副担当の順でソート
   calculateLaneCounts(jobs) {
     this.jobLaneCounts = {};
     this._jobSchedulesWithLanes = {};
+    this._scheduleRoleMap = null; // 担当者検索時の役割マップ
+
+    // 担当者検索が有効かどうか確認
+    const personQuery = Store.state.personSearchQuery;
+    let matchedPersonIds = [];
+    if (personQuery && personQuery.trim()) {
+      matchedPersonIds = Store.findPersonIdsByName(personQuery);
+      if (matchedPersonIds.length > 0) {
+        // 役割マップを事前計算
+        this._scheduleRoleMap = Store.getScheduleRolesByPersonIds(matchedPersonIds);
+      }
+    }
 
     jobs.forEach(job => {
-      const schedules = Store.getSchedulesByJobId(job.jobId);
+      let schedules = Store.getSchedulesByJobId(job.jobId);
+
+      // 担当者検索時はスケジュールをフィルタ
+      if (this._scheduleRoleMap && this._scheduleRoleMap.size > 0) {
+        schedules = schedules.filter(s => this._scheduleRoleMap.has(s.scheduleId));
+
+        // 主担当を上段（先）、副担当を下段（後）にソート
+        // ※同じ日付範囲の場合、主担当が先に配置される = 上段レーン
+        schedules.sort((a, b) => {
+          const roleA = this._scheduleRoleMap.get(a.scheduleId);
+          const roleB = this._scheduleRoleMap.get(b.scheduleId);
+          // main(主担当)を先、sub(副担当)を後に
+          if (roleA === 'main' && roleB === 'sub') return -1;
+          if (roleA === 'sub' && roleB === 'main') return 1;
+          return 0;
+        });
+      }
+
       const { items, laneCount } = this.assignLanes(schedules);
       this.jobLaneCounts[job.jobId] = laneCount;
       this._jobSchedulesWithLanes[job.jobId] = items;
@@ -1962,12 +2067,24 @@ const Gantt = {
     const lane = schedule._lane || 0;
     const top = this.config.barTopPadding + (lane * this.config.laneHeight);
 
+    // 担当者検索時の役割クラス
+    let roleClass = '';
+    let roleIndicator = '';
+    if (this._scheduleRoleMap && this._scheduleRoleMap.has(schedule.scheduleId)) {
+      const role = this._scheduleRoleMap.get(schedule.scheduleId);
+      roleClass = role === 'main' ? ' person-main' : ' person-sub';
+      roleIndicator = role === 'main'
+        ? '<span class="role-indicator">主</span>'
+        : '<span class="role-indicator">副</span>';
+    }
+
     return `
-      <div class="gantt-bar"
+      <div class="gantt-bar${roleClass}"
            data-schedule-id="${schedule.scheduleId}"
            style="left: ${left}px; width: ${width}px; top: ${top}px; background-color: ${color};"
            title="${processName}${label ? ' - ' + label : ''}">
         <span class="bar-text">${Utils.escapeHtml(processName)}</span>
+        ${roleIndicator}
         ${label ? `<span class="gantt-bar-label">${Utils.escapeHtml(label)}</span>` : ''}
       </div>
     `;
@@ -1990,8 +2107,15 @@ const Gantt = {
     const lane = schedule._lane || 0;
     const top = this.config.barTopPadding + (lane * this.config.laneHeight);
 
+    // 担当者検索時の役割クラス
+    let roleClass = '';
+    if (this._scheduleRoleMap && this._scheduleRoleMap.has(schedule.scheduleId)) {
+      const role = this._scheduleRoleMap.get(schedule.scheduleId);
+      roleClass = role === 'main' ? ' person-main' : ' person-sub';
+    }
+
     return `
-      <div class="gantt-milestone"
+      <div class="gantt-milestone${roleClass}"
            data-schedule-id="${schedule.scheduleId}"
            style="left: ${left}px; top: ${top}px;"
            title="${processName}">
@@ -6899,13 +7023,14 @@ const App = {
 
     // 工番検索（大工程表用）
     this.setupJobSearch();
+    // 担当者検索（大工程表用）
+    this.setupPersonSearch();
   },
 
   // 工番検索のセットアップ
   setupJobSearch() {
     const input = document.getElementById('job-search-input');
     const clearBtn = document.getElementById('job-search-clear');
-    const countEl = document.getElementById('job-search-count');
 
     if (!input) return;
 
@@ -6914,7 +7039,7 @@ const App = {
       clearTimeout(debounceTimer);
       debounceTimer = setTimeout(() => {
         Store.setJobSearchQuery(e.target.value);
-        this.updateJobSearchUI();
+        this.updateSearchUI();
       }, 200);
     });
 
@@ -6922,34 +7047,69 @@ const App = {
     clearBtn?.addEventListener('click', () => {
       input.value = '';
       Store.setJobSearchQuery('');
-      this.updateJobSearchUI();
+      this.updateSearchUI();
       input.focus();
     });
 
     // 初期状態更新
-    this.updateJobSearchUI();
+    this.updateSearchUI();
 
     // Store変更時にUI更新
-    Store.subscribe(() => this.updateJobSearchUI());
+    Store.subscribe(() => this.updateSearchUI());
   },
 
-  // 工番検索UIの状態更新（ヒット件数、クリアボタン表示）
-  updateJobSearchUI() {
-    const input = document.getElementById('job-search-input');
-    const clearBtn = document.getElementById('job-search-clear');
+  // 担当者検索のセットアップ
+  setupPersonSearch() {
+    const input = document.getElementById('person-search-input');
+    const clearBtn = document.getElementById('person-search-clear');
+
+    if (!input) return;
+
+    let debounceTimer;
+    input.addEventListener('input', (e) => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        Store.setPersonSearchQuery(e.target.value);
+        this.updateSearchUI();
+      }, 200);
+    });
+
+    // クリアボタン
+    clearBtn?.addEventListener('click', () => {
+      input.value = '';
+      Store.setPersonSearchQuery('');
+      this.updateSearchUI();
+      input.focus();
+    });
+  },
+
+  // 検索UIの状態更新（ヒット件数、クリアボタン表示）
+  updateSearchUI() {
+    const jobInput = document.getElementById('job-search-input');
+    const jobClearBtn = document.getElementById('job-search-clear');
+    const personInput = document.getElementById('person-search-input');
+    const personClearBtn = document.getElementById('person-search-clear');
     const countEl = document.getElementById('job-search-count');
 
-    const query = Store.state.jobSearchQuery;
-    const hasQuery = query && query.trim().length > 0;
+    const jobQuery = Store.state.jobSearchQuery;
+    const personQuery = Store.state.personSearchQuery;
+    const hasJobQuery = jobQuery && jobQuery.trim().length > 0;
+    const hasPersonQuery = personQuery && personQuery.trim().length > 0;
+    const hasAnyQuery = hasJobQuery || hasPersonQuery;
 
-    // クリアボタン表示/非表示
-    if (clearBtn) {
-      clearBtn.classList.toggle('hidden', !hasQuery);
+    // 工番検索クリアボタン表示/非表示
+    if (jobClearBtn) {
+      jobClearBtn.classList.toggle('hidden', !hasJobQuery);
+    }
+
+    // 担当者検索クリアボタン表示/非表示
+    if (personClearBtn) {
+      personClearBtn.classList.toggle('hidden', !hasPersonQuery);
     }
 
     // ヒット件数表示
     if (countEl) {
-      if (hasQuery) {
+      if (hasAnyQuery) {
         const visibleCount = Store.getVisibleJobs().length;
         const totalCount = Store.state.showHiddenJobs
           ? Store.state.jobs.filter(j => j.status !== 'deleted').length
@@ -6960,6 +7120,11 @@ const App = {
         countEl.classList.add('hidden');
       }
     }
+  },
+
+  // 互換性のためのエイリアス
+  updateJobSearchUI() {
+    this.updateSearchUI();
   },
 
   onDisplayRangeChange() {

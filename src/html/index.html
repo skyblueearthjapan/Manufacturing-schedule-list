@@ -178,8 +178,17 @@
               <div class="flex items-center space-x-2">
                 <!-- 工番検索 -->
                 <div class="relative" id="job-search-container">
-                  <input type="text" id="job-search-input" class="border border-gray-300 rounded px-2 py-1 text-xs w-32 focus:ring-1 focus:ring-primary focus:border-primary" placeholder="工番/顧客/製品">
+                  <input type="text" id="job-search-input" class="border border-gray-300 rounded px-2 py-1 text-xs w-24 focus:ring-1 focus:ring-primary focus:border-primary" placeholder="工番/顧客/製品">
                   <button type="button" id="job-search-clear" class="absolute right-1 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 hidden" title="クリア">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                  </button>
+                </div>
+                <!-- 担当者検索 -->
+                <div class="relative" id="person-search-container">
+                  <input type="text" id="person-search-input" class="border border-gray-300 rounded px-2 py-1 text-xs w-20 focus:ring-1 focus:ring-primary focus:border-primary" placeholder="担当者名">
+                  <button type="button" id="person-search-clear" class="absolute right-1 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 hidden" title="クリア">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                     </svg>
