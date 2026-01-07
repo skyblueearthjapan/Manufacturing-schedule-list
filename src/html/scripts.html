@@ -1412,6 +1412,7 @@ const Store = {
   },
 
   // 表示対象の工番を取得（非表示フィルタ + 検索フィルタ適用）
+  // 担当者検索時は Jobs.mainPersonId / Jobs.subPersonId でフィルタ（主担当→副担当の順でソート）
   getVisibleJobs() {
     let jobs;
     if (this.state.showHiddenJobs) {
@@ -1441,14 +1442,17 @@ const Store = {
       });
     }
 
-    // 担当者検索フィルタ適用
+    // 担当者検索フィルタ適用（Jobs.mainPersonId / Jobs.subPersonId でフィルタ）
     const personQuery = this.state.personSearchQuery;
     if (personQuery && personQuery.trim()) {
       const matchedPersonIds = this.findPersonIdsByName(personQuery);
       if (matchedPersonIds.length > 0) {
-        // 該当担当者に紐づくスケジュールがある工番のみ表示
-        const matchedJobIds = this.getJobIdsByPersonIds(matchedPersonIds);
-        jobs = jobs.filter(job => matchedJobIds.has(job.jobId));
+        // 工番の主担当/副担当でフィルタ（Schedule側は参照しない）
+        const { mainJobs, subJobs } = this.getJobsByPersonRole(jobs, matchedPersonIds);
+        // 主担当→副担当の順でソート（同一工番が両方に該当する場合は主担当として1回だけ表示）
+        const mainJobIds = new Set(mainJobs.map(j => j.jobId));
+        const uniqueSubJobs = subJobs.filter(j => !mainJobIds.has(j.jobId));
+        jobs = [...mainJobs, ...uniqueSubJobs];
       } else {
         // 担当者が見つからない場合は空配列
         jobs = [];
@@ -1456,6 +1460,56 @@ const Store = {
     }
 
     return jobs;
+  },
+
+  /**
+   * 工番を主担当/副担当で分類
+   * @param {Array} jobs - フィルタ対象の工番配列
+   * @param {string[]} personIds - 検索対象のpersonId配列
+   * @returns {{ mainJobs: Array, subJobs: Array }}
+   */
+  getJobsByPersonRole(jobs, personIds) {
+    const mainJobs = [];
+    const subJobs = [];
+
+    jobs.forEach(job => {
+      const isMain = personIds.includes(job.mainPersonId);
+      const isSub = personIds.includes(job.subPersonId);
+
+      if (isMain) {
+        mainJobs.push(job);
+      } else if (isSub) {
+        subJobs.push(job);
+      }
+    });
+
+    return { mainJobs, subJobs };
+  },
+
+  /**
+   * 担当者検索で工番の役割を取得
+   * @returns {Map<string, 'main'|'sub'>} - jobId -> 'main' or 'sub'
+   */
+  getJobRoleMap() {
+    const roleMap = new Map();
+    const personQuery = this.state.personSearchQuery;
+    if (!personQuery || !personQuery.trim()) return roleMap;
+
+    const matchedPersonIds = this.findPersonIdsByName(personQuery);
+    if (matchedPersonIds.length === 0) return roleMap;
+
+    this.state.jobs.forEach(job => {
+      const isMain = matchedPersonIds.includes(job.mainPersonId);
+      const isSub = matchedPersonIds.includes(job.subPersonId);
+      // 主担当を優先
+      if (isMain) {
+        roleMap.set(job.jobId, 'main');
+      } else if (isSub) {
+        roleMap.set(job.jobId, 'sub');
+      }
+    });
+
+    return roleMap;
   },
 
   // 工番検索クエリを設定
@@ -1482,45 +1536,6 @@ const Store = {
         return personName.includes(normalizedName);
       })
       .map(p => p.personId);
-  },
-
-  /**
-   * 担当者検索：該当するスケジュールとその役割を取得
-   * @param {string[]} personIds - 検索対象のpersonId配列
-   * @returns {Map<string, 'main'|'sub'>} - scheduleId -> 'main' or 'sub' のマップ
-   */
-  getScheduleRolesByPersonIds(personIds) {
-    const roleMap = new Map();
-    if (!personIds || personIds.length === 0) return roleMap;
-
-    this.state.schedules.forEach(s => {
-      const isMain = personIds.includes(s.mainPersonId);
-      const isSub = personIds.includes(s.subPersonId);
-      // 主担当を優先（両方に該当する場合は主担当）
-      if (isMain) {
-        roleMap.set(s.scheduleId, 'main');
-      } else if (isSub) {
-        roleMap.set(s.scheduleId, 'sub');
-      }
-    });
-    return roleMap;
-  },
-
-  /**
-   * 担当者検索で該当するjobIdを取得
-   * @param {string[]} personIds - 検索対象のpersonId配列
-   * @returns {Set<string>} - 該当するjobIdのセット
-   */
-  getJobIdsByPersonIds(personIds) {
-    const jobIds = new Set();
-    if (!personIds || personIds.length === 0) return jobIds;
-
-    this.state.schedules.forEach(s => {
-      if (personIds.includes(s.mainPersonId) || personIds.includes(s.subPersonId)) {
-        jobIds.add(s.jobId);
-      }
-    });
-    return jobIds;
   },
 
   // 工番のステータスを更新（完了/再開）
@@ -1784,42 +1799,16 @@ const Gantt = {
   },
 
   // 全工番のレーン数を事前計算（行の高さ同期のため）
-  // 担当者検索時はスケジュールをフィルタし、主担当→副担当の順でソート
+  // ※担当者検索時も、工番に紐づく全スケジュールを表示（Schedule側の担当者は参照しない）
   calculateLaneCounts(jobs) {
     this.jobLaneCounts = {};
     this._jobSchedulesWithLanes = {};
-    this._scheduleRoleMap = null; // 担当者検索時の役割マップ
-
-    // 担当者検索が有効かどうか確認
-    const personQuery = Store.state.personSearchQuery;
-    let matchedPersonIds = [];
-    if (personQuery && personQuery.trim()) {
-      matchedPersonIds = Store.findPersonIdsByName(personQuery);
-      if (matchedPersonIds.length > 0) {
-        // 役割マップを事前計算
-        this._scheduleRoleMap = Store.getScheduleRolesByPersonIds(matchedPersonIds);
-      }
-    }
+    // 工番レベルの役割マップ（担当者検索時に使用）
+    this._jobRoleMap = Store.getJobRoleMap();
 
     jobs.forEach(job => {
-      let schedules = Store.getSchedulesByJobId(job.jobId);
-
-      // 担当者検索時はスケジュールをフィルタ
-      if (this._scheduleRoleMap && this._scheduleRoleMap.size > 0) {
-        schedules = schedules.filter(s => this._scheduleRoleMap.has(s.scheduleId));
-
-        // 主担当を上段（先）、副担当を下段（後）にソート
-        // ※同じ日付範囲の場合、主担当が先に配置される = 上段レーン
-        schedules.sort((a, b) => {
-          const roleA = this._scheduleRoleMap.get(a.scheduleId);
-          const roleB = this._scheduleRoleMap.get(b.scheduleId);
-          // main(主担当)を先、sub(副担当)を後に
-          if (roleA === 'main' && roleB === 'sub') return -1;
-          if (roleA === 'sub' && roleB === 'main') return 1;
-          return 0;
-        });
-      }
-
+      // 工番に紐づく全スケジュールを取得（担当者検索時もフィルタしない）
+      const schedules = Store.getSchedulesByJobId(job.jobId);
       const { items, laneCount } = this.assignLanes(schedules);
       this.jobLaneCounts[job.jobId] = laneCount;
       this._jobSchedulesWithLanes[job.jobId] = items;
@@ -1908,10 +1897,22 @@ const Gantt = {
       const hasOrderPdf = pdfInfo?.order?.fileId ? true : false;
       const hasInstructionPdf = pdfInfo?.instruction?.fileId ? true : false;
 
+      // 担当者検索時の役割クラス（工番レベル）
+      let jobRoleClass = '';
+      let jobRoleBadge = '';
+      if (this._jobRoleMap && this._jobRoleMap.has(job.jobId)) {
+        const role = this._jobRoleMap.get(job.jobId);
+        jobRoleClass = role === 'main' ? ' job-role-main' : ' job-role-sub';
+        jobRoleBadge = role === 'main'
+          ? '<span class="job-role-badge job-role-badge-main">主担当</span>'
+          : '<span class="job-role-badge job-role-badge-sub">副担当</span>';
+      }
+
       html += `
-        <div class="job-info-block" data-job-id="${job.jobId}" style="height: ${rowHeight}px; min-height: ${rowHeight}px;" onclick="Gantt.onJobClick('${job.jobId}')">
+        <div class="job-info-block${jobRoleClass}" data-job-id="${job.jobId}" style="height: ${rowHeight}px; min-height: ${rowHeight}px;" onclick="Gantt.onJobClick('${job.jobId}')">
           <div class="job-info-content">
             <div class="job-info-row1">
+              ${jobRoleBadge}
               <div class="job-info-jobno">
                 <span class="label">[工番]</span>
                 <span>${Utils.escapeHtml(job['工番'] || '')}</span>
@@ -2067,24 +2068,12 @@ const Gantt = {
     const lane = schedule._lane || 0;
     const top = this.config.barTopPadding + (lane * this.config.laneHeight);
 
-    // 担当者検索時の役割クラス
-    let roleClass = '';
-    let roleIndicator = '';
-    if (this._scheduleRoleMap && this._scheduleRoleMap.has(schedule.scheduleId)) {
-      const role = this._scheduleRoleMap.get(schedule.scheduleId);
-      roleClass = role === 'main' ? ' person-main' : ' person-sub';
-      roleIndicator = role === 'main'
-        ? '<span class="role-indicator">主</span>'
-        : '<span class="role-indicator">副</span>';
-    }
-
     return `
-      <div class="gantt-bar${roleClass}"
+      <div class="gantt-bar"
            data-schedule-id="${schedule.scheduleId}"
            style="left: ${left}px; width: ${width}px; top: ${top}px; background-color: ${color};"
            title="${processName}${label ? ' - ' + label : ''}">
         <span class="bar-text">${Utils.escapeHtml(processName)}</span>
-        ${roleIndicator}
         ${label ? `<span class="gantt-bar-label">${Utils.escapeHtml(label)}</span>` : ''}
       </div>
     `;
@@ -2107,15 +2096,8 @@ const Gantt = {
     const lane = schedule._lane || 0;
     const top = this.config.barTopPadding + (lane * this.config.laneHeight);
 
-    // 担当者検索時の役割クラス
-    let roleClass = '';
-    if (this._scheduleRoleMap && this._scheduleRoleMap.has(schedule.scheduleId)) {
-      const role = this._scheduleRoleMap.get(schedule.scheduleId);
-      roleClass = role === 'main' ? ' person-main' : ' person-sub';
-    }
-
     return `
-      <div class="gantt-milestone${roleClass}"
+      <div class="gantt-milestone"
            data-schedule-id="${schedule.scheduleId}"
            style="left: ${left}px; top: ${top}px;"
            title="${processName}">
