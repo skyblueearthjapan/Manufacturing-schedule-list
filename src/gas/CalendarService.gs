@@ -5,8 +5,13 @@
  * 重要: スコープ追加後は必ず再デプロイが必要
  * appsscript.json に以下のスコープが必要:
  * - https://www.googleapis.com/auth/calendar.readonly
- * - https://www.googleapis.com/auth/calendar.events.readonly
- * - https://www.googleapis.com/auth/script.external_request
+ *
+ * デプロイ設定:
+ * - Execute as: Me（スクリプト所有者）
+ * - Who has access: 必要に応じて
+ *
+ * カレンダー共有設定:
+ * - スクリプト所有者に「すべてのイベントの詳細を見る」権限を付与
  */
 
 // 電気カレンダーの公開ICS URL（フォールバック用）
@@ -22,6 +27,33 @@ const CalendarErrorType = {
   PARSE_ERROR: 'PARSE_ERROR',
   UNKNOWN: 'UNKNOWN'
 };
+
+/**
+ * 実行コンテキストのデバッグ情報を取得
+ * これで「誰として実行されているか」を確認できる
+ */
+function getExecutionContext() {
+  let activeUser = 'unknown';
+  let effectiveUser = 'unknown';
+
+  try {
+    activeUser = Session.getActiveUser().getEmail() || '(empty)';
+  } catch (e) {
+    activeUser = '(error: ' + e.message + ')';
+  }
+
+  try {
+    effectiveUser = Session.getEffectiveUser().getEmail() || '(empty)';
+  } catch (e) {
+    effectiveUser = '(error: ' + e.message + ')';
+  }
+
+  return {
+    activeUser: activeUser,
+    effectiveUser: effectiveUser,
+    timestamp: new Date().toISOString()
+  };
+}
 
 /**
  * カレンダーエラーを分類
@@ -43,26 +75,36 @@ function classifyCalendarError(e) {
 }
 
 /**
- * ユーザー向けエラーメッセージを生成
- * @param {string} errorType - エラータイプ
- * @param {string} calendarId - カレンダーID
- * @returns {string} ユーザー向けメッセージ
+ * ユーザー向けエラーメッセージを生成（デバッグ情報付き）
  */
-function getCalendarErrorMessage(errorType, calendarId) {
+function getCalendarErrorMessage(errorType, calendarId, debugInfo) {
+  const context = debugInfo || getExecutionContext();
+
+  let baseMessage = '';
   switch (errorType) {
     case CalendarErrorType.PERMISSION_DENIED:
-      return `カレンダーへのアクセス権限がありません。\n` +
-             `対象: ${calendarId}\n\n` +
-             `【対処方法】\n` +
-             `1. Webアプリを再デプロイしてカレンダー権限を認可してください\n` +
-             `2. または、カレンダーの所有者に共有設定を依頼してください`;
+      baseMessage = `カレンダーへのアクセス権限がありません。`;
+      break;
     case CalendarErrorType.CALENDAR_NOT_FOUND:
-      return `カレンダーが見つかりません: ${calendarId}`;
+      baseMessage = `カレンダーが見つかりません。`;
+      break;
     case CalendarErrorType.NETWORK_ERROR:
-      return `ネットワークエラーが発生しました。しばらく待ってから再試行してください。`;
+      baseMessage = `ネットワークエラーが発生しました。`;
+      break;
     default:
-      return `カレンダーの読み込みに失敗しました。`;
+      baseMessage = `カレンダーの読み込みに失敗しました。`;
   }
+
+  return `${baseMessage}\n\n` +
+    `【デバッグ情報】\n` +
+    `対象カレンダー: ${calendarId}\n` +
+    `実行ユーザー(effective): ${context.effectiveUser}\n` +
+    `アクセスユーザー(active): ${context.activeUser}\n\n` +
+    `【対処方法】\n` +
+    `1. カレンダー所有者が「${context.effectiveUser}」に\n` +
+    `   「すべてのイベントの詳細を見る」権限を付与\n` +
+    `2. Webアプリを新しいバージョンとして再デプロイ\n` +
+    `3. 初回アクセス時に承認ダイアログで許可`;
 }
 
 /**
@@ -70,28 +112,47 @@ function getCalendarErrorMessage(errorType, calendarId) {
  * @param {string} calendarId - カレンダーID
  * @param {string} startDate - 開始日 (YYYY-MM-DD)
  * @param {string} endDate - 終了日 (YYYY-MM-DD)
- * @returns {Object} { success, events, error, errorType, errorMessage }
+ * @returns {Object} { success, events, error, errorType, errorMessage, debug }
  */
 function getCalendarEvents(calendarId, startDate, endDate) {
-  try {
-    Logger.log('[getCalendarEvents] Fetching: ' + calendarId + ' from ' + startDate + ' to ' + endDate);
+  // デバッグ情報を最初に取得
+  const debugInfo = getExecutionContext();
+  Logger.log('[getCalendarEvents] ========== START ==========');
+  Logger.log('[getCalendarEvents] Calendar ID: ' + calendarId);
+  Logger.log('[getCalendarEvents] Date range: ' + startDate + ' to ' + endDate);
+  Logger.log('[getCalendarEvents] Effective User: ' + debugInfo.effectiveUser);
+  Logger.log('[getCalendarEvents] Active User: ' + debugInfo.activeUser);
 
+  try {
+    // CalendarApp でカレンダーを取得
     const calendar = CalendarApp.getCalendarById(calendarId);
+
     if (!calendar) {
-      Logger.log('[getCalendarEvents] Calendar not found: ' + calendarId);
+      Logger.log('[getCalendarEvents] FAILED: CalendarApp.getCalendarById returned null');
+      Logger.log('[getCalendarEvents] → カレンダーが見つからないか、権限がありません');
       return {
         success: false,
         events: [],
         errorType: CalendarErrorType.CALENDAR_NOT_FOUND,
-        errorMessage: getCalendarErrorMessage(CalendarErrorType.CALENDAR_NOT_FOUND, calendarId)
+        errorMessage: getCalendarErrorMessage(CalendarErrorType.CALENDAR_NOT_FOUND, calendarId, debugInfo),
+        debug: debugInfo
       };
+    }
+
+    // カレンダー名を取得して権限確認
+    let calendarName = '';
+    try {
+      calendarName = calendar.getName();
+      Logger.log('[getCalendarEvents] SUCCESS: Calendar found - Name: ' + calendarName);
+    } catch (nameError) {
+      Logger.log('[getCalendarEvents] WARNING: Could not get calendar name: ' + nameError.message);
     }
 
     const start = new Date(startDate + 'T00:00:00');
     const end = new Date(endDate + 'T23:59:59');
 
     const events = calendar.getEvents(start, end);
-    Logger.log('[getCalendarEvents] Found ' + events.length + ' events');
+    Logger.log('[getCalendarEvents] SUCCESS: Found ' + events.length + ' events');
 
     const mappedEvents = events.map(event => ({
       id: event.getId(),
@@ -107,21 +168,28 @@ function getCalendarEvents(calendarId, startDate, endDate) {
       source: 'CalendarApp'
     }));
 
+    Logger.log('[getCalendarEvents] ========== END (SUCCESS) ==========');
     return {
       success: true,
       events: mappedEvents,
+      calendarName: calendarName,
       errorType: null,
-      errorMessage: null
+      errorMessage: null,
+      debug: debugInfo
     };
   } catch (e) {
-    Logger.log('[getCalendarEvents] Error: ' + e.message);
+    Logger.log('[getCalendarEvents] EXCEPTION: ' + e.message);
+    Logger.log('[getCalendarEvents] Stack: ' + (e.stack || 'N/A'));
+    Logger.log('[getCalendarEvents] ========== END (FAILED) ==========');
+
     const errorType = classifyCalendarError(e);
     return {
       success: false,
       events: [],
       errorType: errorType,
-      errorMessage: getCalendarErrorMessage(errorType, calendarId),
-      rawError: e.message
+      errorMessage: getCalendarErrorMessage(errorType, calendarId, debugInfo),
+      rawError: e.message,
+      debug: debugInfo
     };
   }
 }
@@ -383,23 +451,50 @@ function groupEventsByDate(events) {
 }
 
 /**
- * カレンダー接続テスト
+ * カレンダー接続テスト（デバッグ用）
+ * GASエディタで直接実行するか、api_testCalendarConnection()経由で呼び出す
  * @returns {Object} テスト結果
  */
 function testCalendarConnection() {
-  const results = {};
+  Logger.log('========== カレンダー接続テスト開始 ==========');
+
+  // 実行コンテキスト
+  const context = getExecutionContext();
+  Logger.log('実行ユーザー(effective): ' + context.effectiveUser);
+  Logger.log('アクセスユーザー(active): ' + context.activeUser);
+
+  const results = {
+    executionContext: context,
+    calendars: {}
+  };
 
   // TSCカレンダー
+  Logger.log('--- TSCカレンダー テスト ---');
   try {
     const tscCal = CalendarApp.getCalendarById(CONFIG.CALENDARS.TSC);
-    results.TSC = {
-      success: !!tscCal,
-      name: tscCal ? tscCal.getName() : null,
-      id: CONFIG.CALENDARS.TSC,
-      method: 'CalendarApp'
-    };
+    if (tscCal) {
+      const name = tscCal.getName();
+      Logger.log('✓ TSC: 成功 - カレンダー名: ' + name);
+      results.calendars.TSC = {
+        success: true,
+        name: name,
+        id: CONFIG.CALENDARS.TSC,
+        method: 'CalendarApp'
+      };
+    } else {
+      Logger.log('✗ TSC: 失敗 - getCalendarById が null を返しました');
+      Logger.log('  → カレンダーが見つからないか、「' + context.effectiveUser + '」にアクセス権がありません');
+      results.calendars.TSC = {
+        success: false,
+        error: 'Calendar not found or no permission',
+        id: CONFIG.CALENDARS.TSC,
+        method: 'CalendarApp',
+        hint: context.effectiveUser + ' に「すべてのイベントの詳細を見る」権限を付与してください'
+      };
+    }
   } catch (e) {
-    results.TSC = {
+    Logger.log('✗ TSC: 例外発生 - ' + e.message);
+    results.calendars.TSC = {
       success: false,
       error: e.message,
       errorType: classifyCalendarError(e),
@@ -409,16 +504,31 @@ function testCalendarConnection() {
   }
 
   // 電気カレンダー（CalendarApp）
+  Logger.log('--- 電気カレンダー（CalendarApp） テスト ---');
   try {
     const elecCal = CalendarApp.getCalendarById(CONFIG.CALENDARS.ELECTRICAL);
-    results.ELECTRICAL_CalendarApp = {
-      success: !!elecCal,
-      name: elecCal ? elecCal.getName() : null,
-      id: CONFIG.CALENDARS.ELECTRICAL,
-      method: 'CalendarApp'
-    };
+    if (elecCal) {
+      const name = elecCal.getName();
+      Logger.log('✓ 電気(CalendarApp): 成功 - カレンダー名: ' + name);
+      results.calendars.ELECTRICAL_CalendarApp = {
+        success: true,
+        name: name,
+        id: CONFIG.CALENDARS.ELECTRICAL,
+        method: 'CalendarApp'
+      };
+    } else {
+      Logger.log('✗ 電気(CalendarApp): 失敗 - getCalendarById が null を返しました');
+      results.calendars.ELECTRICAL_CalendarApp = {
+        success: false,
+        error: 'Calendar not found or no permission',
+        id: CONFIG.CALENDARS.ELECTRICAL,
+        method: 'CalendarApp',
+        hint: context.effectiveUser + ' に「すべてのイベントの詳細を見る」権限を付与してください'
+      };
+    }
   } catch (e) {
-    results.ELECTRICAL_CalendarApp = {
+    Logger.log('✗ 電気(CalendarApp): 例外発生 - ' + e.message);
+    results.calendars.ELECTRICAL_CalendarApp = {
       success: false,
       error: e.message,
       errorType: classifyCalendarError(e),
@@ -428,17 +538,30 @@ function testCalendarConnection() {
   }
 
   // 電気カレンダー（ICSフォールバック）
+  Logger.log('--- 電気カレンダー（ICS） テスト ---');
   try {
     const response = UrlFetchApp.fetch(ELECTRICAL_ICS_URL, { muteHttpExceptions: true });
     const code = response.getResponseCode();
-    results.ELECTRICAL_ICS = {
-      success: code === 200,
-      httpStatus: code,
-      url: ELECTRICAL_ICS_URL,
-      method: 'ICS'
-    };
+    if (code === 200) {
+      Logger.log('✓ 電気(ICS): 成功 - HTTP 200');
+      results.calendars.ELECTRICAL_ICS = {
+        success: true,
+        httpStatus: code,
+        url: ELECTRICAL_ICS_URL,
+        method: 'ICS'
+      };
+    } else {
+      Logger.log('✗ 電気(ICS): 失敗 - HTTP ' + code);
+      results.calendars.ELECTRICAL_ICS = {
+        success: false,
+        httpStatus: code,
+        url: ELECTRICAL_ICS_URL,
+        method: 'ICS'
+      };
+    }
   } catch (e) {
-    results.ELECTRICAL_ICS = {
+    Logger.log('✗ 電気(ICS): 例外発生 - ' + e.message);
+    results.calendars.ELECTRICAL_ICS = {
       success: false,
       error: e.message,
       url: ELECTRICAL_ICS_URL,
@@ -446,6 +569,12 @@ function testCalendarConnection() {
     };
   }
 
-  Logger.log('Calendar connection test results: ' + JSON.stringify(results, null, 2));
+  // サマリー
+  Logger.log('========== テスト結果サマリー ==========');
+  Logger.log('TSC(CalendarApp): ' + (results.calendars.TSC?.success ? '✓ 成功' : '✗ 失敗'));
+  Logger.log('電気(CalendarApp): ' + (results.calendars.ELECTRICAL_CalendarApp?.success ? '✓ 成功' : '✗ 失敗'));
+  Logger.log('電気(ICS): ' + (results.calendars.ELECTRICAL_ICS?.success ? '✓ 成功' : '✗ 失敗'));
+  Logger.log('========================================');
+
   return results;
 }
