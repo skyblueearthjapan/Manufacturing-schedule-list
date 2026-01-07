@@ -1864,6 +1864,9 @@ const Gantt = {
 
     // スティッキースクロールバーの幅を更新
     this.updateStickyScrollbarWidth(gridWidth);
+
+    // 埋め込み出張計画を描画
+    this.renderTrips();
   },
 
   /**
@@ -2359,6 +2362,36 @@ const Gantt = {
       const typeName = pdfType === 'order' ? '受注表' : '工番別指示書';
       Utils.showToast(`${typeName}PDFが登録されていません`, 'info');
     }
+  },
+
+  /**
+   * 出張計画セクションの折りたたみ切替
+   */
+  toggleTripSection() {
+    const section = document.getElementById('gantt-trip-section');
+    if (section) {
+      section.classList.toggle('collapsed');
+    }
+  },
+
+  /**
+   * 埋め込み出張計画を描画
+   */
+  renderTrips() {
+    const { displayStartDate, displayDays, trips } = Store.state;
+
+    // トリップ数をカウント
+    const countEl = document.getElementById('gantt-trip-count');
+    if (countEl) {
+      countEl.textContent = `${trips.length}件`;
+    }
+
+    // 埋め込み出張計画を描画（全員表示）
+    TravelPlan.renderEmbedded({
+      containerId: 'gantt-trip-container',
+      dateFrom: displayStartDate,
+      days: displayDays
+    });
   }
 };
 
@@ -6142,6 +6175,9 @@ const PersonGanttOverlay = {
     this.renderDateHeader();
     this.renderJobPane(filteredJobs);
     this.renderGrid(filteredJobs);
+
+    // 埋め込み出張計画を描画
+    this.renderTrips();
   },
 
   /**
@@ -6483,6 +6519,40 @@ const PersonGanttOverlay = {
         headerScroll.scrollLeft = gridScroll.scrollLeft;
       });
     }
+  },
+
+  /**
+   * 出張計画セクションの折りたたみ切替
+   */
+  toggleTripSection() {
+    const section = document.getElementById('person-gantt-trip-section');
+    if (section) {
+      section.classList.toggle('collapsed');
+    }
+  },
+
+  /**
+   * 埋め込み出張計画を描画
+   */
+  renderTrips() {
+    if (!this.currentPersonId) return;
+
+    const { displayStartDate, displayDays, trips } = Store.state;
+
+    // 対象者のトリップ数をカウント
+    const personTrips = trips.filter(t => t.personId === this.currentPersonId);
+    const countEl = document.getElementById('person-gantt-trip-count');
+    if (countEl) {
+      countEl.textContent = `${personTrips.length}件`;
+    }
+
+    // 埋め込み出張計画を描画
+    TravelPlan.renderEmbedded({
+      containerId: 'person-gantt-trip-container',
+      personId: this.currentPersonId,
+      dateFrom: displayStartDate,
+      days: displayDays
+    });
   }
 };
 
@@ -7720,6 +7790,299 @@ const TravelPlan = {
     ChangeBuffer.add('trip', 'lock', tripId, {}, 'travel');
     Utils.showToast('予定を確定しました（保存待ち）', 'info');
     this.render();
+  },
+
+  /**
+   * 埋め込み用レンダリング（大工程表・担当者別大工程表の下段用）
+   * @param {Object} options - { containerId, personId?, dateFrom, days }
+   */
+  renderEmbedded(options) {
+    const { containerId, personId, dateFrom, days } = options;
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    const { people, trips } = Store.state;
+    const dates = Utils.generateDateRange(dateFrom, days);
+
+    // personId指定がある場合はその人のみ、なければアクティブな人全員
+    let targetPeople = people.filter(p => p.isActive !== false);
+    if (personId) {
+      targetPeople = targetPeople.filter(p => p.personId === personId);
+    }
+
+    // 対象者がいない場合
+    if (targetPeople.length === 0) {
+      container.innerHTML = `
+        <div class="embedded-trip-empty">
+          ${personId ? 'この担当者の出張予定はありません' : '担当者が登録されていません'}
+        </div>
+      `;
+      return;
+    }
+
+    // 表示期間内のトリップをフィルタ
+    const visibleTrips = trips.filter(trip => {
+      const startDate = trip.start;
+      const endDate = trip.end;
+      const rangeStart = dates[0];
+      const rangeEnd = dates[dates.length - 1];
+      // 期間内に重なるもの
+      return startDate <= rangeEnd && endDate >= rangeStart;
+    });
+
+    // 日付ごとの幅を計算（現場カードの押し広げ対応）
+    const dateExtraWidths = {};
+    dates.forEach(d => { dateExtraWidths[d] = 0; });
+
+    // 現場カードの幅を計算して押し広げ
+    visibleTrips.filter(t => t.kind === 'site').forEach(trip => {
+      const description = trip['用件'] || '';
+      const lines = description.split('\n');
+      const neededWidth = this.calculateSiteCardWidth(lines[0] || '', lines[1] || '', lines[2] || trip['行先'] || '');
+      const duration = Utils.getDaysBetween(trip.start, trip.end) + 1;
+      const baseWidth = duration * this.config.cellWidth;
+      const extraNeeded = Math.max(0, neededWidth - baseWidth);
+      if (extraNeeded > 0 && dates.includes(trip.start)) {
+        dateExtraWidths[trip.start] = Math.max(dateExtraWidths[trip.start], extraNeeded);
+      }
+    });
+
+    // 累積X座標計算用
+    const getXForDate = (date) => {
+      let x = 0;
+      for (const d of dates) {
+        if (d === date) return x;
+        x += this.config.cellWidth + (dateExtraWidths[d] || 0);
+      }
+      return x;
+    };
+
+    const getCellWidthForDate = (date) => {
+      return this.config.cellWidth + (dateExtraWidths[date] || 0);
+    };
+
+    const getTotalWidth = () => {
+      return dates.reduce((sum, d) => sum + getCellWidthForDate(d), 0);
+    };
+
+    const totalWidth = getTotalWidth();
+    const today = Utils.getToday();
+
+    // HTML生成
+    let html = '';
+
+    // 日付ヘッダー
+    html += '<div class="embedded-trip-header-row">';
+    html += '<div class="embedded-trip-person-header">出張予定</div>';
+    html += `<div class="embedded-trip-date-scroll" id="${containerId}-date-scroll">`;
+    html += `<div class="embedded-trip-date-header" style="width: ${totalWidth}px;">`;
+
+    let currentMonth = 0;
+    dates.forEach(date => {
+      const month = Utils.getMonth(date);
+      const day = Utils.getDay(date);
+      const dow = Utils.getDayOfWeek(date);
+      const isWeekend = Utils.isWeekend(date);
+      const isToday = date === today;
+      const daySetting = Store.getDaySetting(date);
+      const showMonth = month !== currentMonth;
+      currentMonth = month;
+      const cellWidth = getCellWidthForDate(date);
+
+      let classes = 'embedded-trip-date-cell';
+      if (isWeekend) classes += ' weekend';
+      if (isToday) classes += ' today';
+      if (daySetting === 'WORKDAY') classes += ' is-workday';
+      if (daySetting === 'HOLIDAY') classes += ' is-holiday';
+
+      html += `
+        <div class="${classes}" style="width: ${cellWidth}px; min-width: ${cellWidth}px;">
+          ${showMonth ? `<div class="month">${month}月</div>` : '<div class="month"></div>'}
+          <div class="day">${day}</div>
+          <div class="dow">${dow}</div>
+        </div>
+      `;
+    });
+
+    html += '</div></div></div>';
+
+    // ボディ
+    html += `<div class="embedded-trip-body-scroll" id="${containerId}-body-scroll">`;
+    html += `<div class="embedded-trip-body" style="min-width: ${totalWidth + 120}px;">`;
+
+    targetPeople.forEach(person => {
+      const personTrips = visibleTrips.filter(t => t.personId === person.personId);
+      const dept = person['部署/区分'] || '';
+      const name = person['氏名'] || '';
+      const personColor = Utils.normalizeColor(person['作業者色(colorHex)']) || '#6b7280';
+
+      html += `
+        <div class="embedded-trip-person-row">
+          <div class="embedded-trip-person-info" style="border-left: 4px solid ${personColor}">
+            <div class="dept">${Utils.escapeHtml(dept)}</div>
+            <div class="name">${Utils.escapeHtml(name)}</div>
+          </div>
+          <div class="embedded-trip-person-grid" style="width: ${totalWidth}px;">
+      `;
+
+      // グリッドセル
+      dates.forEach(date => {
+        const isWeekend = Utils.isWeekend(date);
+        const isToday = date === today;
+        const daySetting = Store.getDaySetting(date);
+        const cellWidth = getCellWidthForDate(date);
+
+        let classes = 'embedded-trip-grid-cell';
+        if (isWeekend) classes += ' weekend';
+        if (isToday) classes += ' today';
+        if (daySetting === 'WORKDAY') classes += ' is-workday';
+        if (daySetting === 'HOLIDAY') classes += ' is-holiday';
+
+        html += `<div class="${classes}"
+                      style="width: ${cellWidth}px; min-width: ${cellWidth}px;"
+                      data-person-id="${person.personId}"
+                      data-date="${date}"></div>`;
+      });
+
+      // 予定バー
+      personTrips.forEach(trip => {
+        const startOffset = Utils.getDaysBetween(dates[0], trip.start);
+        const duration = Utils.getDaysBetween(trip.start, trip.end) + 1;
+
+        // 表示範囲外チェック
+        if (startOffset + duration < 0 || startOffset >= dates.length) return;
+
+        const xStart = getXForDate(trip.start);
+        let cardWidth;
+        if (trip.kind === 'site') {
+          const description = trip['用件'] || '';
+          const lines = description.split('\n');
+          const neededWidth = this.calculateSiteCardWidth(lines[0] || '', lines[1] || '', lines[2] || trip['行先'] || '');
+          const baseWidth = duration * this.config.cellWidth;
+          const extraWidth = dateExtraWidths[trip.start] || 0;
+          cardWidth = Math.max(neededWidth, baseWidth + extraWidth) - this.config.cardGap;
+        } else {
+          cardWidth = duration * this.config.cellWidth - this.config.cardGap;
+        }
+
+        html += this.renderEmbeddedTripBar(trip, xStart, cardWidth);
+      });
+
+      html += `
+          </div>
+        </div>
+      `;
+    });
+
+    html += '</div></div>';
+
+    container.innerHTML = html;
+
+    // クリックイベント設定
+    this.setupEmbeddedClickHandlers(containerId, visibleTrips);
+
+    // スクロール同期
+    this.setupEmbeddedScrollSync(containerId);
+  },
+
+  /**
+   * 埋め込み用トリップバーをレンダリング
+   */
+  renderEmbeddedTripBar(trip, xStart, width) {
+    const isLocked = trip.isLocked === true;
+    const lockIcon = isLocked ? '<span class="travel-lock-icon">🔒</span>' : '';
+    const startDate = new Date(trip.start);
+    const startBadge = `${startDate.getMonth() + 1}/${startDate.getDate()}`;
+
+    if (trip.kind === 'move') {
+      const destination = trip['行先'] || '';
+      return `
+        <div class="embedded-trip-move-bar ${isLocked ? 'locked' : ''}"
+             style="left: ${xStart}px; width: ${width}px;"
+             data-trip-id="${trip.tripId}"
+             title="移動: ${destination}">
+          ${lockIcon}
+          <span class="bar-icon">🚗</span>
+          <span>移動</span>
+        </div>
+      `;
+    } else if (trip.kind === 'site') {
+      const description = trip['用件'] || '';
+      const lines = description.split('\n');
+      const line1 = lines[0] || '';
+      const line2 = lines[1] || '';
+      const line3 = lines[2] || trip['行先'] || '';
+
+      return `
+        <div class="embedded-trip-site-bar ${isLocked ? 'locked' : ''}"
+             style="left: ${xStart}px; width: ${width}px;"
+             data-trip-id="${trip.tripId}"
+             title="${Utils.escapeHtml(description)}">
+          ${lockIcon}
+          <span class="travel-date-badge">${startBadge}</span>
+          <div class="bar-line1">${Utils.escapeHtml(line1)}</div>
+          <div class="bar-line2">${Utils.escapeHtml(line2)}</div>
+          <div class="bar-line3">${Utils.escapeHtml(line3)}</div>
+        </div>
+      `;
+    } else {
+      const destination = trip['行先'] || '';
+      const purpose = trip['用件'] || '';
+      return `
+        <div class="embedded-trip-move-bar"
+             style="left: ${xStart}px; width: ${width}px; background: linear-gradient(135deg, #a78bfa, #8b5cf6); color: white; border-color: #7c3aed;"
+             data-trip-id="${trip.tripId}"
+             title="${destination} - ${purpose}">
+          <span>${Utils.escapeHtml(destination || purpose)}</span>
+        </div>
+      `;
+    }
+  },
+
+  /**
+   * 埋め込み用クリックハンドラー設定
+   */
+  setupEmbeddedClickHandlers(containerId, trips) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    // 既存の予定バークリック
+    const tripBars = container.querySelectorAll('[data-trip-id]');
+    tripBars.forEach(bar => {
+      bar.style.cursor = 'pointer';
+      bar.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const tripId = e.currentTarget.dataset.tripId;
+        const trip = trips.find(t => t.tripId === tripId);
+        if (trip) {
+          TripModal.open(trip);
+        }
+      });
+    });
+
+    // グリッドセルのクリック（新規作成）
+    const cells = container.querySelectorAll('.embedded-trip-grid-cell[data-person-id][data-date]');
+    cells.forEach(cell => {
+      cell.addEventListener('click', (e) => {
+        const personId = cell.dataset.personId;
+        const date = cell.dataset.date;
+        TripModal.openNew(personId, date, date);
+      });
+    });
+  },
+
+  /**
+   * 埋め込み用スクロール同期設定
+   */
+  setupEmbeddedScrollSync(containerId) {
+    const dateScroll = document.getElementById(`${containerId}-date-scroll`);
+    const bodyScroll = document.getElementById(`${containerId}-body-scroll`);
+
+    if (dateScroll && bodyScroll) {
+      bodyScroll.addEventListener('scroll', () => {
+        dateScroll.scrollLeft = bodyScroll.scrollLeft;
+      });
+    }
   }
 };
 

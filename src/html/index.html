@@ -237,6 +237,24 @@
         <div class="today-line" id="today-line"></div>
       </div>
 
+      <!-- 埋め込み出張計画セクション -->
+      <div class="embedded-trip-section" id="gantt-trip-section">
+        <div class="embedded-trip-toggle" onclick="Gantt.toggleTripSection()">
+          <div class="embedded-trip-toggle-left">
+            <svg class="embedded-trip-toggle-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M19 9l-7 7-7-7"/>
+            </svg>
+            <span class="embedded-trip-toggle-title">出張予定</span>
+            <span class="embedded-trip-toggle-count" id="gantt-trip-count">0件</span>
+          </div>
+        </div>
+        <div class="embedded-trip-content">
+          <div class="embedded-trip-container" id="gantt-trip-container">
+            <!-- JSで生成 -->
+          </div>
+        </div>
+      </div>
+
       <!-- 横スクロールバー（縦スクロール領域の外、常に下部に表示） -->
       <div id="gantt-sticky-scrollbar" class="gantt-bottom-scrollbar">
         <div id="gantt-scrollbar-content" class="gantt-scrollbar-content"></div>
@@ -602,6 +620,24 @@
               <div class="person-gantt-grid" id="person-gantt-grid">
                 <!-- JSで生成 -->
               </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 埋め込み出張計画セクション -->
+        <div class="embedded-trip-section person-gantt-trip-section" id="person-gantt-trip-section">
+          <div class="embedded-trip-toggle" onclick="PersonGanttOverlay.toggleTripSection()">
+            <div class="embedded-trip-toggle-left">
+              <svg class="embedded-trip-toggle-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M19 9l-7 7-7-7"/>
+              </svg>
+              <span class="embedded-trip-toggle-title">出張予定</span>
+              <span class="embedded-trip-toggle-count" id="person-gantt-trip-count">0件</span>
+            </div>
+          </div>
+          <div class="embedded-trip-content">
+            <div class="embedded-trip-container" id="person-gantt-trip-container">
+              <!-- JSで生成 -->
             </div>
           </div>
         </div>
