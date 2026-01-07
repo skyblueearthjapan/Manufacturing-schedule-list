@@ -2,16 +2,20 @@
  * CalendarService.gs
  * Google Calendar APIとの連携を担当
  *
- * 重要: スコープ追加後は必ず再デプロイが必要
- * appsscript.json に以下のスコープが必要:
- * - https://www.googleapis.com/auth/calendar.readonly
+ * 重要: スコープ追加後は必ず「新しいバージョン」として再デプロイが必要
+ *
+ * appsscript.json に必要なスコープ:
+ * - https://www.googleapis.com/auth/calendar.readonly （カレンダー読み取り）
+ * - https://www.googleapis.com/auth/script.external_request （ICS取得用）
+ * - https://www.googleapis.com/auth/userinfo.email （ユーザー情報取得用）
  *
  * デプロイ設定:
- * - Execute as: Me（スクリプト所有者）
+ * - Execute as: USER_ACCESSING（アクセスしているユーザー）
  * - Who has access: 必要に応じて
  *
  * カレンダー共有設定:
- * - スクリプト所有者に「すべてのイベントの詳細を見る」権限を付与
+ * - アクセスユーザーがカレンダーの「閲覧者」以上の権限を持っていること
+ * - または「すべてのイベントの詳細を見る」権限が付与されていること
  */
 
 // 電気カレンダーの公開ICS URL（フォールバック用）
@@ -76,35 +80,46 @@ function classifyCalendarError(e) {
 
 /**
  * ユーザー向けエラーメッセージを生成（デバッグ情報付き）
+ * @param {string} errorType - エラータイプ
+ * @param {string} calendarId - カレンダーID
+ * @param {Object} debugInfo - デバッグ情報
+ * @param {string} method - 取得方式 ('CalendarApp' または 'ICS')
  */
-function getCalendarErrorMessage(errorType, calendarId, debugInfo) {
+function getCalendarErrorMessage(errorType, calendarId, debugInfo, method) {
   const context = debugInfo || getExecutionContext();
+  const methodLabel = method || 'CalendarApp';
 
   let baseMessage = '';
+  let requiredScope = '';
+
   switch (errorType) {
     case CalendarErrorType.PERMISSION_DENIED:
       baseMessage = `カレンダーへのアクセス権限がありません。`;
+      requiredScope = 'calendar.readonly';
       break;
     case CalendarErrorType.CALENDAR_NOT_FOUND:
       baseMessage = `カレンダーが見つかりません。`;
+      requiredScope = 'calendar.readonly';
       break;
     case CalendarErrorType.NETWORK_ERROR:
       baseMessage = `ネットワークエラーが発生しました。`;
+      requiredScope = 'script.external_request';
       break;
     default:
       baseMessage = `カレンダーの読み込みに失敗しました。`;
+      requiredScope = 'calendar.readonly';
   }
 
   return `${baseMessage}\n\n` +
     `【デバッグ情報】\n` +
+    `取得方式: ${methodLabel}\n` +
     `対象カレンダー: ${calendarId}\n` +
-    `実行ユーザー(effective): ${context.effectiveUser}\n` +
-    `アクセスユーザー(active): ${context.activeUser}\n\n` +
+    `実行ユーザー: ${context.activeUser}\n` +
+    `必要スコープ: ${requiredScope}\n\n` +
     `【対処方法】\n` +
-    `1. カレンダー所有者が「${context.effectiveUser}」に\n` +
-    `   「すべてのイベントの詳細を見る」権限を付与\n` +
-    `2. Webアプリを新しいバージョンとして再デプロイ\n` +
-    `3. 初回アクセス時に承認ダイアログで許可`;
+    `1. 「${context.activeUser}」がカレンダーにアクセス権を持っているか確認\n` +
+    `2. Webアプリを「新しいバージョン」として再デプロイ\n` +
+    `3. 初回アクセス時の承認ダイアログで許可`;
 }
 
 /**
@@ -134,7 +149,7 @@ function getCalendarEvents(calendarId, startDate, endDate) {
         success: false,
         events: [],
         errorType: CalendarErrorType.CALENDAR_NOT_FOUND,
-        errorMessage: getCalendarErrorMessage(CalendarErrorType.CALENDAR_NOT_FOUND, calendarId, debugInfo),
+        errorMessage: getCalendarErrorMessage(CalendarErrorType.CALENDAR_NOT_FOUND, calendarId, debugInfo, 'CalendarApp'),
         debug: debugInfo
       };
     }
@@ -187,7 +202,7 @@ function getCalendarEvents(calendarId, startDate, endDate) {
       success: false,
       events: [],
       errorType: errorType,
-      errorMessage: getCalendarErrorMessage(errorType, calendarId, debugInfo),
+      errorMessage: getCalendarErrorMessage(errorType, calendarId, debugInfo, 'CalendarApp'),
       rawError: e.message,
       debug: debugInfo
     };
@@ -217,7 +232,7 @@ function getEventsFromICS(icsUrl, startDate, endDate) {
         success: false,
         events: [],
         errorType: CalendarErrorType.NETWORK_ERROR,
-        errorMessage: `ICS取得失敗 (HTTP ${responseCode})`
+        errorMessage: `ICS取得失敗\n\n【デバッグ情報】\n取得方式: ICS\nHTTPステータス: ${responseCode}\nURL: ${icsUrl}\n\n【対処方法】\nカレンダーが「一般公開」されているか確認してください`
       };
     }
 
@@ -238,7 +253,7 @@ function getEventsFromICS(icsUrl, startDate, endDate) {
       success: false,
       events: [],
       errorType: CalendarErrorType.NETWORK_ERROR,
-      errorMessage: 'ICSファイルの取得に失敗しました: ' + e.message
+      errorMessage: `ICS取得失敗\n\n【デバッグ情報】\n取得方式: ICS\nエラー: ${e.message}\nURL: ${icsUrl}\n必要スコープ: script.external_request\n\n【対処方法】\n1. Webアプリを「新しいバージョン」として再デプロイ\n2. カレンダーが「一般公開」されているか確認`
     };
   }
 }
@@ -356,17 +371,9 @@ function parseICSDateTime(key, value) {
 function getTSCCalendarEvents(startDate, endDate) {
   Logger.log('[getTSCCalendarEvents] Called: ' + startDate + ' to ' + endDate);
   const result = getCalendarEvents(CONFIG.CALENDARS.TSC, startDate, endDate);
+  result.source = 'CalendarApp';
 
   // TSCはCalendarAppでのみ取得可能（公開ICSなし）
-  // 失敗時は詳細なエラーメッセージを返す
-  if (!result.success) {
-    result.errorMessage = `TSCカレンダー (${CONFIG.CALENDARS.TSC}) へのアクセスに失敗しました。\n\n` +
-      `【対処方法】\n` +
-      `1. Webアプリを再デプロイして、カレンダー権限を認可してください\n` +
-      `2. デプロイしたユーザーがTSCカレンダーにアクセス権を持っている必要があります\n` +
-      `3. カレンダー所有者に「閲覧者」として共有を依頼してください`;
-  }
-
   return result;
 }
 
@@ -457,11 +464,12 @@ function groupEventsByDate(events) {
  */
 function testCalendarConnection() {
   Logger.log('========== カレンダー接続テスト開始 ==========');
+  Logger.log('※ executeAs: USER_ACCESSING モードで動作');
 
   // 実行コンテキスト
   const context = getExecutionContext();
-  Logger.log('実行ユーザー(effective): ' + context.effectiveUser);
-  Logger.log('アクセスユーザー(active): ' + context.activeUser);
+  Logger.log('実行ユーザー: ' + context.activeUser);
+  Logger.log('（USER_ACCESSINGモードでは、このユーザーの権限でカレンダーにアクセス）');
 
   const results = {
     executionContext: context,
@@ -483,13 +491,13 @@ function testCalendarConnection() {
       };
     } else {
       Logger.log('✗ TSC: 失敗 - getCalendarById が null を返しました');
-      Logger.log('  → カレンダーが見つからないか、「' + context.effectiveUser + '」にアクセス権がありません');
+      Logger.log('  → カレンダーが見つからないか、「' + context.activeUser + '」にアクセス権がありません');
       results.calendars.TSC = {
         success: false,
         error: 'Calendar not found or no permission',
         id: CONFIG.CALENDARS.TSC,
         method: 'CalendarApp',
-        hint: context.effectiveUser + ' に「すべてのイベントの詳細を見る」権限を付与してください'
+        hint: '「' + context.activeUser + '」がカレンダーにアクセス権を持っているか確認してください'
       };
     }
   } catch (e) {
@@ -523,7 +531,7 @@ function testCalendarConnection() {
         error: 'Calendar not found or no permission',
         id: CONFIG.CALENDARS.ELECTRICAL,
         method: 'CalendarApp',
-        hint: context.effectiveUser + ' に「すべてのイベントの詳細を見る」権限を付与してください'
+        hint: '「' + context.activeUser + '」がカレンダーにアクセス権を持っているか確認してください'
       };
     }
   } catch (e) {
