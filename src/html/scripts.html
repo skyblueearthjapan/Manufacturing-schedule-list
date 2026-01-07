@@ -1093,6 +1093,49 @@ const Store = {
     this.setState({ jobs });
   },
 
+  /**
+   * Jobを更新（API経由 + ローカル状態更新）
+   * @param {Object} updatedJob - 更新後のJobオブジェクト（jobId必須）
+   */
+  async updateJob(updatedJob) {
+    if (!updatedJob || !updatedJob.jobId) {
+      throw new Error('updateJob: jobId is required');
+    }
+
+    const jobId = updatedJob.jobId;
+    const currentJob = this.getJobById(jobId);
+    if (!currentJob) {
+      throw new Error(`updateJob: Job not found: ${jobId}`);
+    }
+
+    // 変更部分だけpatchとして抽出
+    const patch = {};
+    for (const key of Object.keys(updatedJob)) {
+      if (key !== 'jobId' && updatedJob[key] !== currentJob[key]) {
+        patch[key] = updatedJob[key];
+      }
+    }
+
+    // 変更がなければスキップ
+    if (Object.keys(patch).length === 0) {
+      console.log('[Store.updateJob] No changes detected');
+      return { success: true, noChange: true };
+    }
+
+    // API呼び出し
+    const result = await API.updateJob(jobId, patch, currentJob.updatedAt || '');
+
+    if (result.success) {
+      // ローカル状態を更新
+      this.updateJobInStore(jobId, {
+        ...patch,
+        updatedAt: result.updatedAt || new Date().toISOString()
+      });
+    }
+
+    return result;
+  },
+
   addSchedule(schedule) {
     const schedules = [...this.state.schedules, schedule];
     this.setState({ schedules });
