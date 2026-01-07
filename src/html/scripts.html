@@ -5459,11 +5459,27 @@ const WorkerJobAssignView = {
     // personIdでグルーピング
     const grouped = this.groupByPerson(filtered, peopleMap);
 
+    // 担当者未設定の工番を取得
+    const unassignedJobs = this.getUnassignedJobs(jobs || []);
+
     // HTML生成
-    container.innerHTML = this.renderContainer(grouped, peopleMap);
+    container.innerHTML = this.renderContainer(grouped, peopleMap, unassignedJobs);
 
     // イベントハンドラーを設定
     this.setupEventHandlers();
+  },
+
+  /**
+   * 担当者未設定の工番を取得
+   * mainPersonId と subPersonId が両方空の工番
+   */
+  getUnassignedJobs(jobs) {
+    return jobs.filter(job => {
+      if (job.isHidden) return false;
+      const mainId = String(job.mainPersonId || '').trim();
+      const subId = String(job.subPersonId || '').trim();
+      return !mainId && !subId;
+    });
   },
 
   /**
@@ -5520,7 +5536,7 @@ const WorkerJobAssignView = {
   /**
    * コンテナHTML生成
    */
-  renderContainer(grouped, peopleMap) {
+  renderContainer(grouped, peopleMap, unassignedJobs = []) {
     const personIds = Object.keys(grouped);
 
     // 部署→氏名順でソート
@@ -5552,10 +5568,59 @@ const WorkerJobAssignView = {
           </div>
         </div>
 
-        <!-- カード一覧 -->
-        <div class="wja-body">
-          ${personIds.length === 0 ? this.renderEmpty() : personIds.map(pid => this.renderPersonSection(grouped[pid])).join('')}
+        <!-- 2カラムレイアウト -->
+        <div class="wja-two-column">
+          <!-- 左：担当者別カード一覧 -->
+          <div class="wja-body wja-assigned-panel">
+            ${personIds.length === 0 ? this.renderEmpty() : personIds.map(pid => this.renderPersonSection(grouped[pid])).join('')}
+          </div>
+
+          <!-- 右：担当者未設定パネル -->
+          <div class="wja-unassigned-panel">
+            ${this.renderUnassignedPanel(unassignedJobs)}
+          </div>
         </div>
+      </div>
+    `;
+  },
+
+  /**
+   * 担当者未設定パネルを描画
+   */
+  renderUnassignedPanel(unassignedJobs) {
+    return `
+      <div class="wja-unassigned-header">
+        <span class="wja-unassigned-title">担当者未設定</span>
+        <span class="wja-unassigned-count">${unassignedJobs.length}件</span>
+      </div>
+      <div class="wja-unassigned-body">
+        ${unassignedJobs.length === 0
+          ? '<div class="wja-unassigned-empty">未設定の工番はありません</div>'
+          : unassignedJobs.map(job => this.renderUnassignedCard(job)).join('')}
+      </div>
+    `;
+  },
+
+  /**
+   * 未設定工番カードを描画（ドラッグ可能）
+   */
+  renderUnassignedCard(job) {
+    const jobCode = job['工番'] || '';
+    const customerName = job['顧客名'] || '';
+    const productName = job['設備/製品名'] || '';
+    const jobId = job.jobId || '';
+
+    return `
+      <div class="wja-card wja-card-draggable wja-unassigned-card"
+           data-job-id="${Utils.escapeHtml(jobId)}"
+           data-job-code="${Utils.escapeHtml(jobCode)}"
+           draggable="true">
+        <div class="wja-card-row1">
+          <span class="wja-card-jobcode">${Utils.escapeHtml(jobCode)}</span>
+          <span class="wja-drag-handle" title="ドラッグして担当者へ割り当て">⋮⋮</span>
+        </div>
+        <div class="wja-card-row2">${Utils.escapeHtml(customerName) || '—'}</div>
+        <div class="wja-card-row3">${Utils.escapeHtml(productName) || '—'}</div>
       </div>
     `;
   },
@@ -5573,13 +5638,20 @@ const WorkerJobAssignView = {
   },
 
   /**
-   * 作業者セクション生成
+   * 作業者セクション生成（ドロップゾーン対応）
    */
   renderPersonSection(group) {
     const { personId, personName, dept, color, assigns } = group;
 
+    // 主担当と副担当を分離
+    const mainAssigns = assigns.filter(a => a.role === 'main');
+    const subAssigns = assigns.filter(a => a.role === 'sub');
+
+    // 主担当のみフィルタ時は副担当を非表示
+    const showSub = !this.filters.mainOnly && subAssigns.length > 0;
+
     return `
-      <div class="wja-person-section">
+      <div class="wja-person-section wja-drop-zone" data-person-id="${Utils.escapeHtml(personId)}">
         <div class="wja-person-header wja-person-header-clickable" style="border-left: 4px solid ${color}"
              data-person-id="${Utils.escapeHtml(personId)}" onclick="PersonGanttOverlay.open('${Utils.escapeHtml(personId)}')" title="クリックして大工程表を表示">
           <span class="wja-person-dept">${Utils.escapeHtml(dept)}</span>
@@ -5587,9 +5659,24 @@ const WorkerJobAssignView = {
           <span class="wja-person-count">${assigns.length}件</span>
           <span class="wja-gantt-icon" title="大工程表を開く">📊</span>
         </div>
-        <div class="wja-card-grid">
-          ${assigns.map(a => this.renderCard(a)).join('')}
+        <!-- 主担当レーン -->
+        <div class="wja-lane wja-lane-main">
+          <div class="wja-lane-label">主担当</div>
+          <div class="wja-card-grid">
+            ${mainAssigns.length === 0
+              ? '<div class="wja-lane-empty">（なし）</div>'
+              : mainAssigns.map(a => this.renderCard(a)).join('')}
+          </div>
         </div>
+        ${showSub ? `
+        <!-- 副担当レーン -->
+        <div class="wja-lane wja-lane-sub">
+          <div class="wja-lane-label">副担当</div>
+          <div class="wja-card-grid">
+            ${subAssigns.map(a => this.renderCard(a)).join('')}
+          </div>
+        </div>
+        ` : ''}
       </div>
     `;
   },
@@ -5606,10 +5693,13 @@ const WorkerJobAssignView = {
     const memo = assign.memo || '';
     const jobId = assign.jobId || '';
 
-    // roleバッジ
-    const roleBadge = role === 'main'
-      ? '<span class="wja-role-badge wja-role-main">主</span>'
-      : '<span class="wja-role-badge wja-role-sub">副</span>';
+    // roleバッジ（クリックで主副変更モーダル）
+    const roleBadgeClass = role === 'main' ? 'wja-role-main' : 'wja-role-sub';
+    const roleBadgeText = role === 'main' ? '主' : '副';
+    const roleBadge = `<span class="wja-role-badge ${roleBadgeClass} wja-role-badge-clickable"
+                            data-job-id="${Utils.escapeHtml(jobId)}"
+                            onclick="event.stopPropagation(); WorkerJobAssignView.openRoleModal('${Utils.escapeHtml(jobId)}')"
+                            title="クリックして主/副担当を変更">${roleBadgeText}</span>`;
 
     return `
       <div class="wja-card" data-job-id="${Utils.escapeHtml(jobId)}" data-job-code="${Utils.escapeHtml(jobCode)}">
@@ -5665,9 +5755,11 @@ const WorkerJobAssignView = {
       });
     }
 
-    // カードクリック → 工番別工程表へ遷移
-    document.querySelectorAll('.wja-card').forEach(card => {
+    // カードクリック → 工番別工程表へ遷移（未設定カード除く）
+    document.querySelectorAll('.wja-card:not(.wja-unassigned-card)').forEach(card => {
       card.addEventListener('click', (e) => {
+        // バッジクリックは別処理なのでスキップ
+        if (e.target.closest('.wja-role-badge-clickable')) return;
         const jobId = card.dataset.jobId;
         const jobCode = card.dataset.jobCode;
         if (jobId) {
@@ -5675,6 +5767,204 @@ const WorkerJobAssignView = {
         }
       });
     });
+
+    // ドラッグ＆ドロップ設定
+    this.setupDragAndDrop();
+  },
+
+  /**
+   * ドラッグ＆ドロップ設定
+   */
+  setupDragAndDrop() {
+    // ドラッグ可能カード
+    document.querySelectorAll('.wja-card-draggable').forEach(card => {
+      card.addEventListener('dragstart', (e) => {
+        e.dataTransfer.setData('text/plain', card.dataset.jobId);
+        e.dataTransfer.effectAllowed = 'move';
+        card.classList.add('wja-dragging');
+      });
+
+      card.addEventListener('dragend', (e) => {
+        card.classList.remove('wja-dragging');
+        document.querySelectorAll('.wja-drop-zone').forEach(zone => {
+          zone.classList.remove('wja-drop-hover');
+        });
+      });
+    });
+
+    // ドロップゾーン（担当者セクション）
+    document.querySelectorAll('.wja-drop-zone').forEach(zone => {
+      zone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        zone.classList.add('wja-drop-hover');
+      });
+
+      zone.addEventListener('dragleave', (e) => {
+        zone.classList.remove('wja-drop-hover');
+      });
+
+      zone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        zone.classList.remove('wja-drop-hover');
+
+        const jobId = e.dataTransfer.getData('text/plain');
+        const personId = zone.dataset.personId;
+
+        if (jobId && personId) {
+          this.assignMainPerson(jobId, personId);
+        }
+      });
+    });
+  },
+
+  /**
+   * 主担当を設定
+   */
+  async assignMainPerson(jobId, personId) {
+    console.log('[WorkerJobAssignView] Assigning main person:', jobId, personId);
+
+    try {
+      // Store経由で更新
+      const job = Store.getJobById(jobId);
+      if (!job) {
+        Utils.showToast('工番が見つかりません', 'error');
+        return;
+      }
+
+      // Jobsの mainPersonId を更新（subPersonIdは維持）
+      const updatedJob = {
+        ...job,
+        mainPersonId: personId
+      };
+
+      await Store.updateJob(updatedJob);
+      Utils.showToast('主担当を設定しました', 'success');
+
+      // 再描画
+      this.render();
+    } catch (error) {
+      console.error('[WorkerJobAssignView] Failed to assign:', error);
+      Utils.showToast('担当者の設定に失敗しました', 'error');
+    }
+  },
+
+  /**
+   * 主副変更モーダルを開く
+   */
+  openRoleModal(jobId) {
+    const job = Store.getJobById(jobId);
+    if (!job) {
+      Utils.showToast('工番が見つかりません', 'error');
+      return;
+    }
+
+    const people = Store.state.people.filter(p => p['有効(isActive)'] !== false);
+    const jobCode = job['工番'] || '';
+    const currentMain = job.mainPersonId || '';
+    const currentSub = job.subPersonId || '';
+
+    // モーダルHTML
+    const modalHtml = `
+      <div id="wja-role-modal" class="modal">
+        <div class="modal-backdrop" onclick="WorkerJobAssignView.closeRoleModal()"></div>
+        <div class="modal-content" style="max-width: 400px;">
+          <div class="modal-header">
+            <h3 class="text-lg font-semibold">担当者設定 - ${Utils.escapeHtml(jobCode)}</h3>
+            <button class="modal-close-btn" onclick="WorkerJobAssignView.closeRoleModal()">&times;</button>
+          </div>
+          <div class="modal-body">
+            <div class="form-group">
+              <label class="form-label">主担当者</label>
+              <select id="wja-role-main" class="form-select">
+                <option value="">（未設定）</option>
+                ${people.map(p => `<option value="${Utils.escapeHtml(p.personId)}" ${p.personId === currentMain ? 'selected' : ''}>${Utils.escapeHtml(p['氏名'])} (${Utils.escapeHtml(p['部署/区分'] || '')})</option>`).join('')}
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">副担当者</label>
+              <select id="wja-role-sub" class="form-select">
+                <option value="">（未設定）</option>
+                ${people.map(p => `<option value="${Utils.escapeHtml(p.personId)}" ${p.personId === currentSub ? 'selected' : ''}>${Utils.escapeHtml(p['氏名'])} (${Utils.escapeHtml(p['部署/区分'] || '')})</option>`).join('')}
+              </select>
+            </div>
+            <div class="text-center mt-2">
+              <button type="button" class="btn btn-secondary text-sm" onclick="WorkerJobAssignView.swapRoles()">
+                ↕ 主/副を入れ替え
+              </button>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="WorkerJobAssignView.closeRoleModal()">キャンセル</button>
+            <button type="button" class="btn btn-primary" onclick="WorkerJobAssignView.saveRoleModal('${Utils.escapeHtml(jobId)}')">保存</button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    // 既存モーダルがあれば削除
+    const existing = document.getElementById('wja-role-modal');
+    if (existing) existing.remove();
+
+    // モーダルを追加
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+  },
+
+  /**
+   * 主副を入れ替え
+   */
+  swapRoles() {
+    const mainSelect = document.getElementById('wja-role-main');
+    const subSelect = document.getElementById('wja-role-sub');
+    if (mainSelect && subSelect) {
+      const temp = mainSelect.value;
+      mainSelect.value = subSelect.value;
+      subSelect.value = temp;
+    }
+  },
+
+  /**
+   * モーダルを閉じる
+   */
+  closeRoleModal() {
+    const modal = document.getElementById('wja-role-modal');
+    if (modal) modal.remove();
+  },
+
+  /**
+   * モーダル保存
+   */
+  async saveRoleModal(jobId) {
+    const mainSelect = document.getElementById('wja-role-main');
+    const subSelect = document.getElementById('wja-role-sub');
+
+    if (!mainSelect || !subSelect) return;
+
+    const mainPersonId = mainSelect.value || '';
+    const subPersonId = subSelect.value || '';
+
+    try {
+      const job = Store.getJobById(jobId);
+      if (!job) {
+        Utils.showToast('工番が見つかりません', 'error');
+        return;
+      }
+
+      const updatedJob = {
+        ...job,
+        mainPersonId,
+        subPersonId
+      };
+
+      await Store.updateJob(updatedJob);
+      Utils.showToast('担当者を更新しました', 'success');
+
+      this.closeRoleModal();
+      this.render();
+    } catch (error) {
+      console.error('[WorkerJobAssignView] Failed to save role:', error);
+      Utils.showToast('保存に失敗しました', 'error');
+    }
   },
 
   /**

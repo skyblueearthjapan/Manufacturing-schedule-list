@@ -2530,6 +2530,160 @@
     text-overflow: ellipsis;
   }
 
+  /* 2カラムレイアウト */
+  .wja-two-column {
+    display: flex;
+    gap: 16px;
+    min-height: 0;
+  }
+
+  .wja-assigned-panel {
+    flex: 1;
+    min-width: 0;
+    overflow-y: auto;
+  }
+
+  /* 未設定パネル */
+  .wja-unassigned-panel {
+    width: 280px;
+    min-width: 280px;
+    background: #fef2f2;
+    border: 1px dashed #fca5a5;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - 200px);
+  }
+
+  .wja-unassigned-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px;
+    border-bottom: 1px solid #fca5a5;
+    background: #fee2e2;
+    border-radius: 8px 8px 0 0;
+  }
+
+  .wja-unassigned-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #dc2626;
+  }
+
+  .wja-unassigned-count {
+    font-size: 12px;
+    color: #ef4444;
+    background: white;
+    padding: 2px 8px;
+    border-radius: 10px;
+  }
+
+  .wja-unassigned-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .wja-unassigned-empty {
+    text-align: center;
+    color: #9ca3af;
+    font-size: 12px;
+    padding: 24px;
+  }
+
+  .wja-unassigned-card {
+    background: white !important;
+    border-color: #fca5a5 !important;
+  }
+
+  .wja-unassigned-card:hover {
+    border-color: #f87171 !important;
+    background: #fff7ed !important;
+  }
+
+  /* ドラッグハンドル */
+  .wja-drag-handle {
+    font-size: 12px;
+    color: #9ca3af;
+    cursor: grab;
+    padding: 0 4px;
+  }
+
+  .wja-card-draggable {
+    cursor: grab;
+  }
+
+  .wja-card-draggable:active {
+    cursor: grabbing;
+  }
+
+  .wja-dragging {
+    opacity: 0.5;
+    transform: scale(0.95);
+  }
+
+  /* ドロップゾーン */
+  .wja-drop-zone {
+    transition: all 0.2s;
+  }
+
+  .wja-drop-hover {
+    background: #eff6ff !important;
+    box-shadow: inset 0 0 0 2px #3b82f6;
+  }
+
+  /* レーン（主/副担当分離） */
+  .wja-lane {
+    margin-bottom: 2px;
+  }
+
+  .wja-lane-label {
+    font-size: 10px;
+    color: #6b7280;
+    padding: 4px 12px 0;
+    font-weight: 500;
+  }
+
+  .wja-lane-main .wja-lane-label {
+    color: #1d4ed8;
+  }
+
+  .wja-lane-sub .wja-lane-label {
+    color: #b45309;
+  }
+
+  .wja-lane-sub .wja-card-grid {
+    background: #fffbeb;
+    border-radius: 0 0 6px 6px;
+  }
+
+  .wja-lane-sub .wja-card {
+    border-style: dashed;
+    opacity: 0.9;
+  }
+
+  .wja-lane-empty {
+    font-size: 11px;
+    color: #9ca3af;
+    padding: 8px 12px;
+    font-style: italic;
+  }
+
+  /* クリック可能なバッジ */
+  .wja-role-badge-clickable {
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .wja-role-badge-clickable:hover {
+    transform: scale(1.1);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  }
+
   /* ========================================
      SaveBar（保存ステータスバー）- 常時表示・状態別スタイル
      ======================================== */
