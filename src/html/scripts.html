@@ -7677,62 +7677,118 @@ const TravelPlan = {
     const today = Utils.getToday();
     const totalWidth = this.getTotalGridWidth();
 
-    if (people.length === 0) {
+    // アクティブな人のみ
+    const activePeople = people.filter(p => p.isActive !== false);
+
+    if (activePeople.length === 0) {
       container.innerHTML = '<div class="travel-empty-message">作業者が登録されていません</div>';
       return;
     }
 
+    // 部署の優先表示順
+    const PRIMARY_DEPT_ORDER = ['組立', 'TSC', '電気設計', '機械設計'];
+
+    // 部署ごとにグルーピング
+    const groupByDept = (peopleList) => {
+      const groups = new Map();
+      for (const p of peopleList) {
+        const key = (p['部署/区分'] && String(p['部署/区分']).trim()) || '未分類';
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(p);
+      }
+
+      // 部署順：優先順 → その他（五十音順）→ 未分類
+      const otherDepts = [...groups.keys()]
+        .filter(d => d !== '未分類' && !PRIMARY_DEPT_ORDER.includes(d))
+        .sort((a, b) => a.localeCompare(b, 'ja'));
+
+      const deptKeys = [
+        ...PRIMARY_DEPT_ORDER.filter(d => groups.has(d)),
+        ...otherDepts,
+        ...(groups.has('未分類') ? ['未分類'] : [])
+      ];
+
+      // 描画用行配列を構築
+      const rows = [];
+      for (const dept of deptKeys) {
+        // 部署ヘッダー
+        rows.push({ type: 'deptHeader', dept });
+        // 部署内の人を氏名順でソート
+        const members = groups.get(dept)
+          .slice()
+          .sort((a, b) => (a['氏名'] || '').localeCompare(b['氏名'] || '', 'ja'));
+        for (const p of members) {
+          rows.push({ type: 'person', person: p });
+        }
+      }
+      return rows;
+    };
+
+    const workerRows = groupByDept(activePeople);
+
     let html = '';
 
-    people.forEach(person => {
-      const personTrips = trips.filter(t => t.personId === person.personId);
-      const dept = person['部署/区分'] || '';
-      const name = person['氏名'] || '';
-      const personColor = Utils.normalizeColor(person['作業者色(colorHex)']) || '#6b7280';
-
-      // レイアウト計算（押し広げ対応）
-      const layoutTrips = this.calculatePersonLayout(personTrips);
-
-      html += `
-        <div class="travel-person-row">
-          <div class="travel-person-info" style="border-left: 4px solid ${personColor}">
-            <div class="dept">${Utils.escapeHtml(dept)}</div>
-            <div class="name">${Utils.escapeHtml(name)}</div>
-            <div class="memo"></div>
+    workerRows.forEach(row => {
+      if (row.type === 'deptHeader') {
+        // 部署ヘッダー行
+        html += `
+          <div class="travel-dept-header">
+            <div class="travel-dept-name">${Utils.escapeHtml(row.dept)}</div>
+            <div class="travel-dept-grid" style="width: ${totalWidth}px;"></div>
           </div>
-          <div class="travel-person-grid" style="width: ${totalWidth}px;">
-      `;
+        `;
+      } else {
+        // 作業者行
+        const person = row.person;
+        const personTrips = trips.filter(t => t.personId === person.personId);
+        const dept = person['部署/区分'] || '';
+        const name = person['氏名'] || '';
+        const personColor = Utils.normalizeColor(person['作業者色(colorHex)']) || '#6b7280';
 
-      // グリッドセル（動的幅、クリック/ドラッグ選択対応）
-      this.dates.forEach(date => {
-        const isWeekend = Utils.isWeekend(date);
-        const isToday = date === today;
-        const daySetting = Store.getDaySetting(date);
-        const cellWidth = this.getCellWidthForDate(date);
+        // レイアウト計算（押し広げ対応）
+        const layoutTrips = this.calculatePersonLayout(personTrips);
 
-        let classes = 'travel-grid-cell';
-        if (isWeekend) classes += ' weekend';
-        if (isToday) classes += ' today';
-        // 日付設定による上書き
-        if (daySetting === 'WORKDAY') classes += ' is-workday';
-        if (daySetting === 'HOLIDAY') classes += ' is-holiday';
-        html += `<div class="${classes}"
-                      style="width: ${cellWidth}px; min-width: ${cellWidth}px;"
-                      data-person-id="${person.personId}"
-                      data-date="${date}"></div>`;
-      });
+        html += `
+          <div class="travel-person-row">
+            <div class="travel-person-info" style="border-left: 4px solid ${personColor}">
+              <div class="dept">${Utils.escapeHtml(dept)}</div>
+              <div class="name">${Utils.escapeHtml(name)}</div>
+              <div class="memo"></div>
+            </div>
+            <div class="travel-person-grid" style="width: ${totalWidth}px;">
+        `;
 
-      // 予定バー（レイアウト計算済み）
-      layoutTrips.forEach(trip => {
-        if (trip._visible) {
-          html += this.renderTripBarWithLayout(trip);
-        }
-      });
+        // グリッドセル（動的幅、クリック/ドラッグ選択対応）
+        this.dates.forEach(date => {
+          const isWeekend = Utils.isWeekend(date);
+          const isToday = date === today;
+          const daySetting = Store.getDaySetting(date);
+          const cellWidth = this.getCellWidthForDate(date);
 
-      html += `
+          let classes = 'travel-grid-cell';
+          if (isWeekend) classes += ' weekend';
+          if (isToday) classes += ' today';
+          // 日付設定による上書き
+          if (daySetting === 'WORKDAY') classes += ' is-workday';
+          if (daySetting === 'HOLIDAY') classes += ' is-holiday';
+          html += `<div class="${classes}"
+                        style="width: ${cellWidth}px; min-width: ${cellWidth}px;"
+                        data-person-id="${person.personId}"
+                        data-date="${date}"></div>`;
+        });
+
+        // 予定バー（レイアウト計算済み）
+        layoutTrips.forEach(trip => {
+          if (trip._visible) {
+            html += this.renderTripBarWithLayout(trip);
+          }
+        });
+
+        html += `
+            </div>
           </div>
-        </div>
-      `;
+        `;
+      }
     });
 
     container.innerHTML = html;
