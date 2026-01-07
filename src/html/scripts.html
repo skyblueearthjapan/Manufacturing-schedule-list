@@ -8350,6 +8350,59 @@ console.log('[DEBUG] TravelPlan defined');
 
 const CalendarView = {
   tripPersonFilter: null,
+  isCalendarRendered: false,
+  _lastStartDate: null,
+  _lastDays: null,
+
+  /**
+   * 初期化
+   */
+  init() {
+    // Store変更を監視して、表示期間変更時に再描画
+    Store.subscribe((state) => {
+      if (state.currentView === 'calendar' && this.isCalendarRendered) {
+        // 表示期間が変わった場合のみ再描画
+        if (this._lastStartDate !== state.displayStartDate ||
+            this._lastDays !== state.displayDays) {
+          this._lastStartDate = state.displayStartDate;
+          this._lastDays = state.displayDays;
+          CalendarEventViewer.clearCache();
+          this.render();
+        }
+      }
+    });
+  },
+
+  /**
+   * ビューを初期化（タブ切替時に呼ばれる）
+   */
+  async render() {
+    const { displayStartDate, displayDays } = Store.state;
+
+    // 出張予定を描画
+    this.renderTrips();
+
+    // カレンダーイベントを描画（キャッシュがあれば即座に表示される）
+    await CalendarEventViewer.render({
+      containerId: 'calendar-tsc-events',
+      calendarType: 'TSC',
+      startDate: displayStartDate,
+      days: displayDays
+    });
+
+    this.isCalendarRendered = true;
+  },
+
+  /**
+   * 表示期間変更時の再描画
+   */
+  async refresh() {
+    if (!this.isCalendarRendered) return;
+
+    // キャッシュをクリアして再取得
+    CalendarEventViewer.clearCache();
+    await this.render();
+  },
 
   /**
    * 出張計画セクションの折りたたみ切替
@@ -8496,6 +8549,59 @@ console.log('[DEBUG] CalendarView defined');
 
 const ElectricalView = {
   tripPersonFilter: null,
+  isCalendarRendered: false,
+  _lastStartDate: null,
+  _lastDays: null,
+
+  /**
+   * 初期化
+   */
+  init() {
+    // Store変更を監視して、表示期間変更時に再描画
+    Store.subscribe((state) => {
+      if (state.currentView === 'electrical' && this.isCalendarRendered) {
+        // 表示期間が変わった場合のみ再描画
+        if (this._lastStartDate !== state.displayStartDate ||
+            this._lastDays !== state.displayDays) {
+          this._lastStartDate = state.displayStartDate;
+          this._lastDays = state.displayDays;
+          CalendarEventViewer.clearCache();
+          this.render();
+        }
+      }
+    });
+  },
+
+  /**
+   * ビューを初期化（タブ切替時に呼ばれる）
+   */
+  async render() {
+    const { displayStartDate, displayDays } = Store.state;
+
+    // 出張予定を描画
+    this.renderTrips();
+
+    // カレンダーイベントを描画（キャッシュがあれば即座に表示される）
+    await CalendarEventViewer.render({
+      containerId: 'calendar-electrical-events',
+      calendarType: 'ELECTRICAL',
+      startDate: displayStartDate,
+      days: displayDays
+    });
+
+    this.isCalendarRendered = true;
+  },
+
+  /**
+   * 表示期間変更時の再描画
+   */
+  async refresh() {
+    if (!this.isCalendarRendered) return;
+
+    // キャッシュをクリアして再取得
+    CalendarEventViewer.clearCache();
+    await this.render();
+  },
 
   /**
    * 出張計画セクションの折りたたみ切替
@@ -8637,6 +8743,380 @@ const ElectricalView = {
 console.log('[DEBUG] ElectricalView defined');
 
 // ========================================
+// CalendarEventViewer - カレンダーイベント表示コンポーネント（B案）
+// ========================================
+
+const CalendarEventViewer = {
+  cache: {}, // カレンダーイベントのキャッシュ
+  activePopup: null, // 現在表示中のポップアップ
+
+  /**
+   * カレンダーイベントを取得
+   * @param {string} calendarType - 'TSC' または 'ELECTRICAL'
+   * @param {string} startDate - 開始日 (YYYY-MM-DD)
+   * @param {string} endDate - 終了日 (YYYY-MM-DD)
+   * @returns {Promise<Object[]>}
+   */
+  async fetchEvents(calendarType, startDate, endDate) {
+    const cacheKey = `${calendarType}_${startDate}_${endDate}`;
+
+    // キャッシュがあれば返す
+    if (this.cache[cacheKey]) {
+      return this.cache[cacheKey];
+    }
+
+    try {
+      const apiFunc = calendarType === 'TSC'
+        ? 'api_getTSCCalendarEvents'
+        : 'api_getElectricalCalendarEvents';
+
+      const events = await new Promise((resolve, reject) => {
+        google.script.run
+          .withSuccessHandler(resolve)
+          .withFailureHandler(reject)
+          [apiFunc](startDate, endDate);
+      });
+
+      this.cache[cacheKey] = events || [];
+      return this.cache[cacheKey];
+    } catch (e) {
+      console.error(`[CalendarEventViewer] Failed to fetch events for ${calendarType}:`, e);
+      throw e;
+    }
+  },
+
+  /**
+   * キャッシュをクリア
+   */
+  clearCache() {
+    this.cache = {};
+  },
+
+  /**
+   * カレンダービューを描画
+   * @param {Object} options
+   * @param {string} options.containerId - コンテナのID
+   * @param {string} options.calendarType - 'TSC' または 'ELECTRICAL'
+   * @param {string} options.startDate - 表示開始日
+   * @param {number} options.days - 表示日数
+   */
+  async render(options) {
+    const { containerId, calendarType, startDate, days } = options;
+    const container = document.getElementById(containerId);
+
+    if (!container) {
+      console.error(`[CalendarEventViewer] Container not found: ${containerId}`);
+      return;
+    }
+
+    // ローディング表示
+    container.innerHTML = '<div class="calendar-events-loading">カレンダー読み込み中...</div>';
+
+    try {
+      // 終了日を計算
+      const start = new Date(startDate);
+      const end = new Date(start);
+      end.setDate(end.getDate() + days - 1);
+      const endDate = end.toISOString().slice(0, 10);
+
+      // イベントを取得
+      const events = await this.fetchEvents(calendarType, startDate, endDate);
+
+      // 月別にグループ化して描画
+      this.renderMonthView(container, events, startDate, days, calendarType);
+
+    } catch (e) {
+      container.innerHTML = `
+        <div class="calendar-events-error">
+          カレンダーの読み込みに失敗しました。<br>
+          ${e.message || 'エラーが発生しました'}
+        </div>
+      `;
+    }
+  },
+
+  /**
+   * 月表示ビューを描画
+   */
+  renderMonthView(container, events, startDate, days, calendarType) {
+    const dates = Utils.generateDateRange(startDate, days);
+    const today = new Date().toISOString().slice(0, 10);
+
+    // イベントを日付でマップ化
+    const eventsByDate = {};
+    events.forEach(event => {
+      // 終日イベントや複数日イベントの処理
+      const eventStart = event.startDate;
+      const eventEnd = event.isAllDay
+        ? event.endDate
+        : event.endDate;
+
+      // イベントが含まれる各日にマッピング
+      let current = new Date(eventStart);
+      const endCheck = new Date(eventEnd);
+
+      while (current <= endCheck) {
+        const dateStr = current.toISOString().slice(0, 10);
+        if (!eventsByDate[dateStr]) {
+          eventsByDate[dateStr] = [];
+        }
+        eventsByDate[dateStr].push(event);
+        current.setDate(current.getDate() + 1);
+      }
+    });
+
+    // 月ごとにグループ化
+    const monthGroups = {};
+    dates.forEach(date => {
+      const month = date.slice(0, 7); // YYYY-MM
+      if (!monthGroups[month]) {
+        monthGroups[month] = [];
+      }
+      monthGroups[month].push(date);
+    });
+
+    // HTMLを生成
+    let html = '';
+
+    Object.keys(monthGroups).sort().forEach(month => {
+      const [year, monthNum] = month.split('-');
+      const monthName = `${year}年${parseInt(monthNum)}月`;
+
+      // 月の最初の日と最後の日
+      const monthDates = monthGroups[month];
+      const firstDate = new Date(monthDates[0]);
+      const lastDate = new Date(monthDates[monthDates.length - 1]);
+
+      // 月全体のカレンダーグリッドを生成
+      const firstDayOfMonth = new Date(year, parseInt(monthNum) - 1, 1);
+      const lastDayOfMonth = new Date(year, parseInt(monthNum), 0);
+      const startDayOfWeek = firstDayOfMonth.getDay(); // 0=Sun
+
+      html += `
+        <div class="calendar-month-section">
+          <div class="calendar-month-header">
+            <span class="calendar-month-title">${monthName}</span>
+          </div>
+          <div class="calendar-week-header">
+            <div class="calendar-week-header-cell sun">日</div>
+            <div class="calendar-week-header-cell">月</div>
+            <div class="calendar-week-header-cell">火</div>
+            <div class="calendar-week-header-cell">水</div>
+            <div class="calendar-week-header-cell">木</div>
+            <div class="calendar-week-header-cell">金</div>
+            <div class="calendar-week-header-cell sat">土</div>
+          </div>
+          <div class="calendar-month-grid">
+      `;
+
+      // グリッドの開始位置まで空セルを追加
+      for (let i = 0; i < startDayOfWeek; i++) {
+        html += '<div class="calendar-day-cell other-month"></div>';
+      }
+
+      // 月の各日を描画
+      for (let day = 1; day <= lastDayOfMonth.getDate(); day++) {
+        const date = new Date(year, parseInt(monthNum) - 1, day);
+        const dateStr = date.toISOString().slice(0, 10);
+        const dayOfWeek = date.getDay();
+        const isInRange = monthDates.includes(dateStr);
+
+        // セルのクラスを決定
+        const cellClasses = ['calendar-day-cell'];
+        if (!isInRange) cellClasses.push('other-month');
+        if (dateStr === today) cellClasses.push('today');
+        if (dayOfWeek === 0) cellClasses.push('sun');
+        if (dayOfWeek === 6) cellClasses.push('sat');
+        if (dayOfWeek === 0 || dayOfWeek === 6) cellClasses.push('weekend');
+
+        const dayEvents = eventsByDate[dateStr] || [];
+        const maxDisplay = 3;
+
+        html += `
+          <div class="${cellClasses.join(' ')}">
+            <div class="calendar-day-number">${day}</div>
+            <div class="calendar-day-events">
+        `;
+
+        // イベントを表示（最大3件）
+        dayEvents.slice(0, maxDisplay).forEach(event => {
+          const timeStr = event.isAllDay
+            ? ''
+            : `<span class="calendar-event-time">${this.formatTime(event.startTime)}</span>`;
+          const eventClass = event.isAllDay ? 'calendar-event-item all-day' : 'calendar-event-item';
+          const eventData = encodeURIComponent(JSON.stringify(event));
+
+          html += `
+            <div class="${eventClass}"
+                 onclick="CalendarEventViewer.showEventPopup(event, '${eventData}')"
+                 title="${this.escapeHtml(event.title)}">
+              ${timeStr}${this.escapeHtml(event.title)}
+            </div>
+          `;
+        });
+
+        // 残りのイベント数を表示
+        if (dayEvents.length > maxDisplay) {
+          html += `
+            <div class="calendar-event-more"
+                 onclick="CalendarEventViewer.showDayEvents('${dateStr}', '${calendarType}')">
+              +${dayEvents.length - maxDisplay}件
+            </div>
+          `;
+        }
+
+        html += `
+            </div>
+          </div>
+        `;
+      }
+
+      // グリッドの終了位置まで空セルを追加
+      const endDayOfWeek = lastDayOfMonth.getDay();
+      for (let i = endDayOfWeek + 1; i < 7; i++) {
+        html += '<div class="calendar-day-cell other-month"></div>';
+      }
+
+      html += `
+          </div>
+        </div>
+      `;
+    });
+
+    if (events.length === 0) {
+      html = '<div class="calendar-events-empty">表示期間内にイベントがありません</div>';
+    }
+
+    container.innerHTML = html;
+  },
+
+  /**
+   * 時刻をフォーマット
+   */
+  formatTime(isoTime) {
+    if (!isoTime) return '';
+    const date = new Date(isoTime);
+    const hours = date.getHours().toString().padStart(2, '0');
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+    return `${hours}:${minutes}`;
+  },
+
+  /**
+   * HTMLエスケープ
+   */
+  escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  },
+
+  /**
+   * イベント詳細ポップアップを表示
+   */
+  showEventPopup(clickEvent, encodedEvent) {
+    clickEvent.stopPropagation();
+
+    // 既存のポップアップを閉じる
+    this.closePopup();
+
+    try {
+      const event = JSON.parse(decodeURIComponent(encodedEvent));
+
+      const popup = document.createElement('div');
+      popup.className = 'calendar-event-popup';
+      popup.innerHTML = `
+        <button class="calendar-event-popup-close" onclick="CalendarEventViewer.closePopup()">×</button>
+        <div class="calendar-event-popup-header">${this.escapeHtml(event.title)}</div>
+        <div class="calendar-event-popup-content">
+          <div class="calendar-event-popup-row">
+            <span class="calendar-event-popup-label">日時</span>
+            <span class="calendar-event-popup-value">
+              ${event.isAllDay
+                ? `${event.startDate}（終日）`
+                : `${event.startDate} ${this.formatTime(event.startTime)} - ${this.formatTime(event.endTime)}`}
+            </span>
+          </div>
+          ${event.location ? `
+          <div class="calendar-event-popup-row">
+            <span class="calendar-event-popup-label">場所</span>
+            <span class="calendar-event-popup-value">${this.escapeHtml(event.location)}</span>
+          </div>
+          ` : ''}
+          ${event.description ? `
+          <div class="calendar-event-popup-row">
+            <span class="calendar-event-popup-label">詳細</span>
+            <span class="calendar-event-popup-value">${this.escapeHtml(event.description)}</span>
+          </div>
+          ` : ''}
+        </div>
+      `;
+
+      // ポップアップの位置を設定
+      document.body.appendChild(popup);
+
+      const rect = clickEvent.target.getBoundingClientRect();
+      const popupRect = popup.getBoundingClientRect();
+
+      let left = rect.left;
+      let top = rect.bottom + 4;
+
+      // 画面からはみ出す場合は調整
+      if (left + popupRect.width > window.innerWidth) {
+        left = window.innerWidth - popupRect.width - 16;
+      }
+      if (top + popupRect.height > window.innerHeight) {
+        top = rect.top - popupRect.height - 4;
+      }
+
+      popup.style.left = `${left}px`;
+      popup.style.top = `${top}px`;
+
+      this.activePopup = popup;
+
+      // クリック外でポップアップを閉じる
+      setTimeout(() => {
+        document.addEventListener('click', this.handleOutsideClick);
+      }, 0);
+
+    } catch (e) {
+      console.error('[CalendarEventViewer] Failed to show popup:', e);
+    }
+  },
+
+  /**
+   * ポップアップを閉じる
+   */
+  closePopup() {
+    if (this.activePopup) {
+      this.activePopup.remove();
+      this.activePopup = null;
+      document.removeEventListener('click', this.handleOutsideClick);
+    }
+  },
+
+  /**
+   * ポップアップ外クリックのハンドラー
+   */
+  handleOutsideClick(e) {
+    if (CalendarEventViewer.activePopup &&
+        !CalendarEventViewer.activePopup.contains(e.target)) {
+      CalendarEventViewer.closePopup();
+    }
+  },
+
+  /**
+   * 特定日の全イベントを表示（モーダル）
+   */
+  showDayEvents(dateStr, calendarType) {
+    // TODO: 日単位のイベント一覧モーダルを実装
+    console.log(`Show all events for ${dateStr} from ${calendarType}`);
+  }
+};
+
+console.log('[DEBUG] CalendarEventViewer defined');
+
+// ========================================
 // App - アプリケーションメインエントリーポイント
 // ========================================
 
@@ -8661,6 +9141,8 @@ const App = {
     ResourceView.init();
     WeeklyPlan.init();
     TravelPlan.init();
+    CalendarView.init();
+    ElectricalView.init();
 
     this.setupEventListeners();
 
@@ -8867,12 +9349,12 @@ const App = {
         TravelPlan.render();
         break;
       case 'calendar':
-        // Googleカレンダーはiframe埋め込み + 下部に出張予定を表示
-        CalendarView.renderTrips();
+        // TSCカレンダー + 出張予定（APIから取得）
+        CalendarView.render();
         break;
       case 'electrical':
-        // 電気予定（Googleカレンダー）+ 下部に出張予定を表示
-        ElectricalView.renderTrips();
+        // 電気カレンダー + 出張予定（APIから取得）
+        ElectricalView.render();
         break;
     }
   }

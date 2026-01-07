@@ -304,15 +304,12 @@
       <div class="calendar-container calendar-with-trips">
         <div class="calendar-header">
           <h2 class="text-lg font-bold text-gray-800">TSC予定（Googleカレンダー）</h2>
-          <p class="text-sm text-gray-500">※ カレンダーが表示されない場合は、Googleアカウントでログインしてください</p>
+          <p class="text-sm text-gray-500">※ 表示期間はヘッダーの開始日・日数と連動しています</p>
         </div>
-        <div class="calendar-iframe-wrapper calendar-iframe-with-trips">
-          <iframe
-            src="https://calendar.google.com/calendar/embed?src=takeuchikaisyayou%40gmail.com&ctz=Asia%2FTokyo"
-            style="border:0; width:100%; height:100%;"
-            frameborder="0"
-            scrolling="no">
-          </iframe>
+        <div class="calendar-events-wrapper calendar-iframe-with-trips">
+          <div id="calendar-tsc-events" class="calendar-events-container">
+            <!-- JSで生成 -->
+          </div>
         </div>
 
         <!-- 埋め込み出張計画セクション（初期状態：折りたたみ） -->
@@ -354,15 +351,12 @@
       <div class="calendar-container electrical-container calendar-with-trips">
         <div class="calendar-header electrical-header">
           <h2 class="text-lg font-bold text-gray-800">電気予定（Googleカレンダー）</h2>
-          <p class="text-sm text-gray-500">※ カレンダーが表示されない場合は、Googleアカウントでログインしてください</p>
+          <p class="text-sm text-gray-500">※ 表示期間はヘッダーの開始日・日数と連動しています</p>
         </div>
-        <div class="calendar-iframe-wrapper calendar-iframe-with-trips">
-          <iframe
-            src="https://calendar.google.com/calendar/embed?src=electrical-01%40lineworks-local.info&ctz=Asia%2FTokyo"
-            style="border:0; width:100%; height:100%;"
-            frameborder="0"
-            scrolling="no">
-          </iframe>
+        <div class="calendar-events-wrapper calendar-iframe-with-trips">
+          <div id="calendar-electrical-events" class="calendar-events-container">
+            <!-- JSで生成 -->
+          </div>
         </div>
 
         <!-- 埋め込み出張計画セクション（初期状態：折りたたみ） -->

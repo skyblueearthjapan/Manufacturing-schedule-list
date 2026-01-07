@@ -3368,6 +3368,268 @@
     display: block;
   }
 
+  /* カレンダーイベント表示エリア（B案） */
+  .calendar-events-wrapper {
+    flex: 1;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .calendar-events-container {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+  }
+
+  .calendar-events-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 200px;
+    color: #6b7280;
+  }
+
+  .calendar-events-error {
+    padding: 16px;
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    border-radius: 8px;
+    color: #dc2626;
+    margin: 8px;
+  }
+
+  .calendar-events-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 200px;
+    color: #9ca3af;
+    font-size: 14px;
+  }
+
+  /* カレンダー月表示グリッド */
+  .calendar-month-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: #f9fafb;
+    border-bottom: 1px solid #e5e7eb;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+
+  .calendar-month-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #374151;
+  }
+
+  .calendar-month-nav {
+    display: flex;
+    gap: 8px;
+  }
+
+  .calendar-month-nav button {
+    padding: 4px 12px;
+    font-size: 12px;
+    background: #fff;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+
+  .calendar-month-nav button:hover {
+    background: #f3f4f6;
+  }
+
+  .calendar-week-header {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    background: #f3f4f6;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  .calendar-week-header-cell {
+    padding: 6px 4px;
+    text-align: center;
+    font-size: 11px;
+    font-weight: 600;
+    color: #6b7280;
+  }
+
+  .calendar-week-header-cell.sun {
+    color: #dc2626;
+  }
+
+  .calendar-week-header-cell.sat {
+    color: #2563eb;
+  }
+
+  .calendar-month-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 1px;
+    background: #e5e7eb;
+  }
+
+  .calendar-day-cell {
+    background: white;
+    min-height: 80px;
+    padding: 4px;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .calendar-day-cell.other-month {
+    background: #f9fafb;
+  }
+
+  .calendar-day-cell.today {
+    background: #eff6ff;
+  }
+
+  .calendar-day-cell.weekend {
+    background: #fef9ee;
+  }
+
+  .calendar-day-number {
+    font-size: 12px;
+    font-weight: 500;
+    color: #374151;
+    margin-bottom: 4px;
+  }
+
+  .calendar-day-cell.other-month .calendar-day-number {
+    color: #9ca3af;
+  }
+
+  .calendar-day-cell.sun .calendar-day-number {
+    color: #dc2626;
+  }
+
+  .calendar-day-cell.sat .calendar-day-number {
+    color: #2563eb;
+  }
+
+  .calendar-day-events {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .calendar-event-item {
+    padding: 2px 4px;
+    font-size: 10px;
+    border-radius: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: pointer;
+    background: #dbeafe;
+    color: #1e40af;
+    border-left: 2px solid #3b82f6;
+  }
+
+  .calendar-event-item:hover {
+    background: #bfdbfe;
+  }
+
+  .calendar-event-item.all-day {
+    background: #e0e7ff;
+    color: #3730a3;
+    border-left-color: #6366f1;
+  }
+
+  .calendar-event-time {
+    font-weight: 600;
+    margin-right: 4px;
+  }
+
+  .calendar-event-more {
+    font-size: 10px;
+    color: #6b7280;
+    text-align: center;
+    padding: 2px;
+    cursor: pointer;
+  }
+
+  .calendar-event-more:hover {
+    color: #374151;
+    text-decoration: underline;
+  }
+
+  /* イベント詳細ポップアップ */
+  .calendar-event-popup {
+    position: fixed;
+    z-index: 1000;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    min-width: 280px;
+    max-width: 400px;
+    max-height: 80vh;
+    overflow: auto;
+  }
+
+  .calendar-event-popup-header {
+    padding: 12px 16px;
+    background: #3b82f6;
+    color: white;
+    border-radius: 8px 8px 0 0;
+    font-weight: 600;
+  }
+
+  .calendar-event-popup-content {
+    padding: 16px;
+  }
+
+  .calendar-event-popup-row {
+    display: flex;
+    margin-bottom: 8px;
+    font-size: 13px;
+  }
+
+  .calendar-event-popup-label {
+    width: 60px;
+    color: #6b7280;
+    flex-shrink: 0;
+  }
+
+  .calendar-event-popup-value {
+    flex: 1;
+    color: #374151;
+  }
+
+  .calendar-event-popup-close {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255,255,255,0.2);
+    border: none;
+    border-radius: 4px;
+    color: white;
+    cursor: pointer;
+    font-size: 16px;
+  }
+
+  .calendar-event-popup-close:hover {
+    background: rgba(255,255,255,0.3);
+  }
+
   /* ========================================
      EmbeddedTripPlan（埋め込み出張計画）
      ======================================== */

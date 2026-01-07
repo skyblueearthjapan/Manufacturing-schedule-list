@@ -48,6 +48,12 @@ const CONFIG = {
   PROCESS_TYPE: {
     RANGE: 'range',
     MILESTONE: 'milestone'
+  },
+
+  // Google Calendar設定
+  CALENDARS: {
+    TSC: 'takeuchikaisyayou@gmail.com',
+    ELECTRICAL: 'electrical-01@lineworks-local.info'
   }
 };
 

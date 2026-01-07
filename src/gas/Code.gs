@@ -245,6 +245,23 @@ function api_getDaySettings(fromISO, toISO) {
   return sanitizeForClient(getDaySettingsMap(fromISO, toISO));
 }
 
+// ========== Calendar API ==========
+function api_getCalendarEvents(calendarId, startDate, endDate) {
+  return sanitizeForClient(getCalendarEvents(calendarId, startDate, endDate));
+}
+
+function api_getTSCCalendarEvents(startDate, endDate) {
+  return sanitizeForClient(getTSCCalendarEvents(startDate, endDate));
+}
+
+function api_getElectricalCalendarEvents(startDate, endDate) {
+  return sanitizeForClient(getElectricalCalendarEvents(startDate, endDate));
+}
+
+function api_testCalendarConnection() {
+  return sanitizeForClient(testCalendarConnection());
+}
+
 /**
  * テスト用：スプレッドシート接続確認
  * GASエディタで実行して確認してください
