@@ -90,6 +90,19 @@
     color: white;
   }
 
+  /* TSC予定 - ティール */
+  .nav-tab[data-view="calendar"] {
+    color: #0d9488;
+    border-color: #0d9488;
+  }
+  .nav-tab[data-view="calendar"]:hover {
+    background-color: #f0fdfa;
+  }
+  .nav-tab[data-view="calendar"].active {
+    background-color: #0d9488;
+    color: white;
+  }
+
   /* ========================================
      ボタン
      ======================================== */
@@ -3271,5 +3284,43 @@
 
   #person-gantt-grid .gantt-cell.today {
     background-color: rgba(219, 234, 254, 0.4);
+  }
+
+  /* ========================================
+     CalendarView（TSC予定 - Googleカレンダー埋め込み）
+     ======================================== */
+  .calendar-container {
+    height: calc(100vh - 70px);
+    display: flex;
+    flex-direction: column;
+    padding: 16px;
+    background: #f9fafb;
+  }
+
+  .calendar-header {
+    margin-bottom: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  .calendar-header h2 {
+    margin: 0;
+    color: #0d9488;
+  }
+
+  .calendar-header p {
+    margin: 4px 0 0 0;
+  }
+
+  .calendar-iframe-wrapper {
+    flex: 1;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    overflow: hidden;
+  }
+
+  .calendar-iframe-wrapper iframe {
+    display: block;
   }
 </style>
