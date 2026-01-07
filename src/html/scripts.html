@@ -5689,6 +5689,14 @@ const WorkerJobAssignView = {
     const productName = job['設備/製品名'] || '';
     const jobId = job.jobId || '';
 
+    // 担当者設定ボタン（クリックでモーダルを開く、ドラッグ開始を阻止）
+    const assignBtn = `<button type="button"
+                              class="wja-assign-btn"
+                              data-job-id="${Utils.escapeHtml(jobId)}"
+                              onmousedown="event.stopPropagation();"
+                              onclick="event.stopPropagation(); WorkerJobAssignView.openRoleModal('${Utils.escapeHtml(jobId)}')"
+                              title="担当者を設定">担当設定</button>`;
+
     return `
       <div class="wja-card wja-card-draggable wja-unassigned-card"
            data-job-id="${Utils.escapeHtml(jobId)}"
@@ -5696,6 +5704,7 @@ const WorkerJobAssignView = {
            draggable="true">
         <div class="wja-card-row1">
           <span class="wja-card-jobcode">${Utils.escapeHtml(jobCode)}</span>
+          ${assignBtn}
           <span class="wja-drag-handle" title="ドラッグして担当者へ割り当て">⋮⋮</span>
         </div>
         <div class="wja-card-row2">${Utils.escapeHtml(customerName) || '—'}</div>
