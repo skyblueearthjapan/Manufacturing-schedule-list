@@ -263,6 +263,39 @@ function api_testCalendarConnection() {
 }
 
 /**
+ * TSCカレンダーを出張計画に同期
+ * @param {string} startDate - 開始日 (YYYY-MM-DD)
+ * @param {string} endDate - 終了日 (YYYY-MM-DD)
+ * @returns {Object} 同期結果
+ */
+function api_syncTSCCalendarToTrips(startDate, endDate) {
+  return sanitizeForClient(syncTSCCalendarToTrips(startDate, endDate));
+}
+
+/**
+ * TSCカレンダー同期テスト（ドライラン）
+ * @param {string} startDate - 開始日 (YYYY-MM-DD)
+ * @param {string} endDate - 終了日 (YYYY-MM-DD)
+ * @returns {Object} テスト結果
+ */
+function api_testSyncTSCCalendar(startDate, endDate) {
+  return sanitizeForClient(testSyncTSCCalendar(startDate, endDate));
+}
+
+/**
+ * TSC部署メンバー一覧を取得
+ * @returns {Object} メンバー情報
+ */
+function api_getTSCMembers() {
+  const memberIds = getTSCMemberIds();
+  const members = memberIds.map(id => {
+    const person = getPersonById(id);
+    return person ? { personId: id, name: person['表示名'] || person.name || id } : { personId: id, name: id };
+  });
+  return sanitizeForClient({ memberIds, members });
+}
+
+/**
  * テスト用：スプレッドシート接続確認
  * GASエディタで実行して確認してください
  */

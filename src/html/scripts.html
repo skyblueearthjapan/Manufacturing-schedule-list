@@ -7487,6 +7487,51 @@ const TravelPlan = {
   },
 
   /**
+   * TSCカレンダーから出張計画を同期
+   */
+  async syncTSCCalendar() {
+    // 確認ダイアログ
+    const rangeEnd = Utils.addDays(this.displayStartDate, this.displayDays);
+    const confirmed = confirm(
+      `TSCカレンダーを出張計画に同期します。\n\n` +
+      `対象期間: ${this.displayStartDate} ～ ${rangeEnd}\n\n` +
+      `※ TSC部署メンバー全員に予定が展開されます。\n` +
+      `※ 確定済み(ロック)の予定は更新されません。\n\n` +
+      `実行しますか？`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      Utils.setLoading(true);
+
+      const result = await API.call('api_syncTSCCalendarToTrips', this.displayStartDate, rangeEnd);
+
+      if (result.success) {
+        const s = result.summary;
+        Utils.showToast(
+          `TSC同期完了: 作成${s.created}件, 更新${s.updated}件, スキップ${s.skipped}件` +
+          (s.errors > 0 ? `, エラー${s.errors}件` : ''),
+          s.errors > 0 ? 'warning' : 'success'
+        );
+
+        // 詳細をコンソールに出力
+        console.log('TSCカレンダー同期結果:', result);
+
+        // データ再読み込み
+        await Store.loadBootstrapData();
+      } else {
+        Utils.showToast(`TSC同期エラー: ${result.error}`, 'error');
+      }
+    } catch (error) {
+      console.error('TSC calendar sync failed:', error);
+      Utils.showToast('TSC同期に失敗しました: ' + error.message, 'error');
+    } finally {
+      Utils.setLoading(false);
+    }
+  },
+
+  /**
    * テキスト幅を計測（Canvas使用）
    * @param {string} text - 計測するテキスト
    * @param {string} font - フォント指定（例: '11px sans-serif'）

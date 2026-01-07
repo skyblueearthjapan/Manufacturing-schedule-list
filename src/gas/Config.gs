@@ -54,6 +54,21 @@ const CONFIG = {
   CALENDARS: {
     TSC: 'takeuchikaisyayou@gmail.com',
     ELECTRICAL: 'electrical-01@lineworks-local.info'
+  },
+
+  // TSC部署設定（カレンダー同期用）
+  TSC_DEPARTMENT: {
+    // TSC部署のメンバーpersonId一覧（PeopleシートのpersonId）
+    // ※シート管理に移行する場合はgetTSCMembers()関数を使用
+    MEMBER_PERSON_IDS: ['P.09', 'P.10'],  // 暫定：実際のpersonIdに要変更
+
+    // カレンダー同期の設定
+    SYNC_SETTINGS: {
+      // 休みイベントを同期するか
+      INCLUDE_OFF_EVENTS: false,
+      // 移動推定生成を行うか（TSCはカレンダーに移動が全て記載されているのでfalse）
+      GENERATE_ESTIMATED_MOVES: false
+    }
   }
 };
 
