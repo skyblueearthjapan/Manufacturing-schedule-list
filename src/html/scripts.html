@@ -1906,23 +1906,59 @@ const Gantt = {
     const hScrollHeader = document.getElementById('gantt-h-scroll-header');
     const stickyScrollbar = document.getElementById('gantt-sticky-scrollbar');
 
+    // スクロールロック（無限ループ防止）
+    let scrollLock = false;
+
+    // 出張予定セクションのスクロール要素を取得するヘルパー
+    const getTripScrollElements = () => {
+      return {
+        tripBodyScroll: document.getElementById('gantt-trip-container-body-scroll'),
+        tripDateScroll: document.getElementById('gantt-trip-container-date-scroll')
+      };
+    };
+
     if (hScrollBody && hScrollHeader) {
       hScrollBody.addEventListener('scroll', () => {
-        hScrollHeader.scrollLeft = hScrollBody.scrollLeft;
+        if (scrollLock) return;
+        scrollLock = true;
+
+        const scrollLeft = hScrollBody.scrollLeft;
+        hScrollHeader.scrollLeft = scrollLeft;
+
         // スティッキースクロールバーも同期
         if (stickyScrollbar) {
-          stickyScrollbar.scrollLeft = hScrollBody.scrollLeft;
+          stickyScrollbar.scrollLeft = scrollLeft;
         }
+
+        // 出張予定セクションも同期
+        const { tripBodyScroll, tripDateScroll } = getTripScrollElements();
+        if (tripBodyScroll) tripBodyScroll.scrollLeft = scrollLeft;
+        if (tripDateScroll) tripDateScroll.scrollLeft = scrollLeft;
+
         this.updateTodayLinePosition();
+
+        requestAnimationFrame(() => { scrollLock = false; });
       });
     }
 
     // スティッキースクロールバーのスクロールイベント
     if (stickyScrollbar && hScrollBody && hScrollHeader) {
       stickyScrollbar.addEventListener('scroll', () => {
-        hScrollBody.scrollLeft = stickyScrollbar.scrollLeft;
-        hScrollHeader.scrollLeft = stickyScrollbar.scrollLeft;
+        if (scrollLock) return;
+        scrollLock = true;
+
+        const scrollLeft = stickyScrollbar.scrollLeft;
+        hScrollBody.scrollLeft = scrollLeft;
+        hScrollHeader.scrollLeft = scrollLeft;
+
+        // 出張予定セクションも同期
+        const { tripBodyScroll, tripDateScroll } = getTripScrollElements();
+        if (tripBodyScroll) tripBodyScroll.scrollLeft = scrollLeft;
+        if (tripDateScroll) tripDateScroll.scrollLeft = scrollLeft;
+
         this.updateTodayLinePosition();
+
+        requestAnimationFrame(() => { scrollLock = false; });
       });
     }
   },
@@ -2527,6 +2563,54 @@ const Gantt = {
       dateFrom: displayStartDate,
       days: displayDays
     });
+
+    // 出張予定セクションのスクロールをメインスクロールバーと同期
+    this.setupTripScrollSync();
+  },
+
+  /**
+   * 出張予定セクションのスクロール同期を設定
+   * メインのガントチャート・スクロールバー・出張予定セクションを連動させる
+   */
+  setupTripScrollSync() {
+    const hScrollBody = document.getElementById('gantt-h-scroll-body');
+    const hScrollHeader = document.getElementById('gantt-h-scroll-header');
+    const stickyScrollbar = document.getElementById('gantt-sticky-scrollbar');
+    const tripBodyScroll = document.getElementById('gantt-trip-container-body-scroll');
+    const tripDateScroll = document.getElementById('gantt-trip-container-date-scroll');
+
+    if (!tripBodyScroll) return;
+
+    // 既存のリスナーを削除（重複防止）
+    if (this._tripScrollHandler) {
+      tripBodyScroll.removeEventListener('scroll', this._tripScrollHandler);
+    }
+
+    // 出張予定セクションのスクロールイベント
+    this._tripScrollHandler = () => {
+      if (this._scrollLock) return;
+      this._scrollLock = true;
+
+      const scrollLeft = tripBodyScroll.scrollLeft;
+      if (hScrollBody) hScrollBody.scrollLeft = scrollLeft;
+      if (hScrollHeader) hScrollHeader.scrollLeft = scrollLeft;
+      if (stickyScrollbar) stickyScrollbar.scrollLeft = scrollLeft;
+      if (tripDateScroll) tripDateScroll.scrollLeft = scrollLeft;
+
+      this.updateTodayLinePosition();
+
+      requestAnimationFrame(() => { this._scrollLock = false; });
+    };
+
+    tripBodyScroll.addEventListener('scroll', this._tripScrollHandler);
+
+    // 逆方向の同期：メインスクロールから出張予定セクションへ
+    // （setupEventListenersで設定済みのハンドラに追加）
+    // 現在のスクロール位置を同期
+    if (hScrollBody) {
+      tripBodyScroll.scrollLeft = hScrollBody.scrollLeft;
+      if (tripDateScroll) tripDateScroll.scrollLeft = hScrollBody.scrollLeft;
+    }
   }
 };
 

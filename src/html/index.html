@@ -237,6 +237,11 @@
         <div class="today-line" id="today-line"></div>
       </div>
 
+      <!-- 横スクロールバー（ガントチャートと出張予定の間に配置） -->
+      <div id="gantt-sticky-scrollbar" class="gantt-bottom-scrollbar">
+        <div id="gantt-scrollbar-content" class="gantt-scrollbar-content"></div>
+      </div>
+
       <!-- 埋め込み出張計画セクション（初期状態：折りたたみ） -->
       <div class="embedded-trip-section collapsed" id="gantt-trip-section">
         <div class="embedded-trip-toggle">
@@ -267,11 +272,6 @@
             <!-- JSで生成 -->
           </div>
         </div>
-      </div>
-
-      <!-- 横スクロールバー（縦スクロール領域の外、常に下部に表示） -->
-      <div id="gantt-sticky-scrollbar" class="gantt-bottom-scrollbar">
-        <div id="gantt-scrollbar-content" class="gantt-scrollbar-content"></div>
       </div>
     </div>
 
