@@ -59,8 +59,8 @@ const CONFIG = {
   // TSC部署設定（カレンダー同期用）
   TSC_DEPARTMENT: {
     // TSC部署のメンバーpersonId一覧（PeopleシートのpersonId）
-    // ※シート管理に移行する場合はgetTSCMembers()関数を使用
-    MEMBER_PERSON_IDS: ['P.09', 'P.10'],  // 暫定：実際のpersonIdに要変更
+    // 片岡 暢 = P.03, 釘持 陽 = P.04
+    MEMBER_PERSON_IDS: ['P.03', 'P.04'],
 
     // カレンダー同期の設定
     SYNC_SETTINGS: {
