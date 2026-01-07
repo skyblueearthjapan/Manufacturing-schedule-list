@@ -521,6 +521,52 @@
     </div>
   </div>
 
+  <!-- 担当者別大工程表オーバーレイ -->
+  <div id="person-gantt-overlay" class="fixed inset-0 z-50 hidden">
+    <div class="absolute inset-0 bg-black bg-opacity-50" onclick="PersonGanttOverlay.close()"></div>
+    <div class="absolute inset-4 bg-white rounded-lg shadow-2xl flex flex-col overflow-hidden">
+      <!-- ヘッダー -->
+      <div class="bg-gray-100 px-6 py-4 border-b flex items-center justify-between">
+        <div class="flex items-center space-x-4">
+          <button onclick="PersonGanttOverlay.close()" class="flex items-center text-gray-600 hover:text-gray-800" title="戻る">
+            <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+            </svg>
+            戻る
+          </button>
+          <h2 id="person-gantt-title" class="text-lg font-bold text-gray-800">担当者の大工程表</h2>
+        </div>
+        <button onclick="PersonGanttOverlay.close()" class="text-gray-500 hover:text-gray-700 text-2xl font-bold" title="閉じる">&times;</button>
+      </div>
+
+      <!-- コンテンツ -->
+      <div class="flex-1 flex flex-col overflow-hidden">
+        <!-- 日付ヘッダー -->
+        <div class="person-gantt-header shrink-0">
+          <div class="person-gantt-job-header">工番情報</div>
+          <div class="person-gantt-date-scroll" id="person-gantt-header-scroll">
+            <div class="person-gantt-date-header" id="person-gantt-date-header">
+              <!-- JSで生成 -->
+            </div>
+          </div>
+        </div>
+        <!-- ボディ -->
+        <div class="flex-1 overflow-y-auto" id="person-gantt-body-scroll">
+          <div class="person-gantt-container">
+            <div class="person-gantt-job-pane" id="person-gantt-job-pane">
+              <!-- JSで生成 -->
+            </div>
+            <div class="person-gantt-grid-scroll" id="person-gantt-grid-scroll">
+              <div class="person-gantt-grid" id="person-gantt-grid">
+                <!-- JSで生成 -->
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- 入力モーダル -->
   <div id="modal-entry" class="modal hidden">
     <div class="modal-backdrop"></div>

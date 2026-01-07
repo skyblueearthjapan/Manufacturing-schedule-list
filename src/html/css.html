@@ -1339,6 +1339,28 @@
     background: white;
   }
 
+  /* 作業者名クリック可能スタイル */
+  .resource-person-clickable {
+    cursor: pointer;
+    transition: background-color 0.15s, color 0.15s;
+    justify-content: space-between;
+  }
+
+  .resource-person-clickable:hover {
+    background-color: #eff6ff;
+    color: #1d4ed8;
+  }
+
+  .resource-person-clickable .person-gantt-icon {
+    opacity: 0.4;
+    font-size: 14px;
+    transition: opacity 0.15s;
+  }
+
+  .resource-person-clickable:hover .person-gantt-icon {
+    opacity: 1;
+  }
+
   .resource-person-grid {
     display: flex;
     position: relative;
@@ -2912,5 +2934,137 @@
 
   .top-memo-add-link:hover {
     text-decoration: underline;
+  }
+
+  /* ========================================
+     PersonGanttOverlay - 担当者別大工程表オーバーレイ
+     ======================================== */
+
+  /* ヘッダー */
+  .person-gantt-header {
+    display: flex;
+    border-bottom: 1px solid #e5e7eb;
+    background: #f9fafb;
+  }
+
+  .person-gantt-job-header {
+    width: 300px;
+    min-width: 300px;
+    flex-shrink: 0;
+    padding: 8px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #374151;
+    border-right: 1px solid #e5e7eb;
+    background: #f3f4f6;
+    display: flex;
+    align-items: flex-end;
+  }
+
+  .person-gantt-date-scroll {
+    flex: 1;
+    overflow-x: hidden;
+  }
+
+  .person-gantt-date-header {
+    display: flex;
+  }
+
+  /* コンテナ */
+  .person-gantt-container {
+    display: flex;
+    min-height: 100%;
+  }
+
+  .person-gantt-job-pane {
+    width: 300px;
+    min-width: 300px;
+    flex-shrink: 0;
+    border-right: 1px solid #d1d5db;
+    background: #fafafa;
+  }
+
+  .person-gantt-grid-scroll {
+    flex: 1;
+    overflow-x: auto;
+  }
+
+  .person-gantt-grid {
+    position: relative;
+    min-height: 100%;
+  }
+
+  /* PersonGanttOverlay内のjob-info-blockスタイル調整 */
+  #person-gantt-job-pane .job-info-block {
+    border-bottom: 1px solid #e5e7eb;
+    padding: 8px 12px;
+    box-sizing: border-box;
+    display: flex;
+    align-items: flex-start;
+  }
+
+  #person-gantt-job-pane .job-info-content {
+    flex: 1;
+    min-width: 0;
+  }
+
+  #person-gantt-job-pane .job-info-row1 {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+
+  #person-gantt-job-pane .job-info-jobno {
+    font-weight: 600;
+    font-size: 12px;
+    color: #1f2937;
+  }
+
+  #person-gantt-job-pane .job-info-jobno .label {
+    color: #6b7280;
+    font-weight: normal;
+    font-size: 10px;
+  }
+
+  #person-gantt-job-pane .job-info-row2,
+  #person-gantt-job-pane .job-info-row3 {
+    font-size: 11px;
+    color: #6b7280;
+    margin-top: 2px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  #person-gantt-job-pane .job-info-customer,
+  #person-gantt-job-pane .job-info-product {
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* PersonGanttOverlay内のグリッドスタイル */
+  #person-gantt-grid .gantt-row {
+    display: flex;
+    border-bottom: 1px solid #e5e7eb;
+    position: relative;
+  }
+
+  #person-gantt-grid .gantt-cell {
+    width: 32px;
+    min-width: 32px;
+    height: 100%;
+    border-right: 1px solid #f3f4f6;
+    box-sizing: border-box;
+  }
+
+  #person-gantt-grid .gantt-cell.weekend {
+    background-color: rgba(254, 249, 195, 0.3);
+  }
+
+  #person-gantt-grid .gantt-cell.today {
+    background-color: rgba(219, 234, 254, 0.4);
   }
 </style>

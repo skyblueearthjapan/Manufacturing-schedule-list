@@ -5211,8 +5211,10 @@ const ResourceView = {
 
         html += `
           <div class="resource-person-row">
-            <div class="resource-person-name" style="border-left: 4px solid ${personColor}">
+            <div class="resource-person-name resource-person-clickable" style="border-left: 4px solid ${personColor}"
+                 data-person-id="${person.personId}" onclick="PersonGanttOverlay.open('${person.personId}')" title="クリックして大工程表を表示">
               <span class="person-name-text">${Utils.escapeHtml(person['氏名'])}</span>
+              <span class="person-gantt-icon">📋</span>
             </div>
             <div class="resource-person-grid">
         `;
@@ -5689,6 +5691,433 @@ const WorkerJobAssignView = {
 };
 
 console.log('[DEBUG] WorkerJobAssignView defined');
+
+// ========================================
+// PersonGanttOverlay - 担当者別大工程表オーバーレイ
+// ========================================
+
+const PersonGanttOverlay = {
+  config: {
+    cellWidth: 32,
+    baseRowHeight: 64,
+    laneHeight: 28,
+    barHeight: 24,
+    barTopPadding: 6,
+    jobPaneWidth: 300,
+    minLaneCount: 3
+  },
+
+  dates: [],
+  currentPersonId: null,
+  jobLaneCounts: {},
+  _jobSchedulesWithLanes: {},
+  _jobRoleMap: null,
+
+  /**
+   * オーバーレイを開く
+   * @param {string} personId - 担当者ID
+   */
+  open(personId) {
+    if (!personId) return;
+
+    this.currentPersonId = personId;
+    const person = Store.getPersonById(personId);
+    const personName = person?.['氏名'] || '不明';
+
+    // タイトル更新
+    const titleEl = document.getElementById('person-gantt-title');
+    if (titleEl) {
+      titleEl.textContent = `${personName}の大工程表`;
+    }
+
+    // オーバーレイ表示
+    const overlay = document.getElementById('person-gantt-overlay');
+    if (overlay) {
+      overlay.classList.remove('hidden');
+    }
+
+    // 描画
+    this.render();
+
+    // スクロール同期設定
+    this.setupScrollSync();
+  },
+
+  /**
+   * オーバーレイを閉じる
+   */
+  close() {
+    const overlay = document.getElementById('person-gantt-overlay');
+    if (overlay) {
+      overlay.classList.add('hidden');
+    }
+    this.currentPersonId = null;
+  },
+
+  /**
+   * 描画
+   */
+  render() {
+    if (!this.currentPersonId) return;
+
+    const { displayStartDate, displayDays } = Store.state;
+    this.dates = Utils.generateDateRange(displayStartDate, displayDays);
+
+    // 担当者でフィルタした工番を取得（主担当→副担当の順）
+    const filteredJobs = this.getFilteredJobs();
+
+    // レーン数を計算
+    this.calculateLaneCounts(filteredJobs);
+
+    // 描画
+    this.renderDateHeader();
+    this.renderJobPane(filteredJobs);
+    this.renderGrid(filteredJobs);
+  },
+
+  /**
+   * 担当者でフィルタした工番を取得（主担当優先）
+   */
+  getFilteredJobs() {
+    const personId = this.currentPersonId;
+    const jobs = Store.state.jobs.filter(j => !j.isHidden);
+
+    const mainJobs = [];
+    const subJobs = [];
+    this._jobRoleMap = new Map();
+
+    jobs.forEach(job => {
+      const isMain = job.mainPersonId === personId;
+      const isSub = job.subPersonId === personId;
+
+      if (isMain) {
+        mainJobs.push(job);
+        this._jobRoleMap.set(job.jobId, 'main');
+      } else if (isSub) {
+        subJobs.push(job);
+        this._jobRoleMap.set(job.jobId, 'sub');
+      }
+    });
+
+    // 主担当を上、副担当を下にして返す
+    return [...mainJobs, ...subJobs];
+  },
+
+  /**
+   * 各工番のレーン数を計算
+   */
+  calculateLaneCounts(jobs) {
+    this.jobLaneCounts = {};
+    this._jobSchedulesWithLanes = {};
+
+    jobs.forEach(job => {
+      const schedules = Store.getSchedulesByJobId(job.jobId);
+      const { items, laneCount } = this.assignLanes(schedules);
+      this.jobLaneCounts[job.jobId] = laneCount;
+      this._jobSchedulesWithLanes[job.jobId] = items;
+    });
+  },
+
+  /**
+   * スケジュールにレーンを割り当て（重なり対応）
+   */
+  assignLanes(schedules) {
+    const minLanes = this.config.minLaneCount;
+
+    if (schedules.length === 0) {
+      return { items: [], laneCount: minLanes };
+    }
+
+    const items = [...schedules].sort((a, b) => a.start.localeCompare(b.start));
+    const laneEnds = [];
+
+    for (const s of items) {
+      let placed = false;
+      for (let i = 0; i < laneEnds.length; i++) {
+        if (laneEnds[i] < s.start) {
+          s._lane = i;
+          laneEnds[i] = s.end;
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) {
+        s._lane = laneEnds.length;
+        laneEnds.push(s.end);
+      }
+    }
+
+    return { items, laneCount: Math.max(minLanes, laneEnds.length) };
+  },
+
+  /**
+   * 行の高さを取得
+   */
+  getRowHeight(laneCount) {
+    if (laneCount <= this.config.minLaneCount) {
+      return this.config.baseRowHeight;
+    }
+    return this.config.baseRowHeight + (laneCount - this.config.minLaneCount) * this.config.laneHeight;
+  },
+
+  /**
+   * 日付ヘッダーを描画
+   */
+  renderDateHeader() {
+    const container = document.getElementById('person-gantt-date-header');
+    if (!container) return;
+
+    const today = Utils.getToday();
+    let html = '';
+    let currentMonth = 0;
+
+    this.dates.forEach((date) => {
+      const month = Utils.getMonth(date);
+      const day = Utils.getDay(date);
+      const dow = Utils.getDayOfWeek(date);
+      const isWeekend = Utils.isWeekend(date);
+      const isToday = date === today;
+
+      const showMonth = month !== currentMonth;
+      currentMonth = month;
+
+      let classes = 'gantt-date-cell';
+      if (isWeekend) classes += ' weekend';
+      if (isToday) classes += ' today';
+
+      html += `
+        <div class="${classes}">
+          ${showMonth ? `<div class="month">${month}月</div>` : '<div class="month"></div>'}
+          <div class="day">${day}</div>
+          <div class="dow">${dow}</div>
+        </div>
+      `;
+    });
+
+    container.innerHTML = html;
+    container.style.width = `${this.dates.length * this.config.cellWidth}px`;
+  },
+
+  /**
+   * 工番ペインを描画
+   */
+  renderJobPane(jobs) {
+    const container = document.getElementById('person-gantt-job-pane');
+    if (!container) return;
+
+    if (jobs.length === 0) {
+      container.innerHTML = `
+        <div class="empty-job-pane flex flex-col items-center justify-center h-48 text-center text-gray-400 text-sm m-2 border-2 border-dashed border-gray-300 rounded-lg">
+          <div>この担当者に紐づく工番がありません</div>
+        </div>
+      `;
+      return;
+    }
+
+    let html = '';
+    jobs.forEach((job) => {
+      const shipDate = this.formatShortDate(job['出荷予定日']);
+      const drawDate = this.formatShortDate(job['出図予定日']);
+      const laneCount = this.jobLaneCounts[job.jobId] || this.config.minLaneCount;
+      const rowHeight = this.getRowHeight(laneCount);
+
+      // 担当者名を取得
+      const mainPerson = job.mainPersonId ? Store.getPersonById(job.mainPersonId) : null;
+      const subPerson = job.subPersonId ? Store.getPersonById(job.subPersonId) : null;
+      const mainPersonName = mainPerson?.['氏名'] || '';
+      const subPersonName = subPerson?.['氏名'] || '';
+
+      // 役割バッジ
+      const role = this._jobRoleMap.get(job.jobId);
+      const jobRoleClass = role === 'main' ? ' job-role-main' : ' job-role-sub';
+      const jobRoleBadge = role === 'main'
+        ? '<span class="job-role-badge job-role-badge-main">主担当</span>'
+        : '<span class="job-role-badge job-role-badge-sub">副担当</span>';
+
+      html += `
+        <div class="job-info-block${jobRoleClass}" data-job-id="${job.jobId}" style="height: ${rowHeight}px; min-height: ${rowHeight}px;">
+          <div class="job-info-content">
+            <div class="job-info-row1">
+              ${jobRoleBadge}
+              <div class="job-info-jobno">
+                <span class="label">[工番]</span>
+                <span>${Utils.escapeHtml(job['工番'] || '')}</span>
+              </div>
+            </div>
+            <div class="job-info-row2">
+              <div class="job-info-customer">顧客：${Utils.escapeHtml(job['顧客名'] || '-')}</div>
+              <div class="job-info-draw-date">出図予定：${drawDate || '-'}</div>
+            </div>
+            <div class="job-info-row3">
+              <div class="job-info-product">${Utils.escapeHtml(job['設備/製品名'] || '-')}</div>
+              <div class="job-info-ship-date">出荷予定：${shipDate || '-'}</div>
+            </div>
+          </div>
+        </div>
+      `;
+    });
+
+    container.innerHTML = html;
+  },
+
+  formatShortDate(dateStr) {
+    if (!dateStr) return '';
+    const match = dateStr.match(/(\d{4})-(\d{2})-(\d{2})/);
+    if (match) {
+      return `${parseInt(match[2])}/${parseInt(match[3])}`;
+    }
+    return dateStr;
+  },
+
+  /**
+   * グリッドを描画
+   */
+  renderGrid(jobs) {
+    const container = document.getElementById('person-gantt-grid');
+    if (!container) return;
+
+    const today = Utils.getToday();
+    const gridWidth = this.dates.length * this.config.cellWidth;
+
+    if (jobs.length === 0) {
+      container.innerHTML = `
+        <div class="flex items-center justify-center h-48 text-gray-400 text-sm" style="min-width: ${gridWidth}px;">
+          <div class="text-center">この担当者に紐づく工程がありません</div>
+        </div>
+      `;
+      return;
+    }
+
+    let html = '';
+
+    jobs.forEach((job) => {
+      const laneCount = this.jobLaneCounts[job.jobId] || this.config.minLaneCount;
+      const rowHeight = this.getRowHeight(laneCount);
+      const schedulesWithLanes = this._jobSchedulesWithLanes[job.jobId] || [];
+
+      html += `<div class="gantt-row" data-job-id="${job.jobId}" style="height: ${rowHeight}px; min-height: ${rowHeight}px; position: relative;">`;
+
+      // 背景グリッド
+      this.dates.forEach((date) => {
+        const isWeekend = Utils.isWeekend(date);
+        const isToday = date === today;
+        let classes = 'gantt-cell';
+        if (isWeekend) classes += ' weekend';
+        if (isToday) classes += ' today';
+        html += `<div class="${classes}"></div>`;
+      });
+
+      // スケジュールバー/マイルストーン
+      const displayStartDate = Store.state.displayStartDate;
+      schedulesWithLanes.forEach((schedule) => {
+        const process = Store.getProcessById(schedule.processId);
+        const isMilestone = process?.['種別(type)'] === 'milestone';
+
+        if (isMilestone) {
+          html += this.renderMilestone(schedule, displayStartDate);
+        } else {
+          html += this.renderBar(schedule, displayStartDate);
+        }
+      });
+
+      html += '</div>';
+    });
+
+    // 今日ライン
+    const todayOffset = Utils.getDaysBetween(Store.state.displayStartDate, today);
+    if (todayOffset >= 0 && todayOffset < this.dates.length) {
+      const todayLeft = todayOffset * this.config.cellWidth + (this.config.cellWidth / 2);
+      html += `<div class="today-line" style="left: ${todayLeft}px;"></div>`;
+    }
+
+    container.innerHTML = html;
+    container.style.width = `${gridWidth}px`;
+  },
+
+  /**
+   * バーを描画
+   */
+  renderBar(schedule, displayStartDate) {
+    const startOffset = Utils.getDaysBetween(displayStartDate, schedule.start);
+    const duration = Utils.getDaysBetween(schedule.start, schedule.end) + 1;
+
+    if (startOffset + duration < 0 || startOffset >= this.dates.length) {
+      return '';
+    }
+
+    const left = Math.max(0, startOffset) * this.config.cellWidth;
+    const width = Math.min(duration, this.dates.length - startOffset) * this.config.cellWidth - 4;
+    const color = Store.getBarColor(schedule);
+    const processName = Store.getProcessDisplayName(schedule.processId);
+    const label = schedule.label || '';
+
+    const lane = schedule._lane || 0;
+    const top = this.config.barTopPadding + (lane * this.config.laneHeight);
+
+    return `
+      <div class="gantt-bar"
+           data-schedule-id="${schedule.scheduleId}"
+           style="left: ${left}px; width: ${width}px; top: ${top}px; background-color: ${color};"
+           title="${processName}${label ? ' - ' + label : ''}">
+        <span class="bar-text">${Utils.escapeHtml(processName)}</span>
+        ${label ? `<span class="gantt-bar-label">${Utils.escapeHtml(label)}</span>` : ''}
+      </div>
+    `;
+  },
+
+  /**
+   * マイルストーンを描画
+   */
+  renderMilestone(schedule, displayStartDate) {
+    const startOffset = Utils.getDaysBetween(displayStartDate, schedule.start);
+
+    if (startOffset < 0 || startOffset >= this.dates.length) {
+      return '';
+    }
+
+    const left = startOffset * this.config.cellWidth + (this.config.cellWidth / 2) - 12;
+    const process = Store.getProcessById(schedule.processId);
+    const rawName = process?.['工程名'] || '';
+    const processName = rawName.replace(/^★+/, '');
+
+    const lane = schedule._lane || 0;
+    const top = this.config.barTopPadding + (lane * this.config.laneHeight);
+
+    return `
+      <div class="gantt-milestone"
+           data-schedule-id="${schedule.scheduleId}"
+           style="left: ${left}px; top: ${top}px;"
+           title="${processName}">
+        ★${Utils.escapeHtml(processName)}
+      </div>
+    `;
+  },
+
+  /**
+   * スクロール同期を設定
+   */
+  setupScrollSync() {
+    const bodyScroll = document.getElementById('person-gantt-body-scroll');
+    const headerScroll = document.getElementById('person-gantt-header-scroll');
+    const gridScroll = document.getElementById('person-gantt-grid-scroll');
+
+    if (bodyScroll && gridScroll) {
+      // 縦スクロール時に工番ペインも同期
+      bodyScroll.addEventListener('scroll', () => {
+        // 縦スクロールは自動で同期（flex構造）
+      });
+    }
+
+    if (gridScroll && headerScroll) {
+      // 横スクロール時にヘッダーも同期
+      gridScroll.addEventListener('scroll', () => {
+        headerScroll.scrollLeft = gridScroll.scrollLeft;
+      });
+    }
+  }
+};
+
+console.log('[DEBUG] PersonGanttOverlay defined');
 
 // ========================================
 // WeeklyPlan - 今週の予定（週刊重要工程形式）
