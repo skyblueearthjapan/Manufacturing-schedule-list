@@ -2130,30 +2130,28 @@
     flex-direction: column;
   }
 
-  /* 部署ヘッダー行（出張計画表） */
+  /* 部署ヘッダー行（出張計画表）
+     色はJSのDEPT_HEADER_COLORS設定からinline styleで適用 */
   .travel-dept-header {
     display: flex;
-    border-bottom: 1px solid #d1d5db;
-    background: linear-gradient(to right, #f3f4f6, #f9fafb);
-    min-height: 28px;
+    border-bottom: 1px solid rgba(0,0,0,0.15);
+    min-height: 32px;
   }
 
   .travel-dept-name {
     width: 200px;
     flex-shrink: 0;
-    padding: 6px 12px;
-    border-right: 1px solid #d1d5db;
-    font-size: 12px;
-    font-weight: 600;
-    color: #374151;
+    padding: 8px 12px;
+    border-right: 1px solid rgba(0,0,0,0.15);
+    font-size: 13px;
+    font-weight: 700;
     display: flex;
     align-items: center;
-    background: #e5e7eb;
+    letter-spacing: 0.5px;
   }
 
   .travel-dept-grid {
     flex-shrink: 0;
-    background: linear-gradient(to right, #f3f4f6, #f9fafb);
   }
 
   .travel-person-row {
@@ -3794,25 +3792,24 @@
     flex-direction: column;
   }
 
-  /* 部署ヘッダー行 */
+  /* 部署ヘッダー行
+     色はJSのDEPT_HEADER_COLORS設定からinline styleで適用 */
   .embedded-trip-dept-header {
     display: flex;
-    border-bottom: 1px solid #d1d5db;
-    background: linear-gradient(to right, #f3f4f6, #f9fafb);
-    min-height: 24px;
+    border-bottom: 1px solid rgba(0,0,0,0.15);
+    min-height: 26px;
   }
 
   .embedded-trip-dept-name {
     width: 120px;
     flex-shrink: 0;
-    padding: 4px 8px;
-    border-right: 1px solid #d1d5db;
+    padding: 5px 8px;
+    border-right: 1px solid rgba(0,0,0,0.15);
     font-size: 11px;
-    font-weight: 600;
-    color: #4b5563;
+    font-weight: 700;
     display: flex;
     align-items: center;
-    background: #e5e7eb;
+    letter-spacing: 0.3px;
   }
 
   .embedded-trip-dept-grid {

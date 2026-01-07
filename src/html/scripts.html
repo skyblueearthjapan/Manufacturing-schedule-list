@@ -9,6 +9,47 @@
 console.log('[DEBUG] scripts.html loaded - combined JS file');
 
 // ========================================
+// Config - グローバル設定
+// ========================================
+
+/**
+ * 部署ヘッダーの配色設定
+ * 将来の色変更・部署追加はここで一元管理
+ */
+const DEPT_HEADER_COLORS = {
+  '組立': {
+    background: '#E74C3C',  // 赤系 - 現場・組立作業の強調
+    text: '#FFFFFF'
+  },
+  'TSC': {
+    background: '#B7E021',  // 黄緑系 - サービス・出張主体
+    text: '#1a1a1a'
+  },
+  '電気設計': {
+    background: '#F7DC6F',  // 黄色 - 設計・調整系
+    text: '#1a1a1a'
+  },
+  '機械設計': {
+    background: '#5DADE2',  // 青系 - 設計系（既存工程色と整合）
+    text: '#FFFFFF'
+  },
+  // デフォルト（未定義部署用）
+  '_default': {
+    background: '#95a5a6',  // グレー
+    text: '#FFFFFF'
+  }
+};
+
+/**
+ * 部署名から色設定を取得
+ * @param {string} dept - 部署名
+ * @returns {Object} { background, text }
+ */
+function getDeptHeaderColor(dept) {
+  return DEPT_HEADER_COLORS[dept] || DEPT_HEADER_COLORS['_default'];
+}
+
+// ========================================
 // Utils - ユーティリティ関数
 // ========================================
 
@@ -7730,11 +7771,12 @@ const TravelPlan = {
 
     workerRows.forEach(row => {
       if (row.type === 'deptHeader') {
-        // 部署ヘッダー行
+        // 部署ヘッダー行（色は設定から取得）
+        const deptColor = getDeptHeaderColor(row.dept);
         html += `
-          <div class="travel-dept-header">
-            <div class="travel-dept-name">${Utils.escapeHtml(row.dept)}</div>
-            <div class="travel-dept-grid" style="width: ${totalWidth}px;"></div>
+          <div class="travel-dept-header" style="background: ${deptColor.background};">
+            <div class="travel-dept-name" style="color: ${deptColor.text};">${Utils.escapeHtml(row.dept)}</div>
+            <div class="travel-dept-grid" style="width: ${totalWidth}px; background: ${deptColor.background};"></div>
           </div>
         `;
       } else {
@@ -8156,11 +8198,12 @@ const TravelPlan = {
     // 部署ヘッダーと作業者行を描画
     workerRows.forEach(row => {
       if (row.type === 'deptHeader') {
-        // 部署ヘッダー行
+        // 部署ヘッダー行（色は設定から取得）
+        const deptColor = getDeptHeaderColor(row.dept);
         html += `
-          <div class="embedded-trip-dept-header">
-            <div class="embedded-trip-dept-name">${Utils.escapeHtml(row.dept)}</div>
-            <div class="embedded-trip-dept-grid" style="width: ${totalWidth}px;"></div>
+          <div class="embedded-trip-dept-header" style="background: ${deptColor.background};">
+            <div class="embedded-trip-dept-name" style="color: ${deptColor.text};">${Utils.escapeHtml(row.dept)}</div>
+            <div class="embedded-trip-dept-grid" style="width: ${totalWidth}px; background: ${deptColor.background};"></div>
           </div>
         `;
       } else {
