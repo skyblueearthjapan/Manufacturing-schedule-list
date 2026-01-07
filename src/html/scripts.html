@@ -973,6 +973,7 @@ const Store = {
     showHiddenJobs: false, // 完了（非表示）工番を表示するか
     jobSearchQuery: '', // 工番検索クエリ（大工程表用）
     personSearchQuery: '', // 担当者検索クエリ（大工程表用）
+    tripPersonFilter: null, // 出張予定エリア専用の担当者フィルタ（personId）
     pdfInfoCache: {}, // PDF情報キャッシュ (工番 -> { order: {fileId, url}, instruction: {fileId, url} })
     daySettings: {}, // 日付設定 { 'YYYY-MM-DD': 'WORKDAY' | 'HOLIDAY' }
     displayStartDate: null,
@@ -1652,6 +1653,85 @@ const Store = {
 
   getPersonById(personId) {
     return this.state.people.find(p => p.personId === personId) || null;
+  },
+
+  /**
+   * 氏名からpersonIdを解決（完全一致）
+   * @param {string} name - 氏名
+   * @returns {{ personId: string, count: number } | null}
+   */
+  resolvePersonIdByName(name) {
+    const matches = this.state.people.filter(p => p['氏名'] === name);
+    if (matches.length === 0) return null;
+    if (matches.length === 1) return { personId: matches[0].personId, count: 1 };
+    return { personId: null, count: matches.length };
+  },
+
+  /**
+   * 出張予定エリア用の担当者フィルタを設定
+   * @param {string} input - 入力文字列（personIdまたは氏名）
+   * @returns {{ success: boolean, message?: string }}
+   */
+  setTripPersonFilter(input) {
+    const trimmed = (input || '').trim();
+
+    if (!trimmed) {
+      this.setState({ tripPersonFilter: null });
+      return { success: true };
+    }
+
+    // personId形式（P.01 など）の判定
+    if (/^P\.\d+$/i.test(trimmed)) {
+      const personId = trimmed.toUpperCase();
+      const person = this.getPersonById(personId);
+      if (person) {
+        this.setState({ tripPersonFilter: personId });
+        return { success: true };
+      } else {
+        return { success: false, message: `担当者ID「${personId}」が見つかりません` };
+      }
+    }
+
+    // 氏名で検索
+    const result = this.resolvePersonIdByName(trimmed);
+    if (!result) {
+      return { success: false, message: `該当する担当者が見つかりません` };
+    }
+    if (result.count > 1) {
+      return { success: false, message: `候補が${result.count}名あります。P.xxで入力してください` };
+    }
+
+    this.setState({ tripPersonFilter: result.personId });
+    return { success: true };
+  },
+
+  /**
+   * 出張予定エリア用の担当者フィルタをクリア
+   */
+  clearTripPersonFilter() {
+    this.setState({ tripPersonFilter: null });
+  },
+
+  /**
+   * フィルタ済みの出張予定を取得
+   * @param {string} viewStart - 表示開始日 (YYYY-MM-DD)
+   * @param {string} viewEnd - 表示終了日 (YYYY-MM-DD)
+   * @returns {Array} フィルタ済みのトリップ配列
+   */
+  getFilteredTrips(viewStart, viewEnd) {
+    const { trips, tripPersonFilter } = this.state;
+
+    return trips.filter(trip => {
+      // 期間フィルタ
+      if (trip.end < viewStart || trip.start > viewEnd) {
+        return false;
+      }
+      // 担当者フィルタ
+      if (tripPersonFilter && trip.personId !== tripPersonFilter) {
+        return false;
+      }
+      return true;
+    });
   },
 
   getSchedulesByJobId(jobId) {
@@ -2375,20 +2455,75 @@ const Gantt = {
   },
 
   /**
+   * 出張予定エリアの担当者検索ハンドラー
+   */
+  handleTripPersonSearch() {
+    const input = document.getElementById('gantt-trip-person-input');
+    const errorEl = document.getElementById('gantt-trip-filter-error');
+
+    if (!input) return;
+
+    const result = Store.setTripPersonFilter(input.value);
+
+    if (errorEl) {
+      if (result.success) {
+        errorEl.textContent = '';
+        errorEl.classList.remove('visible');
+      } else {
+        errorEl.textContent = result.message || 'エラー';
+        errorEl.classList.add('visible');
+      }
+    }
+
+    // フィルタ成功時は再描画（setStateでsubscribers経由で呼ばれるが念のため）
+    if (result.success) {
+      this.renderTrips();
+    }
+  },
+
+  /**
+   * 出張予定エリアの担当者フィルタをクリア
+   */
+  clearTripPersonFilter() {
+    const input = document.getElementById('gantt-trip-person-input');
+    const errorEl = document.getElementById('gantt-trip-filter-error');
+
+    if (input) {
+      input.value = '';
+    }
+    if (errorEl) {
+      errorEl.textContent = '';
+      errorEl.classList.remove('visible');
+    }
+
+    Store.clearTripPersonFilter();
+    this.renderTrips();
+  },
+
+  /**
    * 埋め込み出張計画を描画
    */
   renderTrips() {
-    const { displayStartDate, displayDays, trips } = Store.state;
+    const { displayStartDate, displayDays, tripPersonFilter } = Store.state;
 
-    // トリップ数をカウント
+    // 表示期間の終了日を計算
+    const dates = Utils.generateDateRange(displayStartDate, displayDays);
+    const viewStart = dates[0];
+    const viewEnd = dates[dates.length - 1];
+
+    // フィルタ済みのトリップを取得
+    const filteredTrips = Store.getFilteredTrips(viewStart, viewEnd);
+
+    // トリップ数をカウント（フィルタ後の件数）
     const countEl = document.getElementById('gantt-trip-count');
     if (countEl) {
-      countEl.textContent = `${trips.length}件`;
+      countEl.textContent = `${filteredTrips.length}件`;
     }
 
-    // 埋め込み出張計画を描画（全員表示）
+    // 埋め込み出張計画を描画
     TravelPlan.renderEmbedded({
       containerId: 'gantt-trip-container',
+      personId: tripPersonFilter, // フィルタがあれば適用
       dateFrom: displayStartDate,
       days: displayDays
     });

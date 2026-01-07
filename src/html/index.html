@@ -239,13 +239,27 @@
 
       <!-- 埋め込み出張計画セクション -->
       <div class="embedded-trip-section" id="gantt-trip-section">
-        <div class="embedded-trip-toggle" onclick="Gantt.toggleTripSection()">
-          <div class="embedded-trip-toggle-left">
+        <div class="embedded-trip-toggle">
+          <div class="embedded-trip-toggle-left" onclick="Gantt.toggleTripSection()">
             <svg class="embedded-trip-toggle-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M19 9l-7 7-7-7"/>
             </svg>
             <span class="embedded-trip-toggle-title">出張予定</span>
             <span class="embedded-trip-toggle-count" id="gantt-trip-count">0件</span>
+          </div>
+          <div class="embedded-trip-toggle-right" onclick="event.stopPropagation()">
+            <label class="embedded-trip-search-label">担当者：</label>
+            <input type="text"
+                   id="gantt-trip-person-input"
+                   class="embedded-trip-search-input"
+                   placeholder="例）今泉 / P.01"
+                   onkeydown="if(event.key==='Enter'){Gantt.handleTripPersonSearch();}"
+            >
+            <button type="button"
+                    class="embedded-trip-search-clear"
+                    onclick="Gantt.clearTripPersonFilter()"
+                    title="クリア">×</button>
+            <span id="gantt-trip-filter-error" class="embedded-trip-filter-error"></span>
           </div>
         </div>
         <div class="embedded-trip-content">
