@@ -1906,59 +1906,24 @@ const Gantt = {
     const hScrollHeader = document.getElementById('gantt-h-scroll-header');
     const stickyScrollbar = document.getElementById('gantt-sticky-scrollbar');
 
-    // スクロールロック（無限ループ防止）
-    let scrollLock = false;
-
-    // 出張予定セクションのスクロール要素を取得するヘルパー
-    const getTripScrollElements = () => {
-      return {
-        tripBodyScroll: document.getElementById('gantt-trip-container-body-scroll'),
-        tripDateScroll: document.getElementById('gantt-trip-container-date-scroll')
-      };
-    };
-
+    // 大工程表のスクロール同期（ヘッダー ↔ 本体 ↔ スクロールバー）
+    // ※出張予定とは同期しない（日付セル幅が異なるため）
     if (hScrollBody && hScrollHeader) {
       hScrollBody.addEventListener('scroll', () => {
-        if (scrollLock) return;
-        scrollLock = true;
-
-        const scrollLeft = hScrollBody.scrollLeft;
-        hScrollHeader.scrollLeft = scrollLeft;
-
-        // スティッキースクロールバーも同期
+        hScrollHeader.scrollLeft = hScrollBody.scrollLeft;
         if (stickyScrollbar) {
-          stickyScrollbar.scrollLeft = scrollLeft;
+          stickyScrollbar.scrollLeft = hScrollBody.scrollLeft;
         }
-
-        // 出張予定セクションも同期
-        const { tripBodyScroll, tripDateScroll } = getTripScrollElements();
-        if (tripBodyScroll) tripBodyScroll.scrollLeft = scrollLeft;
-        if (tripDateScroll) tripDateScroll.scrollLeft = scrollLeft;
-
         this.updateTodayLinePosition();
-
-        requestAnimationFrame(() => { scrollLock = false; });
       });
     }
 
     // スティッキースクロールバーのスクロールイベント
     if (stickyScrollbar && hScrollBody && hScrollHeader) {
       stickyScrollbar.addEventListener('scroll', () => {
-        if (scrollLock) return;
-        scrollLock = true;
-
-        const scrollLeft = stickyScrollbar.scrollLeft;
-        hScrollBody.scrollLeft = scrollLeft;
-        hScrollHeader.scrollLeft = scrollLeft;
-
-        // 出張予定セクションも同期
-        const { tripBodyScroll, tripDateScroll } = getTripScrollElements();
-        if (tripBodyScroll) tripBodyScroll.scrollLeft = scrollLeft;
-        if (tripDateScroll) tripDateScroll.scrollLeft = scrollLeft;
-
+        hScrollBody.scrollLeft = stickyScrollbar.scrollLeft;
+        hScrollHeader.scrollLeft = stickyScrollbar.scrollLeft;
         this.updateTodayLinePosition();
-
-        requestAnimationFrame(() => { scrollLock = false; });
       });
     }
   },
@@ -2538,6 +2503,7 @@ const Gantt = {
 
   /**
    * 埋め込み出張計画を描画
+   * ※出張予定は独自のスクロールを持ち、大工程表とは同期しない（日付セル幅が異なるため）
    */
   renderTrips() {
     const { displayStartDate, displayDays, tripPersonFilter } = Store.state;
@@ -2557,60 +2523,13 @@ const Gantt = {
     }
 
     // 埋め込み出張計画を描画
+    // ※TravelPlan.renderEmbedded内でヘッダー↔本体の同期は設定される
     TravelPlan.renderEmbedded({
       containerId: 'gantt-trip-container',
       personId: tripPersonFilter, // フィルタがあれば適用
       dateFrom: displayStartDate,
       days: displayDays
     });
-
-    // 出張予定セクションのスクロールをメインスクロールバーと同期
-    this.setupTripScrollSync();
-  },
-
-  /**
-   * 出張予定セクションのスクロール同期を設定
-   * メインのガントチャート・スクロールバー・出張予定セクションを連動させる
-   */
-  setupTripScrollSync() {
-    const hScrollBody = document.getElementById('gantt-h-scroll-body');
-    const hScrollHeader = document.getElementById('gantt-h-scroll-header');
-    const stickyScrollbar = document.getElementById('gantt-sticky-scrollbar');
-    const tripBodyScroll = document.getElementById('gantt-trip-container-body-scroll');
-    const tripDateScroll = document.getElementById('gantt-trip-container-date-scroll');
-
-    if (!tripBodyScroll) return;
-
-    // 既存のリスナーを削除（重複防止）
-    if (this._tripScrollHandler) {
-      tripBodyScroll.removeEventListener('scroll', this._tripScrollHandler);
-    }
-
-    // 出張予定セクションのスクロールイベント
-    this._tripScrollHandler = () => {
-      if (this._scrollLock) return;
-      this._scrollLock = true;
-
-      const scrollLeft = tripBodyScroll.scrollLeft;
-      if (hScrollBody) hScrollBody.scrollLeft = scrollLeft;
-      if (hScrollHeader) hScrollHeader.scrollLeft = scrollLeft;
-      if (stickyScrollbar) stickyScrollbar.scrollLeft = scrollLeft;
-      if (tripDateScroll) tripDateScroll.scrollLeft = scrollLeft;
-
-      this.updateTodayLinePosition();
-
-      requestAnimationFrame(() => { this._scrollLock = false; });
-    };
-
-    tripBodyScroll.addEventListener('scroll', this._tripScrollHandler);
-
-    // 逆方向の同期：メインスクロールから出張予定セクションへ
-    // （setupEventListenersで設定済みのハンドラに追加）
-    // 現在のスクロール位置を同期
-    if (hScrollBody) {
-      tripBodyScroll.scrollLeft = hScrollBody.scrollLeft;
-      if (tripDateScroll) tripDateScroll.scrollLeft = hScrollBody.scrollLeft;
-    }
   }
 };
 
