@@ -5580,10 +5580,12 @@ const WorkerJobAssignView = {
 
     return `
       <div class="wja-person-section">
-        <div class="wja-person-header" style="border-left: 4px solid ${color}">
+        <div class="wja-person-header wja-person-header-clickable" style="border-left: 4px solid ${color}"
+             data-person-id="${Utils.escapeHtml(personId)}" onclick="PersonGanttOverlay.open('${Utils.escapeHtml(personId)}')" title="クリックして大工程表を表示">
           <span class="wja-person-dept">${Utils.escapeHtml(dept)}</span>
           <span class="wja-person-name">${Utils.escapeHtml(personName)}</span>
           <span class="wja-person-count">${assigns.length}件</span>
+          <span class="wja-gantt-icon" title="大工程表を開く">📊</span>
         </div>
         <div class="wja-card-grid">
           ${assigns.map(a => this.renderCard(a)).join('')}
