@@ -2853,7 +2853,7 @@ const TopMemoPanel = {
 
   updateAllViewHeights(expanded) {
     // 全てのビューの高さを調整
-    const views = ['view-master', 'view-resource', 'view-weekly', 'view-travel', 'view-calendar'];
+    const views = ['view-master', 'view-resource', 'view-weekly', 'view-travel', 'view-calendar', 'view-electrical'];
 
     requestAnimationFrame(() => {
       const panelHeight = expanded ? (this._panelEl?.offsetHeight || 0) : 0;
@@ -7957,6 +7957,9 @@ const App = {
         break;
       case 'calendar':
         // Googleカレンダーはiframe埋め込みなので特別な処理不要
+        break;
+      case 'electrical':
+        // 電気予定（Googleカレンダー）はiframe埋め込みなので特別な処理不要
         break;
     }
   }

@@ -51,6 +51,9 @@
             <button id="nav-calendar" class="nav-tab" data-view="calendar">
               TSC予定
             </button>
+            <button id="nav-electrical" class="nav-tab" data-view="electrical">
+              電気予定
+            </button>
           </nav>
         </div>
 
@@ -274,6 +277,24 @@
         <div class="calendar-iframe-wrapper">
           <iframe
             src="https://calendar.google.com/calendar/embed?src=takeuchikaisyayou%40gmail.com&ctz=Asia%2FTokyo"
+            style="border:0; width:100%; height:calc(100vh - 180px);"
+            frameborder="0"
+            scrolling="no">
+          </iframe>
+        </div>
+      </div>
+    </div>
+
+    <!-- ElectricalView（電気予定 - Googleカレンダー埋め込み） -->
+    <div id="view-electrical" class="view-container hidden">
+      <div class="calendar-container electrical-container">
+        <div class="calendar-header electrical-header">
+          <h2 class="text-lg font-bold text-gray-800">電気予定（Googleカレンダー）</h2>
+          <p class="text-sm text-gray-500">※ カレンダーが表示されない場合は、Googleアカウントでログインしてください</p>
+        </div>
+        <div class="calendar-iframe-wrapper">
+          <iframe
+            src="https://calendar.google.com/calendar/embed?src=electrical-01%40lineworks-local.info&ctz=Asia%2FTokyo"
             style="border:0; width:100%; height:calc(100vh - 180px);"
             frameborder="0"
             scrolling="no">

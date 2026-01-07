@@ -103,6 +103,19 @@
     color: white;
   }
 
+  /* 電気予定 - アンバー/オレンジ */
+  .nav-tab[data-view="electrical"] {
+    color: #d97706;
+    border-color: #d97706;
+  }
+  .nav-tab[data-view="electrical"]:hover {
+    background-color: #fffbeb;
+  }
+  .nav-tab[data-view="electrical"].active {
+    background-color: #d97706;
+    color: white;
+  }
+
   /* ========================================
      ボタン
      ======================================== */
@@ -3306,6 +3319,11 @@
   .calendar-header h2 {
     margin: 0;
     color: #0d9488;
+  }
+
+  /* 電気予定ヘッダー */
+  .electrical-header h2 {
+    color: #d97706;
   }
 
   .calendar-header p {
