@@ -8798,7 +8798,7 @@ const CalendarEventViewer = {
    * @param {string} calendarType - 'TSC' または 'ELECTRICAL'
    * @param {string} startDate - 開始日 (YYYY-MM-DD)
    * @param {string} endDate - 終了日 (YYYY-MM-DD)
-   * @returns {Promise<Object[]>}
+   * @returns {Promise<Object>} { success, events, errorType, errorMessage, source }
    */
   async fetchEvents(calendarType, startDate, endDate) {
     const cacheKey = `${calendarType}_${startDate}_${endDate}`;
@@ -8813,18 +8813,25 @@ const CalendarEventViewer = {
         ? 'api_getTSCCalendarEvents'
         : 'api_getElectricalCalendarEvents';
 
-      const events = await new Promise((resolve, reject) => {
+      const result = await new Promise((resolve, reject) => {
         google.script.run
           .withSuccessHandler(resolve)
           .withFailureHandler(reject)
           [apiFunc](startDate, endDate);
       });
 
-      this.cache[cacheKey] = events || [];
-      return this.cache[cacheKey];
+      // 新しいレスポンス形式: { success, events, errorType, errorMessage, source }
+      this.cache[cacheKey] = result;
+      return result;
     } catch (e) {
       console.error(`[CalendarEventViewer] Failed to fetch events for ${calendarType}:`, e);
-      throw e;
+      // ネットワークエラーなど
+      return {
+        success: false,
+        events: [],
+        errorType: 'NETWORK_ERROR',
+        errorMessage: e.message || 'サーバーとの通信に失敗しました'
+      };
     }
   },
 
@@ -8855,33 +8862,63 @@ const CalendarEventViewer = {
     // ローディング表示
     container.innerHTML = '<div class="calendar-events-loading">カレンダー読み込み中...</div>';
 
-    try {
-      // 終了日を計算
-      const start = new Date(startDate);
-      const end = new Date(start);
-      end.setDate(end.getDate() + days - 1);
-      const endDate = end.toISOString().slice(0, 10);
+    // 終了日を計算
+    const start = new Date(startDate);
+    const end = new Date(start);
+    end.setDate(end.getDate() + days - 1);
+    const endDate = end.toISOString().slice(0, 10);
 
-      // イベントを取得
-      const events = await this.fetchEvents(calendarType, startDate, endDate);
+    // イベントを取得
+    const result = await this.fetchEvents(calendarType, startDate, endDate);
 
-      // 月別にグループ化して描画
-      this.renderMonthView(container, events, startDate, days, calendarType);
-
-    } catch (e) {
-      container.innerHTML = `
-        <div class="calendar-events-error">
-          カレンダーの読み込みに失敗しました。<br>
-          ${e.message || 'エラーが発生しました'}
-        </div>
-      `;
+    // 結果を処理
+    if (!result.success) {
+      // エラー表示（次のアクションが分かるメッセージ）
+      const errorHtml = this.formatErrorMessage(result, calendarType);
+      container.innerHTML = errorHtml;
+      return;
     }
+
+    // 成功 - 月別にグループ化して描画
+    const events = result.events || [];
+    const source = result.source || 'unknown';
+
+    // ソース情報を表示（ICSフォールバックの場合）
+    let sourceNote = '';
+    if (source === 'ICS') {
+      sourceNote = '<div class="calendar-source-note">※ 公開カレンダー(ICS)から取得しています</div>';
+    }
+
+    this.renderMonthView(container, events, startDate, days, calendarType, sourceNote);
+  },
+
+  /**
+   * エラーメッセージをフォーマット
+   */
+  formatErrorMessage(result, calendarType) {
+    const calendarName = calendarType === 'TSC' ? 'TSCカレンダー' : '電気カレンダー';
+    let message = result.errorMessage || 'カレンダーの読み込みに失敗しました';
+
+    // 改行をHTMLに変換
+    message = message.replace(/\n/g, '<br>');
+
+    return `
+      <div class="calendar-events-error">
+        <div class="calendar-error-title">${calendarName}の読み込みエラー</div>
+        <div class="calendar-error-message">${message}</div>
+        <div class="calendar-error-actions">
+          <button onclick="CalendarEventViewer.clearCache(); ${calendarType === 'TSC' ? 'CalendarView' : 'ElectricalView'}.render();" class="calendar-retry-btn">
+            再試行
+          </button>
+        </div>
+      </div>
+    `;
   },
 
   /**
    * 月表示ビューを描画
    */
-  renderMonthView(container, events, startDate, days, calendarType) {
+  renderMonthView(container, events, startDate, days, calendarType, sourceNote = '') {
     const dates = Utils.generateDateRange(startDate, days);
     const today = new Date().toISOString().slice(0, 10);
 
@@ -9028,6 +9065,11 @@ const CalendarEventViewer = {
 
     if (events.length === 0) {
       html = '<div class="calendar-events-empty">表示期間内にイベントがありません</div>';
+    }
+
+    // ソースノートがあれば先頭に追加
+    if (sourceNote) {
+      html = sourceNote + html;
     }
 
     container.innerHTML = html;

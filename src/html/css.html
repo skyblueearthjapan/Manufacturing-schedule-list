@@ -3393,12 +3393,56 @@
   }
 
   .calendar-events-error {
-    padding: 16px;
+    padding: 20px;
     background: #fef2f2;
     border: 1px solid #fecaca;
     border-radius: 8px;
+    margin: 16px;
+  }
+
+  .calendar-error-title {
+    font-size: 16px;
+    font-weight: 600;
     color: #dc2626;
-    margin: 8px;
+    margin-bottom: 12px;
+  }
+
+  .calendar-error-message {
+    font-size: 13px;
+    color: #7f1d1d;
+    line-height: 1.6;
+    margin-bottom: 16px;
+    white-space: pre-line;
+  }
+
+  .calendar-error-actions {
+    display: flex;
+    gap: 8px;
+  }
+
+  .calendar-retry-btn {
+    padding: 8px 16px;
+    font-size: 13px;
+    background: #dc2626;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .calendar-retry-btn:hover {
+    background: #b91c1c;
+  }
+
+  .calendar-source-note {
+    padding: 8px 12px;
+    background: #fef3c7;
+    border: 1px solid #fcd34d;
+    border-radius: 6px;
+    color: #92400e;
+    font-size: 12px;
+    margin: 8px 8px 0;
   }
 
   .calendar-events-empty {
