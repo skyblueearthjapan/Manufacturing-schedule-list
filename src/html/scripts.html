@@ -1100,37 +1100,20 @@ const Store = {
   /**
    * Jobを更新（API経由 + ローカル状態更新）
    * 楽観ロック衝突時は最新データを取得して1回だけリトライ
-   * @param {Object} updatedJob - 更新後のJobオブジェクト（jobId必須）
+   * @param {string} jobId - 対象のjobId
+   * @param {Object} patch - 更新するフィールド
+   * @param {string} expectedUpdatedAt - 楽観ロック用のupdatedAt
    */
-  async updateJob(updatedJob) {
-    if (!updatedJob || !updatedJob.jobId) {
+  async updateJob(jobId, patch, expectedUpdatedAt) {
+    if (!jobId) {
       throw new Error('updateJob: jobId is required');
     }
 
-    const jobId = updatedJob.jobId;
-    const currentJob = this.getJobById(jobId);
-    if (!currentJob) {
-      throw new Error(`updateJob: Job not found: ${jobId}`);
-    }
-
-    // 変更部分だけpatchとして抽出
-    const patch = {};
-    for (const key of Object.keys(updatedJob)) {
-      if (key !== 'jobId' && updatedJob[key] !== currentJob[key]) {
-        patch[key] = updatedJob[key];
-      }
-    }
-
     // 変更がなければスキップ
-    if (Object.keys(patch).length === 0) {
+    if (!patch || Object.keys(patch).length === 0) {
       console.log('[Store.updateJob] No changes detected');
       return { success: true, noChange: true };
     }
-
-    // API呼び出し実行関数
-    const doUpdate = async (expectedUpdatedAt) => {
-      return await API.updateJob(jobId, patch, expectedUpdatedAt);
-    };
 
     // 成功時のローカル状態更新関数
     const applyResult = (result) => {
@@ -1142,11 +1125,11 @@ const Store = {
 
     try {
       // まず通常更新
-      const result = await doUpdate(currentJob.updatedAt || '');
+      console.log('[Store.updateJob] Calling API.updateJob with expectedUpdatedAt:', expectedUpdatedAt);
+      const result = await API.updateJob(jobId, patch, expectedUpdatedAt || '');
 
-      if (result.success) {
-        applyResult(result);
-      }
+      // 成功：ローカル状態を更新
+      applyResult(result);
       return result;
 
     } catch (e) {
@@ -1158,7 +1141,7 @@ const Store = {
         throw e;
       }
 
-      console.log('[Store.updateJob] Conflict detected, retrying with latest data...');
+      console.log('[Store.updateJob] Conflict detected, fetching latest data...');
 
       // 1回だけ最新を取り直してリトライ
       try {
@@ -1171,12 +1154,13 @@ const Store = {
         // ローカルキャッシュも最新に更新
         this.updateJobInStore(jobId, latestJob);
 
-        console.log('[Store.updateJob] Retrying with updatedAt:', latestJob.updatedAt);
-        const result2 = await doUpdate(latestJob.updatedAt);
+        // ★ 重要：最新のupdatedAtで再試行
+        const latestUpdatedAt = latestJob.updatedAt;
+        console.log('[Store.updateJob] Retrying with NEW updatedAt:', latestUpdatedAt);
+        const result2 = await API.updateJob(jobId, patch, latestUpdatedAt);
 
-        if (result2.success) {
-          applyResult(result2);
-        }
+        // 成功：ローカル状態を更新
+        applyResult(result2);
         return result2;
 
       } catch (retryError) {
@@ -5928,12 +5912,7 @@ const WorkerJobAssignView = {
       }
 
       // Jobsの mainPersonId を更新（subPersonIdは維持）
-      const updatedJob = {
-        ...job,
-        mainPersonId: personId
-      };
-
-      await Store.updateJob(updatedJob);
+      await Store.updateJob(jobId, { mainPersonId: personId }, job.updatedAt);
       Utils.showToast('主担当を設定しました', 'success');
 
       // 再描画
@@ -6045,13 +6024,7 @@ const WorkerJobAssignView = {
         return;
       }
 
-      const updatedJob = {
-        ...job,
-        mainPersonId,
-        subPersonId
-      };
-
-      await Store.updateJob(updatedJob);
+      await Store.updateJob(jobId, { mainPersonId, subPersonId }, job.updatedAt);
       Utils.showToast('担当者を更新しました', 'success');
 
       this.closeRoleModal();

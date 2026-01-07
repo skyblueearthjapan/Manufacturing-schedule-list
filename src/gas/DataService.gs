@@ -44,6 +44,17 @@ function formatDateTime(datetime) {
   return Utilities.formatDate(new Date(datetime), 'Asia/Tokyo', "yyyy-MM-dd'T'HH:mm:ss'+09:00'");
 }
 
+/**
+ * 日時をミリ秒（エポック）に変換
+ * Date型でも文字列でも対応
+ * @param {Date|string} datetime
+ * @returns {number}
+ */
+function toMillis(datetime) {
+  if (!datetime) return 0;
+  return new Date(datetime).getTime();
+}
+
 // ============================================
 // Jobs（工番マスタ）
 // ============================================
@@ -153,10 +164,11 @@ function updateJob(jobId, patch, expectedUpdatedAt) {
     throw new Error('指定された工番が見つかりません');
   }
 
-  // 競合検知（updatedAt列がある場合のみ）
+  // 競合検知（updatedAt列がある場合のみ）- ミリ秒で比較
   if (updatedAtIndex !== -1 && expectedUpdatedAt) {
-    const currentUpdatedAt = formatDateTime(data[targetRowIndex][updatedAtIndex]);
-    if (currentUpdatedAt && currentUpdatedAt !== expectedUpdatedAt) {
+    const currentMs = toMillis(data[targetRowIndex][updatedAtIndex]);
+    const expectedMs = toMillis(expectedUpdatedAt);
+    if (currentMs && expectedMs && currentMs !== expectedMs) {
       const error = new Error('他のユーザーが更新しました。最新データを取得してください。');
       error.code = 409;
       throw error;
