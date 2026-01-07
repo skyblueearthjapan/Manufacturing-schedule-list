@@ -75,15 +75,15 @@ function syncTSCCalendarToTrips(startDate, endDate) {
     // 3. イベントを分類・正規化
     const normalizedEvents = events.map(event => classifyAndNormalizeEvent(event));
 
-    // 4. 除外対象（OFF）をフィルタリング
-    const includeOff = CONFIG.TSC_DEPARTMENT.SYNC_SETTINGS.INCLUDE_OFF_EVENTS;
+    // 4. 同期対象外のイベントをフィルタリング
     const filteredEvents = normalizedEvents.filter(event => {
-      if (event.kind === EventKind.OFF && !includeOff) {
+      // shouldSyncフラグで判定（移動 or TS番号のみ同期）
+      if (!event.shouldSync) {
         result.summary.skippedEvents++;
         result.details.skipped.push({
           eventId: event.sourceEventId,
           title: event.title,
-          reason: '休みイベントは除外設定'
+          reason: '同期対象外（移動/TS番号以外）'
         });
         return false;
       }
@@ -126,6 +126,36 @@ function getTSCMemberIds() {
 }
 
 /**
+ * イベントを同期対象とするかどうかを判定
+ * @param {string} title - イベントタイトル
+ * @returns {boolean} 同期対象ならtrue
+ */
+function shouldSyncEvent(title) {
+  if (!title) return false;
+
+  const trimmedTitle = title.trim();
+
+  // 除外ワード（これらを含む場合は同期しない）
+  const NG_WORDS = ['祝', '休', '振替', '代休', '健康診断', '有給', '特休'];
+  if (NG_WORDS.some(w => trimmedTitle.includes(w))) {
+    return false;
+  }
+
+  // 同期OK条件1: 完全一致「移動」
+  if (trimmedTitle === '移動') {
+    return true;
+  }
+
+  // 同期OK条件2: TS番号（TS + 5桁の数字）を含む
+  if (/TS\d{5}/.test(trimmedTitle)) {
+    return true;
+  }
+
+  // それ以外は同期しない
+  return false;
+}
+
+/**
  * カレンダーイベントを分類・正規化
  * @param {Object} event - カレンダーイベント
  * @returns {Object} 正規化されたイベント
@@ -144,11 +174,15 @@ function classifyAndNormalizeEvent(event) {
     displayTitle = title;
   }
 
+  // 同期対象かどうかを判定
+  const shouldSync = shouldSyncEvent(title);
+
   return {
     sourceEventId: event.id,
     title: displayTitle,
     originalTitle: title,
     kind: kind,
+    shouldSync: shouldSync,  // 同期対象フラグ
     start: event.startDate,
     end: event.endDate || event.startDate,
     startTime: event.startTime,
