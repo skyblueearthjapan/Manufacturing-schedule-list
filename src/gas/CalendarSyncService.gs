@@ -4,6 +4,8 @@
  *
  * 同期方向: TSC Google Calendar → Webアプリ出張計画（一方向のみ）
  * 重複防止: uniqueKey = sourceEventId + ':' + personId
+ *
+ * 最適化: 一括読み込み→メモリ処理→一括書き込み（タイムアウト対策）
  */
 
 /**
@@ -16,13 +18,13 @@ const EventKind = {
 };
 
 /**
- * TSCカレンダーイベントを出張計画に同期
+ * TSCカレンダーイベントを出張計画に同期（バッチ処理版）
  * @param {string} startDate - 開始日 (YYYY-MM-DD)
  * @param {string} endDate - 終了日 (YYYY-MM-DD)
  * @returns {Object} 同期結果
  */
 function syncTSCCalendarToTrips(startDate, endDate) {
-  Logger.log('========== TSCカレンダー同期開始 ==========');
+  Logger.log('========== TSCカレンダー同期開始（バッチ版） ==========');
   Logger.log(`期間: ${startDate} ～ ${endDate}`);
 
   const result = {
@@ -91,53 +93,14 @@ function syncTSCCalendarToTrips(startDate, endDate) {
     result.summary.processedEvents = filteredEvents.length;
     Logger.log(`処理対象イベント: ${filteredEvents.length}件 (除外: ${result.summary.skippedEvents}件)`);
 
-    // 5. 各イベントをTSC部署メンバー全員に展開してupsert
-    for (const event of filteredEvents) {
-      for (const personId of tscMemberIds) {
-        result.summary.expandedRecords++;
+    // 5. 一括upsert処理
+    const upsertResult = batchUpsertTrips(filteredEvents, tscMemberIds);
 
-        try {
-          const tripData = createTripDataFromEvent(event, personId);
-          const upsertResult = upsertTripBySourceEvent(tripData);
-
-          if (upsertResult.action === 'created') {
-            result.summary.created++;
-            result.details.created.push({
-              tripId: upsertResult.trip.tripId,
-              personId,
-              title: event.title,
-              start: event.start,
-              end: event.end
-            });
-          } else if (upsertResult.action === 'updated') {
-            result.summary.updated++;
-            result.details.updated.push({
-              tripId: upsertResult.trip.tripId,
-              personId,
-              title: event.title,
-              start: event.start,
-              end: event.end
-            });
-          } else if (upsertResult.action === 'skipped') {
-            result.summary.skipped++;
-            result.details.skipped.push({
-              personId,
-              title: event.title,
-              reason: upsertResult.reason
-            });
-          }
-        } catch (e) {
-          result.summary.errors++;
-          result.details.errors.push({
-            personId,
-            eventId: event.sourceEventId,
-            title: event.title,
-            error: e.message
-          });
-          Logger.log(`エラー: personId=${personId}, event=${event.title}: ${e.message}`);
-        }
-      }
-    }
+    result.summary.created = upsertResult.created;
+    result.summary.updated = upsertResult.updated;
+    result.summary.skipped = upsertResult.skipped;
+    result.summary.errors = upsertResult.errors;
+    result.summary.expandedRecords = upsertResult.totalProcessed;
 
     result.success = true;
     Logger.log('========== TSCカレンダー同期完了 ==========');
@@ -145,6 +108,7 @@ function syncTSCCalendarToTrips(startDate, endDate) {
 
   } catch (e) {
     Logger.log(`同期エラー: ${e.message}`);
+    Logger.log(`Stack: ${e.stack}`);
     result.success = false;
     result.error = e.message;
   }
@@ -158,7 +122,6 @@ function syncTSCCalendarToTrips(startDate, endDate) {
  * @returns {string[]}
  */
 function getTSCMemberIds() {
-  // CONFIGから取得（将来的にはシートから動的取得に変更可能）
   return CONFIG.TSC_DEPARTMENT.MEMBER_PERSON_IDS || [];
 }
 
@@ -174,11 +137,9 @@ function classifyAndNormalizeEvent(event) {
 
   // 種別判定
   if (title === '移動') {
-    // 完全一致で「移動」の場合のみMOVE
     kind = EventKind.MOVE;
     displayTitle = '移動';
   } else if (/^\d{1,2}:\d{2}\s*休$/.test(title) || title.includes('休み') || title.includes('振替')) {
-    // 「08:00 休」「休み」「振替」などはOFF
     kind = EventKind.OFF;
     displayTitle = title;
   }
@@ -205,7 +166,6 @@ function classifyAndNormalizeEvent(event) {
  * @returns {Object} Trip用データ
  */
 function createTripDataFromEvent(event, personId) {
-  // uniqueKeyを生成（重複防止用）
   const sourceKey = `${event.sourceEventId}:${personId}`;
 
   return {
@@ -226,108 +186,166 @@ function createTripDataFromEvent(event, personId) {
 }
 
 /**
- * sourceEventIdをキーにTripをupsert（重複防止）
- * @param {Object} tripData - Trip用データ
- * @returns {Object} { action: 'created'|'updated'|'skipped', trip?, reason? }
+ * 一括upsert処理（高速版）
+ * シートを1回だけ読み書きして、メモリ上で全ての処理を行う
+ * @param {Object[]} events - 正規化されたイベント配列
+ * @param {string[]} memberIds - TSCメンバーID配列
+ * @returns {Object} { created, updated, skipped, errors, totalProcessed }
  */
-function upsertTripBySourceEvent(tripData) {
+function batchUpsertTrips(events, memberIds) {
   const sheet = getSheet(CONFIG.SHEETS.TRIPS);
-  const data = sheet.getDataRange().getValues();
-  const headers = data[0];
+  const allData = sheet.getDataRange().getValues();
+  const headers = allData[0];
+  const existingRows = allData.slice(1);
 
-  // sourceKey列のインデックスを取得（なければ追加が必要）
-  let sourceKeyIndex = headers.indexOf('sourceKey');
-  let sourceEventIdIndex = headers.indexOf('sourceEventId');
+  // ヘッダーのインデックスをキャッシュ
+  const colIndex = {};
+  headers.forEach((h, i) => colIndex[h] = i);
 
-  // 既存レコードを検索（sourceKeyで一意検索）
-  const uniqueKey = tripData.sourceKey;
-  let existingRowIndex = -1;
-
-  if (sourceKeyIndex !== -1) {
-    for (let i = 1; i < data.length; i++) {
-      if (data[i][sourceKeyIndex] === uniqueKey) {
-        existingRowIndex = i;
-        break;
-      }
-    }
+  // sourceKey列がない場合は警告
+  if (colIndex['sourceKey'] === undefined) {
+    Logger.log('WARNING: sourceKey列がTripsシートにありません。重複防止が機能しません。');
   }
 
-  // 既存レコードがある場合は更新
-  if (existingRowIndex !== -1) {
-    const tripIdIndex = headers.indexOf('tripId');
-    const existingTripId = data[existingRowIndex][tripIdIndex];
-
-    // ロック済みチェック
-    const isLockedIndex = headers.indexOf('isLocked');
-    if (isLockedIndex !== -1) {
-      const isLocked = data[existingRowIndex][isLockedIndex];
-      if (isLocked === true || isLocked === 'TRUE' || isLocked === 'true') {
-        return {
-          action: 'skipped',
-          reason: '確定済み（ロック）のため更新をスキップ'
-        };
+  // 既存データをsourceKeyでマップ化（高速検索用）
+  const existingBySourceKey = new Map();
+  if (colIndex['sourceKey'] !== undefined) {
+    existingRows.forEach((row, idx) => {
+      const key = row[colIndex['sourceKey']];
+      if (key) {
+        existingBySourceKey.set(key, { row, rowIndex: idx + 1 }); // +1はヘッダー分
       }
-    }
-
-    // 更新
-    const now = new Date();
-    const updatedAtIndex = headers.indexOf('updatedAt');
-
-    for (let col = 0; col < headers.length; col++) {
-      const header = headers[col];
-      if (header === 'tripId' || header === 'sourceKey' || header === 'sourceEventId') {
-        continue; // ID系は更新しない
-      }
-      if (header === 'updatedAt') {
-        sheet.getRange(existingRowIndex + 1, col + 1).setValue(now);
-      } else if (tripData.hasOwnProperty(header)) {
-        sheet.getRange(existingRowIndex + 1, col + 1).setValue(tripData[header]);
-      }
-    }
-
-    return {
-      action: 'updated',
-      trip: {
-        tripId: existingTripId,
-        ...tripData,
-        updatedAt: formatDateTime(now)
-      }
-    };
+    });
   }
 
-  // 新規作成
-  const tripId = Utilities.getUuid();
+  const result = { created: 0, updated: 0, skipped: 0, errors: 0, totalProcessed: 0 };
+  const newRows = [];
+  const updateOperations = [];
   const now = new Date();
-  const genKey = generateGenKey(tripData);
 
-  const newRow = headers.map(header => {
-    switch (header) {
-      case 'tripId': return tripId;
-      case 'genKey': return genKey;
-      case 'updatedAt': return now;
-      case 'sourceKey': return tripData.sourceKey || '';
-      case 'sourceEventId': return tripData.sourceEventId || '';
-      default: return tripData[header] !== undefined ? tripData[header] : '';
+  // 全イベント×全メンバーを処理
+  for (const event of events) {
+    for (const personId of memberIds) {
+      result.totalProcessed++;
+
+      try {
+        const tripData = createTripDataFromEvent(event, personId);
+        const sourceKey = tripData.sourceKey;
+
+        // 既存チェック
+        const existing = existingBySourceKey.get(sourceKey);
+
+        if (existing) {
+          // ロック済みチェック
+          if (colIndex['isLocked'] !== undefined) {
+            const isLocked = existing.row[colIndex['isLocked']];
+            if (isLocked === true || isLocked === 'TRUE' || isLocked === 'true') {
+              result.skipped++;
+              continue;
+            }
+          }
+
+          // 更新対象として記録
+          updateOperations.push({
+            rowIndex: existing.rowIndex,
+            tripData,
+            existingTripId: existing.row[colIndex['tripId']]
+          });
+          result.updated++;
+        } else {
+          // 新規作成用の行データを作成
+          const tripId = Utilities.getUuid();
+          const genKey = generateGenKey(tripData);
+
+          const newRow = headers.map(header => {
+            switch (header) {
+              case 'tripId': return tripId;
+              case 'genKey': return genKey;
+              case 'updatedAt': return now;
+              case 'sourceKey': return tripData.sourceKey || '';
+              case 'sourceEventId': return tripData.sourceEventId || '';
+              default: return tripData[header] !== undefined ? tripData[header] : '';
+            }
+          });
+
+          newRows.push(newRow);
+          result.created++;
+
+          // 次の検索用にマップに追加（同期中の重複防止）
+          existingBySourceKey.set(sourceKey, { row: newRow, rowIndex: -1 });
+        }
+      } catch (e) {
+        result.errors++;
+        Logger.log(`エラー: ${personId}, ${event.title}: ${e.message}`);
+      }
     }
-  });
+  }
 
-  sheet.appendRow(newRow);
+  // 一括書き込み：更新
+  if (updateOperations.length > 0) {
+    Logger.log(`更新処理: ${updateOperations.length}件`);
 
-  return {
-    action: 'created',
-    trip: {
-      tripId,
-      ...tripData,
-      genKey,
-      updatedAt: formatDateTime(now)
+    // 更新対象の列を特定（ID系以外）
+    const updateCols = headers.map((h, i) => {
+      if (h === 'tripId' || h === 'sourceKey' || h === 'sourceEventId' || h === 'genKey') {
+        return null; // 更新しない
+      }
+      return i;
+    }).filter(i => i !== null);
+
+    for (const op of updateOperations) {
+      const rowNum = op.rowIndex + 1; // シートは1始まり
+      for (const colIdx of updateCols) {
+        const header = headers[colIdx];
+        let value;
+        if (header === 'updatedAt') {
+          value = now;
+        } else if (op.tripData.hasOwnProperty(header)) {
+          value = op.tripData[header];
+        } else {
+          continue; // 変更なし
+        }
+        // バッチではなく個別更新（更新行が飛び飛びのため）
+        // ※更新が多い場合はさらに最適化可能
+      }
     }
-  };
+
+    // 更新は既存行を直接変更（行が飛び飛びなのでsetValuesは使いにくい）
+    // → 実際には更新行数が少ないことが多いので、一括読み書き方式に変更
+    const fullData = sheet.getDataRange().getValues();
+    for (const op of updateOperations) {
+      const rowIdx = op.rowIndex; // 0始まりのデータ配列インデックス（ヘッダー含む）
+      for (let colIdx = 0; colIdx < headers.length; colIdx++) {
+        const header = headers[colIdx];
+        if (header === 'tripId' || header === 'sourceKey' || header === 'sourceEventId' || header === 'genKey') {
+          continue;
+        }
+        if (header === 'updatedAt') {
+          fullData[rowIdx + 1][colIdx] = now;
+        } else if (op.tripData.hasOwnProperty(header)) {
+          fullData[rowIdx + 1][colIdx] = op.tripData[header];
+        }
+      }
+    }
+    // 全データを書き戻し
+    if (updateOperations.length > 0) {
+      sheet.getRange(1, 1, fullData.length, fullData[0].length).setValues(fullData);
+    }
+  }
+
+  // 一括書き込み：新規追加
+  if (newRows.length > 0) {
+    Logger.log(`新規追加: ${newRows.length}件`);
+    const startRow = sheet.getLastRow() + 1;
+    sheet.getRange(startRow, 1, newRows.length, headers.length).setValues(newRows);
+  }
+
+  Logger.log(`バッチ処理完了: 作成=${result.created}, 更新=${result.updated}, スキップ=${result.skipped}`);
+  return result;
 }
 
 /**
  * 同期結果をフォーマット（UI表示用）
- * @param {Object} result - 同期結果
- * @returns {string} フォーマットされたメッセージ
  */
 function formatSyncResultMessage(result) {
   if (!result.success) {
@@ -335,30 +353,11 @@ function formatSyncResultMessage(result) {
   }
 
   const s = result.summary;
-  let message = `同期完了\n`;
-  message += `━━━━━━━━━━━━━━━━━━━\n`;
-  message += `対象期間のイベント: ${s.totalEvents}件\n`;
-  message += `処理対象: ${s.processedEvents}件\n`;
-  message += `TSC部署メンバー: ${result.tscMembers.length}名\n`;
-  message += `━━━━━━━━━━━━━━━━━━━\n`;
-  message += `新規作成: ${s.created}件\n`;
-  message += `更新: ${s.updated}件\n`;
-  message += `スキップ: ${s.skipped}件\n`;
-  if (s.errors > 0) {
-    message += `エラー: ${s.errors}件\n`;
-  }
-  message += `━━━━━━━━━━━━━━━━━━━\n`;
-  message += `実行時間: ${result.executionTime}ms`;
-
-  return message;
+  return `同期完了: 作成${s.created}件, 更新${s.updated}件, スキップ${s.skipped}件`;
 }
 
 /**
  * 同期テスト（ドライラン）
- * 実際のデータ更新は行わず、処理内容のみ確認
- * @param {string} startDate
- * @param {string} endDate
- * @returns {Object}
  */
 function testSyncTSCCalendar(startDate, endDate) {
   Logger.log('========== TSCカレンダー同期テスト（ドライラン） ==========');
@@ -370,7 +369,6 @@ function testSyncTSCCalendar(startDate, endDate) {
   };
 
   try {
-    // カレンダーイベント取得
     const calendarResult = getTSCCalendarEvents(startDate, endDate);
     if (!calendarResult.success) {
       throw new Error(calendarResult.errorMessage);
@@ -378,7 +376,6 @@ function testSyncTSCCalendar(startDate, endDate) {
 
     result.calendarEvents = calendarResult.events;
 
-    // 分類結果を表示
     for (const event of calendarResult.events) {
       const normalized = classifyAndNormalizeEvent(event);
       result.wouldProcess.push({
