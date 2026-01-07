@@ -6320,10 +6320,10 @@ console.log('[DEBUG] WorkerJobAssignView defined');
 const PersonGanttOverlay = {
   config: {
     cellWidth: 32,
-    baseRowHeight: 64,
-    laneHeight: 28,
+    baseRowHeight: 96,    // 3レーン分の高さ（24px × 3 + 余白）
+    laneHeight: 28,       // 追加レーンあたりの高さ
     barHeight: 24,
-    barTopPadding: 6,
+    barTopPadding: 8,     // バー上部のパディング（少し増やして中央寄せ）
     jobPaneWidth: 300,
     minLaneCount: 3
   },
