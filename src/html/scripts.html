@@ -7932,31 +7932,80 @@ const TravelPlan = {
 
   /**
    * 埋め込み用レンダリング（大工程表・担当者別大工程表の下段用）
-   * @param {Object} options - { containerId, personId?, dateFrom, days }
+   * @param {Object} options - { containerId, personId?, deptFilter?, dateFrom, days }
+   *   - deptFilter: 部署でフィルタ（例: 'TSC', '電気設計'）。nullなら全員表示
    */
   renderEmbedded(options) {
-    const { containerId, personId, dateFrom, days } = options;
+    const { containerId, personId, deptFilter, dateFrom, days } = options;
     const container = document.getElementById(containerId);
     if (!container) return;
 
     const { people, trips } = Store.state;
     const dates = Utils.generateDateRange(dateFrom, days);
 
+    // 部署の優先表示順
+    const PRIMARY_DEPT_ORDER = ['組立', 'TSC', '電気設計', '機械設計'];
+
     // personId指定がある場合はその人のみ、なければアクティブな人全員
     let targetPeople = people.filter(p => p.isActive !== false);
     if (personId) {
       targetPeople = targetPeople.filter(p => p.personId === personId);
+    }
+    // deptFilter指定がある場合は部署でフィルタ
+    if (deptFilter) {
+      targetPeople = targetPeople.filter(p => (p['部署/区分'] || '') === deptFilter);
     }
 
     // 対象者がいない場合
     if (targetPeople.length === 0) {
       container.innerHTML = `
         <div class="embedded-trip-empty">
-          ${personId ? 'この担当者の出張予定はありません' : '担当者が登録されていません'}
+          ${personId ? 'この担当者の出張予定はありません' :
+            deptFilter ? `${deptFilter}の出張予定はありません` : '担当者が登録されていません'}
         </div>
       `;
       return;
     }
+
+    // 部署ごとにグルーピング
+    const groupByDept = (peopleList) => {
+      const groups = new Map();
+      for (const p of peopleList) {
+        const key = (p['部署/区分'] && String(p['部署/区分']).trim()) || '未分類';
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(p);
+      }
+
+      // 部署順：優先順 → その他（アルファベット順）→ 未分類
+      const otherDepts = [...groups.keys()]
+        .filter(d => d !== '未分類' && !PRIMARY_DEPT_ORDER.includes(d))
+        .sort((a, b) => a.localeCompare(b, 'ja'));
+
+      const deptKeys = [
+        ...PRIMARY_DEPT_ORDER.filter(d => groups.has(d)),
+        ...otherDepts,
+        ...(groups.has('未分類') ? ['未分類'] : [])
+      ];
+
+      // 描画用行配列を構築
+      const rows = [];
+      for (const dept of deptKeys) {
+        // 部署ヘッダー（personId指定時やdeptFilter指定時はヘッダー不要）
+        if (!personId && !deptFilter) {
+          rows.push({ type: 'deptHeader', dept });
+        }
+        // 部署内の人を氏名順でソート
+        const members = groups.get(dept)
+          .slice()
+          .sort((a, b) => (a['氏名'] || '').localeCompare(b['氏名'] || '', 'ja'));
+        for (const p of members) {
+          rows.push({ type: 'person', person: p });
+        }
+      }
+      return rows;
+    };
+
+    const workerRows = groupByDept(targetPeople);
 
     // 表示期間内のトリップをフィルタ
     const visibleTrips = trips.filter(trip => {
@@ -8048,68 +8097,81 @@ const TravelPlan = {
     html += `<div class="embedded-trip-body-scroll" id="${containerId}-body-scroll">`;
     html += `<div class="embedded-trip-body" style="min-width: ${totalWidth + 120}px;">`;
 
-    targetPeople.forEach(person => {
-      const personTrips = visibleTrips.filter(t => t.personId === person.personId);
-      const dept = person['部署/区分'] || '';
-      const name = person['氏名'] || '';
-      const personColor = Utils.normalizeColor(person['作業者色(colorHex)']) || '#6b7280';
-
-      html += `
-        <div class="embedded-trip-person-row">
-          <div class="embedded-trip-person-info" style="border-left: 4px solid ${personColor}">
-            <div class="dept">${Utils.escapeHtml(dept)}</div>
-            <div class="name">${Utils.escapeHtml(name)}</div>
+    // 部署ヘッダーと作業者行を描画
+    workerRows.forEach(row => {
+      if (row.type === 'deptHeader') {
+        // 部署ヘッダー行
+        html += `
+          <div class="embedded-trip-dept-header">
+            <div class="embedded-trip-dept-name">${Utils.escapeHtml(row.dept)}</div>
+            <div class="embedded-trip-dept-grid" style="width: ${totalWidth}px;"></div>
           </div>
-          <div class="embedded-trip-person-grid" style="width: ${totalWidth}px;">
-      `;
+        `;
+      } else {
+        // 作業者行
+        const person = row.person;
+        const personTrips = visibleTrips.filter(t => t.personId === person.personId);
+        const dept = person['部署/区分'] || '';
+        const name = person['氏名'] || '';
+        const personColor = Utils.normalizeColor(person['作業者色(colorHex)']) || '#6b7280';
 
-      // グリッドセル
-      dates.forEach(date => {
-        const isWeekend = Utils.isWeekend(date);
-        const isToday = date === today;
-        const daySetting = Store.getDaySetting(date);
-        const cellWidth = getCellWidthForDate(date);
+        html += `
+          <div class="embedded-trip-person-row">
+            <div class="embedded-trip-person-info" style="border-left: 4px solid ${personColor}">
+              <div class="dept">${Utils.escapeHtml(dept)}</div>
+              <div class="name">${Utils.escapeHtml(name)}</div>
+            </div>
+            <div class="embedded-trip-person-grid" style="width: ${totalWidth}px;">
+        `;
 
-        let classes = 'embedded-trip-grid-cell';
-        if (isWeekend) classes += ' weekend';
-        if (isToday) classes += ' today';
-        if (daySetting === 'WORKDAY') classes += ' is-workday';
-        if (daySetting === 'HOLIDAY') classes += ' is-holiday';
+        // グリッドセル
+        dates.forEach(date => {
+          const isWeekend = Utils.isWeekend(date);
+          const isToday = date === today;
+          const daySetting = Store.getDaySetting(date);
+          const cellWidth = getCellWidthForDate(date);
 
-        html += `<div class="${classes}"
-                      style="width: ${cellWidth}px; min-width: ${cellWidth}px;"
-                      data-person-id="${person.personId}"
-                      data-date="${date}"></div>`;
-      });
+          let classes = 'embedded-trip-grid-cell';
+          if (isWeekend) classes += ' weekend';
+          if (isToday) classes += ' today';
+          if (daySetting === 'WORKDAY') classes += ' is-workday';
+          if (daySetting === 'HOLIDAY') classes += ' is-holiday';
 
-      // 予定バー
-      personTrips.forEach(trip => {
-        const startOffset = Utils.getDaysBetween(dates[0], trip.start);
-        const duration = Utils.getDaysBetween(trip.start, trip.end) + 1;
+          html += `<div class="${classes}"
+                        style="width: ${cellWidth}px; min-width: ${cellWidth}px;"
+                        data-person-id="${person.personId}"
+                        data-date="${date}"></div>`;
+        });
 
-        // 表示範囲外チェック
-        if (startOffset + duration < 0 || startOffset >= dates.length) return;
+        // 予定バー
+        personTrips.forEach(trip => {
+          const startOffset = Utils.getDaysBetween(dates[0], trip.start);
+          const duration = Utils.getDaysBetween(trip.start, trip.end) + 1;
 
-        const xStart = getXForDate(trip.start);
-        let cardWidth;
-        if (trip.kind === 'site') {
-          const description = trip['用件'] || '';
-          const lines = description.split('\n');
-          const neededWidth = this.calculateSiteCardWidth(lines[0] || '', lines[1] || '', lines[2] || trip['行先'] || '');
-          const baseWidth = duration * this.config.cellWidth;
-          const extraWidth = dateExtraWidths[trip.start] || 0;
-          cardWidth = Math.max(neededWidth, baseWidth + extraWidth) - this.config.cardGap;
-        } else {
-          cardWidth = duration * this.config.cellWidth - this.config.cardGap;
-        }
+          // 表示範囲外チェック
+          if (startOffset + duration < 0 || startOffset >= dates.length) return;
 
-        html += this.renderEmbeddedTripBar(trip, xStart, cardWidth);
-      });
+          const xStart = getXForDate(trip.start);
+          let cardWidth;
+          if (trip.kind === 'site') {
+            const description = trip['用件'] || '';
+            const lines = description.split('\n');
+            const neededWidth = this.calculateSiteCardWidth(lines[0] || '', lines[1] || '', lines[2] || trip['行先'] || '');
+            const baseWidth = duration * this.config.cellWidth;
+            const extraWidth = dateExtraWidths[trip.start] || 0;
+            cardWidth = Math.max(neededWidth, baseWidth + extraWidth) - this.config.cardGap;
+          } else {
+            cardWidth = duration * this.config.cellWidth - this.config.cardGap;
+          }
 
-      html += `
+          html += this.renderEmbeddedTripBar(trip, xStart, cardWidth);
+        });
+
+        html += `
+            </div>
           </div>
-        </div>
-      `;
+        `;
+      }
     });
 
     html += '</div></div>';
@@ -8359,10 +8421,11 @@ const CalendarView = {
       countEl.textContent = `${filteredTrips.length}件`;
     }
 
-    // 埋め込み出張計画を描画
+    // 埋め込み出張計画を描画（TSCのみ表示）
     TravelPlan.renderEmbedded({
       containerId: 'calendar-trip-container',
       personId: this.tripPersonFilter,
+      deptFilter: 'TSC',
       dateFrom: displayStartDate,
       days: displayDays
     });
@@ -8504,10 +8567,11 @@ const ElectricalView = {
       countEl.textContent = `${filteredTrips.length}件`;
     }
 
-    // 埋め込み出張計画を描画
+    // 埋め込み出張計画を描画（電気設計のみ表示）
     TravelPlan.renderEmbedded({
       containerId: 'electrical-trip-container',
       personId: this.tripPersonFilter,
+      deptFilter: '電気設計',
       dateFrom: displayStartDate,
       days: displayDays
     });
