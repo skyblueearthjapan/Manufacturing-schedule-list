@@ -301,36 +301,100 @@
 
     <!-- CalendarView（TSC予定 - Googleカレンダー埋め込み） -->
     <div id="view-calendar" class="view-container hidden">
-      <div class="calendar-container">
+      <div class="calendar-container calendar-with-trips">
         <div class="calendar-header">
           <h2 class="text-lg font-bold text-gray-800">TSC予定（Googleカレンダー）</h2>
           <p class="text-sm text-gray-500">※ カレンダーが表示されない場合は、Googleアカウントでログインしてください</p>
         </div>
-        <div class="calendar-iframe-wrapper">
+        <div class="calendar-iframe-wrapper calendar-iframe-with-trips">
           <iframe
             src="https://calendar.google.com/calendar/embed?src=takeuchikaisyayou%40gmail.com&ctz=Asia%2FTokyo"
-            style="border:0; width:100%; height:calc(100vh - 180px);"
+            style="border:0; width:100%; height:100%;"
             frameborder="0"
             scrolling="no">
           </iframe>
+        </div>
+
+        <!-- 埋め込み出張計画セクション -->
+        <div class="embedded-trip-section calendar-trip-section" id="calendar-trip-section">
+          <div class="embedded-trip-toggle">
+            <div class="embedded-trip-toggle-left" onclick="CalendarView.toggleTripSection()">
+              <svg class="embedded-trip-toggle-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M19 9l-7 7-7-7"/>
+              </svg>
+              <span class="embedded-trip-toggle-title">出張予定</span>
+              <span class="embedded-trip-toggle-count" id="calendar-trip-count">0件</span>
+            </div>
+            <div class="embedded-trip-toggle-right" onclick="event.stopPropagation()">
+              <label class="embedded-trip-search-label">担当者：</label>
+              <input type="text"
+                     id="calendar-trip-person-input"
+                     class="embedded-trip-search-input"
+                     placeholder="例）今泉 / P.01"
+                     onkeydown="if(event.key==='Enter'){CalendarView.handleTripPersonSearch();}"
+              >
+              <button type="button"
+                      class="embedded-trip-search-clear"
+                      onclick="CalendarView.clearTripPersonFilter()"
+                      title="クリア">×</button>
+              <span id="calendar-trip-filter-error" class="embedded-trip-filter-error"></span>
+            </div>
+          </div>
+          <div class="embedded-trip-content">
+            <div class="embedded-trip-container" id="calendar-trip-container">
+              <!-- JSで生成 -->
+            </div>
+          </div>
         </div>
       </div>
     </div>
 
     <!-- ElectricalView（電気予定 - Googleカレンダー埋め込み） -->
     <div id="view-electrical" class="view-container hidden">
-      <div class="calendar-container electrical-container">
+      <div class="calendar-container electrical-container calendar-with-trips">
         <div class="calendar-header electrical-header">
           <h2 class="text-lg font-bold text-gray-800">電気予定（Googleカレンダー）</h2>
           <p class="text-sm text-gray-500">※ カレンダーが表示されない場合は、Googleアカウントでログインしてください</p>
         </div>
-        <div class="calendar-iframe-wrapper">
+        <div class="calendar-iframe-wrapper calendar-iframe-with-trips">
           <iframe
             src="https://calendar.google.com/calendar/embed?src=electrical-01%40lineworks-local.info&ctz=Asia%2FTokyo"
-            style="border:0; width:100%; height:calc(100vh - 180px);"
+            style="border:0; width:100%; height:100%;"
             frameborder="0"
             scrolling="no">
           </iframe>
+        </div>
+
+        <!-- 埋め込み出張計画セクション -->
+        <div class="embedded-trip-section calendar-trip-section" id="electrical-trip-section">
+          <div class="embedded-trip-toggle">
+            <div class="embedded-trip-toggle-left" onclick="ElectricalView.toggleTripSection()">
+              <svg class="embedded-trip-toggle-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M19 9l-7 7-7-7"/>
+              </svg>
+              <span class="embedded-trip-toggle-title">出張予定</span>
+              <span class="embedded-trip-toggle-count" id="electrical-trip-count">0件</span>
+            </div>
+            <div class="embedded-trip-toggle-right" onclick="event.stopPropagation()">
+              <label class="embedded-trip-search-label">担当者：</label>
+              <input type="text"
+                     id="electrical-trip-person-input"
+                     class="embedded-trip-search-input"
+                     placeholder="例）今泉 / P.01"
+                     onkeydown="if(event.key==='Enter'){ElectricalView.handleTripPersonSearch();}"
+              >
+              <button type="button"
+                      class="embedded-trip-search-clear"
+                      onclick="ElectricalView.clearTripPersonFilter()"
+                      title="クリア">×</button>
+              <span id="electrical-trip-filter-error" class="embedded-trip-filter-error"></span>
+            </div>
+          </div>
+          <div class="embedded-trip-content">
+            <div class="embedded-trip-container" id="electrical-trip-container">
+              <!-- JSで生成 -->
+            </div>
+          </div>
         </div>
       </div>
     </div>

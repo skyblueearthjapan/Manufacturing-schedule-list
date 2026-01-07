@@ -8224,6 +8224,296 @@ const TravelPlan = {
 console.log('[DEBUG] TravelPlan defined');
 
 // ========================================
+// CalendarView - TSC予定ビュー（Googleカレンダー + 出張予定）
+// ========================================
+
+const CalendarView = {
+  tripPersonFilter: null,
+
+  /**
+   * 出張計画セクションの折りたたみ切替
+   */
+  toggleTripSection() {
+    const section = document.getElementById('calendar-trip-section');
+    if (section) {
+      section.classList.toggle('collapsed');
+    }
+  },
+
+  /**
+   * 出張予定エリアの担当者検索ハンドラー
+   */
+  handleTripPersonSearch() {
+    const input = document.getElementById('calendar-trip-person-input');
+    const errorEl = document.getElementById('calendar-trip-filter-error');
+
+    if (!input) return;
+
+    const trimmed = (input.value || '').trim();
+
+    if (!trimmed) {
+      this.tripPersonFilter = null;
+      if (errorEl) {
+        errorEl.textContent = '';
+        errorEl.classList.remove('visible');
+      }
+      this.renderTrips();
+      return;
+    }
+
+    // personId形式（P.01 など）の判定
+    if (/^P\.\d+$/i.test(trimmed)) {
+      const personId = trimmed.toUpperCase();
+      const person = Store.getPersonById(personId);
+      if (person) {
+        this.tripPersonFilter = personId;
+        if (errorEl) {
+          errorEl.textContent = '';
+          errorEl.classList.remove('visible');
+        }
+        this.renderTrips();
+        return;
+      } else {
+        if (errorEl) {
+          errorEl.textContent = `担当者ID「${personId}」が見つかりません`;
+          errorEl.classList.add('visible');
+        }
+        return;
+      }
+    }
+
+    // 氏名で検索
+    const result = Store.resolvePersonIdByName(trimmed);
+    if (!result) {
+      if (errorEl) {
+        errorEl.textContent = '該当する担当者が見つかりません';
+        errorEl.classList.add('visible');
+      }
+      return;
+    }
+    if (result.count > 1) {
+      if (errorEl) {
+        errorEl.textContent = `候補が${result.count}名あります。P.xxで入力してください`;
+        errorEl.classList.add('visible');
+      }
+      return;
+    }
+
+    this.tripPersonFilter = result.personId;
+    if (errorEl) {
+      errorEl.textContent = '';
+      errorEl.classList.remove('visible');
+    }
+    this.renderTrips();
+  },
+
+  /**
+   * 出張予定エリアの担当者フィルタをクリア
+   */
+  clearTripPersonFilter() {
+    const input = document.getElementById('calendar-trip-person-input');
+    const errorEl = document.getElementById('calendar-trip-filter-error');
+
+    if (input) {
+      input.value = '';
+    }
+    if (errorEl) {
+      errorEl.textContent = '';
+      errorEl.classList.remove('visible');
+    }
+
+    this.tripPersonFilter = null;
+    this.renderTrips();
+  },
+
+  /**
+   * 埋め込み出張計画を描画
+   */
+  renderTrips() {
+    const { displayStartDate, displayDays, trips } = Store.state;
+
+    // 表示期間の終了日を計算
+    const dates = Utils.generateDateRange(displayStartDate, displayDays);
+    const viewStart = dates[0];
+    const viewEnd = dates[dates.length - 1];
+
+    // フィルタ済みのトリップを取得
+    const filteredTrips = trips.filter(trip => {
+      // 期間フィルタ
+      if (trip.end < viewStart || trip.start > viewEnd) {
+        return false;
+      }
+      // 担当者フィルタ
+      if (this.tripPersonFilter && trip.personId !== this.tripPersonFilter) {
+        return false;
+      }
+      return true;
+    });
+
+    // トリップ数をカウント（フィルタ後の件数）
+    const countEl = document.getElementById('calendar-trip-count');
+    if (countEl) {
+      countEl.textContent = `${filteredTrips.length}件`;
+    }
+
+    // 埋め込み出張計画を描画
+    TravelPlan.renderEmbedded({
+      containerId: 'calendar-trip-container',
+      personId: this.tripPersonFilter,
+      dateFrom: displayStartDate,
+      days: displayDays
+    });
+  }
+};
+
+console.log('[DEBUG] CalendarView defined');
+
+// ========================================
+// ElectricalView - 電気予定ビュー（Googleカレンダー + 出張予定）
+// ========================================
+
+const ElectricalView = {
+  tripPersonFilter: null,
+
+  /**
+   * 出張計画セクションの折りたたみ切替
+   */
+  toggleTripSection() {
+    const section = document.getElementById('electrical-trip-section');
+    if (section) {
+      section.classList.toggle('collapsed');
+    }
+  },
+
+  /**
+   * 出張予定エリアの担当者検索ハンドラー
+   */
+  handleTripPersonSearch() {
+    const input = document.getElementById('electrical-trip-person-input');
+    const errorEl = document.getElementById('electrical-trip-filter-error');
+
+    if (!input) return;
+
+    const trimmed = (input.value || '').trim();
+
+    if (!trimmed) {
+      this.tripPersonFilter = null;
+      if (errorEl) {
+        errorEl.textContent = '';
+        errorEl.classList.remove('visible');
+      }
+      this.renderTrips();
+      return;
+    }
+
+    // personId形式（P.01 など）の判定
+    if (/^P\.\d+$/i.test(trimmed)) {
+      const personId = trimmed.toUpperCase();
+      const person = Store.getPersonById(personId);
+      if (person) {
+        this.tripPersonFilter = personId;
+        if (errorEl) {
+          errorEl.textContent = '';
+          errorEl.classList.remove('visible');
+        }
+        this.renderTrips();
+        return;
+      } else {
+        if (errorEl) {
+          errorEl.textContent = `担当者ID「${personId}」が見つかりません`;
+          errorEl.classList.add('visible');
+        }
+        return;
+      }
+    }
+
+    // 氏名で検索
+    const result = Store.resolvePersonIdByName(trimmed);
+    if (!result) {
+      if (errorEl) {
+        errorEl.textContent = '該当する担当者が見つかりません';
+        errorEl.classList.add('visible');
+      }
+      return;
+    }
+    if (result.count > 1) {
+      if (errorEl) {
+        errorEl.textContent = `候補が${result.count}名あります。P.xxで入力してください`;
+        errorEl.classList.add('visible');
+      }
+      return;
+    }
+
+    this.tripPersonFilter = result.personId;
+    if (errorEl) {
+      errorEl.textContent = '';
+      errorEl.classList.remove('visible');
+    }
+    this.renderTrips();
+  },
+
+  /**
+   * 出張予定エリアの担当者フィルタをクリア
+   */
+  clearTripPersonFilter() {
+    const input = document.getElementById('electrical-trip-person-input');
+    const errorEl = document.getElementById('electrical-trip-filter-error');
+
+    if (input) {
+      input.value = '';
+    }
+    if (errorEl) {
+      errorEl.textContent = '';
+      errorEl.classList.remove('visible');
+    }
+
+    this.tripPersonFilter = null;
+    this.renderTrips();
+  },
+
+  /**
+   * 埋め込み出張計画を描画
+   */
+  renderTrips() {
+    const { displayStartDate, displayDays, trips } = Store.state;
+
+    // 表示期間の終了日を計算
+    const dates = Utils.generateDateRange(displayStartDate, displayDays);
+    const viewStart = dates[0];
+    const viewEnd = dates[dates.length - 1];
+
+    // フィルタ済みのトリップを取得
+    const filteredTrips = trips.filter(trip => {
+      // 期間フィルタ
+      if (trip.end < viewStart || trip.start > viewEnd) {
+        return false;
+      }
+      // 担当者フィルタ
+      if (this.tripPersonFilter && trip.personId !== this.tripPersonFilter) {
+        return false;
+      }
+      return true;
+    });
+
+    // トリップ数をカウント（フィルタ後の件数）
+    const countEl = document.getElementById('electrical-trip-count');
+    if (countEl) {
+      countEl.textContent = `${filteredTrips.length}件`;
+    }
+
+    // 埋め込み出張計画を描画
+    TravelPlan.renderEmbedded({
+      containerId: 'electrical-trip-container',
+      personId: this.tripPersonFilter,
+      dateFrom: displayStartDate,
+      days: displayDays
+    });
+  }
+};
+
+console.log('[DEBUG] ElectricalView defined');
+
+// ========================================
 // App - アプリケーションメインエントリーポイント
 // ========================================
 
@@ -8454,10 +8744,12 @@ const App = {
         TravelPlan.render();
         break;
       case 'calendar':
-        // Googleカレンダーはiframe埋め込みなので特別な処理不要
+        // Googleカレンダーはiframe埋め込み + 下部に出張予定を表示
+        CalendarView.renderTrips();
         break;
       case 'electrical':
-        // 電気予定（Googleカレンダー）はiframe埋め込みなので特別な処理不要
+        // 電気予定（Googleカレンダー）+ 下部に出張予定を表示
+        ElectricalView.renderTrips();
         break;
     }
   }

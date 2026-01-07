@@ -3741,4 +3741,30 @@
   .embedded-trip-filter-error.visible {
     opacity: 1;
   }
+
+  /* カレンダービュー（TSC予定・電気予定）+ 出張予定パネル */
+  .calendar-with-trips {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 70px);
+  }
+
+  .calendar-iframe-with-trips {
+    flex: 1;
+    min-height: 300px;
+    overflow: hidden;
+  }
+
+  .calendar-trip-section {
+    flex-shrink: 0;
+    max-height: 300px;
+  }
+
+  .calendar-trip-section .embedded-trip-content {
+    max-height: 250px;
+  }
+
+  .calendar-trip-section .embedded-trip-body-scroll {
+    max-height: 200px;
+  }
 </style>
