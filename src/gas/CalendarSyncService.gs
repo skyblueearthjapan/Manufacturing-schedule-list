@@ -5,6 +5,18 @@
  * 同期方向: TSC Google Calendar → Webアプリ出張計画（一方向のみ）
  * 重複防止: uniqueKey = sourceEventId + ':' + personId
  *
+ * 同期対象:
+ *   - タイトルが完全一致「移動」
+ *   - タイトル先頭が「★」で始まる予定（出張現場）
+ *     例: ★コマツ茨城 TS25019, ★久保田堺 TS25172
+ *
+ * 同期しない:
+ *   - 祝日、休み、振替休日、健康診断、会議、その他★なし予定
+ *
+ * 行先生成:
+ *   - 「移動」→ "移動"
+ *   - 「★...」→ ★を外したタイトル全文
+ *
  * 最適化: 一括読み込み→メモリ処理→一括書き込み（タイムアウト対策）
  */
 
@@ -76,14 +88,14 @@ function syncTSCCalendarToTrips(startDate, endDate) {
     const normalizedEvents = events.map(event => classifyAndNormalizeEvent(event));
 
     // 4. 同期対象外のイベントをフィルタリング
+    // 同期対象 = 「移動」完全一致 OR 「★」で始まる予定のみ
     const filteredEvents = normalizedEvents.filter(event => {
-      // shouldSyncフラグで判定（移動 or TS番号のみ同期）
       if (!event.shouldSync) {
         result.summary.skippedEvents++;
         result.details.skipped.push({
           eventId: event.sourceEventId,
           title: event.title,
-          reason: '同期対象外（移動/TS番号以外）'
+          reason: '同期対象外（移動/★付き以外）'
         });
         return false;
       }
@@ -127,32 +139,27 @@ function getTSCMemberIds() {
 
 /**
  * イベントを同期対象とするかどうかを判定
+ * 同期対象 = 「移動」完全一致 OR 「★」で始まる
  * @param {string} title - イベントタイトル
  * @returns {boolean} 同期対象ならtrue
  */
-function shouldSyncEvent(title) {
-  if (!title) return false;
+function isSyncTarget(title) {
+  const trimmedTitle = (title || '').trim();
+  return trimmedTitle === '移動' || trimmedTitle.startsWith('★');
+}
 
-  const trimmedTitle = title.trim();
-
-  // 除外ワード（これらを含む場合は同期しない）
-  const NG_WORDS = ['祝', '休', '振替', '代休', '健康診断', '有給', '特休'];
-  if (NG_WORDS.some(w => trimmedTitle.includes(w))) {
-    return false;
-  }
-
-  // 同期OK条件1: 完全一致「移動」
-  if (trimmedTitle === '移動') {
-    return true;
-  }
-
-  // 同期OK条件2: TS番号（TS + 5桁の数字）を含む
-  if (/TS\d{5}/.test(trimmedTitle)) {
-    return true;
-  }
-
-  // それ以外は同期しない
-  return false;
+/**
+ * イベントタイトルから行先を生成
+ * - 「移動」のとき → "移動"
+ * - 「★...」のとき → ★を外したタイトル全文
+ * @param {string} title - イベントタイトル
+ * @returns {string} 行先
+ */
+function buildDestination(title) {
+  const trimmedTitle = (title || '').trim();
+  if (trimmedTitle === '移動') return '移動';
+  if (trimmedTitle.startsWith('★')) return trimmedTitle.replace(/^★\s*/, '');
+  return '';
 }
 
 /**
@@ -174,8 +181,8 @@ function classifyAndNormalizeEvent(event) {
     displayTitle = title;
   }
 
-  // 同期対象かどうかを判定
-  const shouldSync = shouldSyncEvent(title);
+  // 同期対象かどうかを判定（移動 or ★で始まる）
+  const shouldSync = isSyncTarget(title);
 
   return {
     sourceEventId: event.id,
@@ -201,16 +208,18 @@ function classifyAndNormalizeEvent(event) {
  */
 function createTripDataFromEvent(event, personId) {
   const sourceKey = `${event.sourceEventId}:${personId}`;
+  const destination = buildDestination(event.originalTitle);
+  const isMove = event.originalTitle.trim() === '移動';
 
   return {
     personId: personId,
     start: event.start,
     end: event.end,
-    '行先': event.kind === EventKind.MOVE ? '' : event.title,
-    '用件': event.kind === EventKind.MOVE ? '移動' : '',
+    '行先': destination,  // 移動→"移動", ★付き→★を外した全文
+    '用件': '',  // 空（または必要なら固定値）
     'jobId(任意)': '',
-    '備考': event.location ? `場所: ${event.location}` : '',
-    kind: event.kind === EventKind.MOVE ? 'move' : 'site',
+    '備考': `source=TSC_CAL eventId=${event.sourceEventId}`,  // 追跡用
+    kind: isMove ? 'move' : 'site',
     processId: '',
     source: 'calendar_sync',
     sourceEventId: event.sourceEventId,
