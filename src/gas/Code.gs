@@ -162,6 +162,10 @@ function api_updateJob(jobId, patch, expectedUpdatedAt) {
   return updateJob(jobId, patch, expectedUpdatedAt);
 }
 
+function api_getJob(jobId) {
+  return sanitizeForClient(getJobById(jobId));
+}
+
 function api_syncExternalJobMaster() {
   return syncExternalJobMaster();
 }

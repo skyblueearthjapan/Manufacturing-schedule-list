@@ -379,6 +379,10 @@ const API = {
     return await this.call('api_updateJob', jobId, patch, expectedUpdatedAt);
   },
 
+  async getJob(jobId) {
+    return await this.call('api_getJob', jobId);
+  },
+
   async syncExternalJobMaster() {
     return await this.call('api_syncExternalJobMaster');
   },
@@ -1095,6 +1099,7 @@ const Store = {
 
   /**
    * Jobを更新（API経由 + ローカル状態更新）
+   * 楽観ロック衝突時は最新データを取得して1回だけリトライ
    * @param {Object} updatedJob - 更新後のJobオブジェクト（jobId必須）
    */
   async updateJob(updatedJob) {
@@ -1122,18 +1127,65 @@ const Store = {
       return { success: true, noChange: true };
     }
 
-    // API呼び出し
-    const result = await API.updateJob(jobId, patch, currentJob.updatedAt || '');
+    // API呼び出し実行関数
+    const doUpdate = async (expectedUpdatedAt) => {
+      return await API.updateJob(jobId, patch, expectedUpdatedAt);
+    };
 
-    if (result.success) {
-      // ローカル状態を更新
+    // 成功時のローカル状態更新関数
+    const applyResult = (result) => {
       this.updateJobInStore(jobId, {
         ...patch,
         updatedAt: result.updatedAt || new Date().toISOString()
       });
-    }
+    };
 
-    return result;
+    try {
+      // まず通常更新
+      const result = await doUpdate(currentJob.updatedAt || '');
+
+      if (result.success) {
+        applyResult(result);
+      }
+      return result;
+
+    } catch (e) {
+      // 衝突判定（「他のユーザーが更新しました」を含むか）
+      const msg = String(e?.message || e);
+      const isConflict = msg.includes('他のユーザーが更新しました');
+
+      if (!isConflict) {
+        throw e;
+      }
+
+      console.log('[Store.updateJob] Conflict detected, retrying with latest data...');
+
+      // 1回だけ最新を取り直してリトライ
+      try {
+        const latestJob = await API.getJob(jobId);
+        if (!latestJob || !latestJob.updatedAt) {
+          console.error('[Store.updateJob] Failed to get latest job for retry');
+          throw e;
+        }
+
+        // ローカルキャッシュも最新に更新
+        this.updateJobInStore(jobId, latestJob);
+
+        console.log('[Store.updateJob] Retrying with updatedAt:', latestJob.updatedAt);
+        const result2 = await doUpdate(latestJob.updatedAt);
+
+        if (result2.success) {
+          applyResult(result2);
+        }
+        return result2;
+
+      } catch (retryError) {
+        console.error('[Store.updateJob] Retry also failed:', retryError);
+        // リトライ失敗時はユーザーに分かりやすいメッセージ
+        Utils.showToast('最新データに更新しました。もう一度操作してください', 'warning');
+        throw retryError;
+      }
+    }
   },
 
   addSchedule(schedule) {
