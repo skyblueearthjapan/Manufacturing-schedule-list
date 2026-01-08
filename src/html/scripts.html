@@ -9083,22 +9083,15 @@ const CalendarEventViewer = {
             ? ''
             : `<span class="calendar-event-time">${this.formatTime(event.startTime)}</span>`;
 
-          // 電気予定の場合、タイトル先頭文字でクラスを追加
-          let extraClass = '';
-          if (calendarType === 'electrical') {
-            const firstChar = (event.title || '').replace(/^[:：\s　]+/, '').charAt(0);
-            if (firstChar === '長') {
-              extraClass = 'electrical-naga';
-            } else if (firstChar === '奥') {
-              extraClass = 'electrical-oku';
-            }
-          }
-
-          const eventClass = `calendar-event-item ${event.isAllDay ? 'all-day' : ''} ${extraClass}`.trim();
+          // タイトル先頭文字を取得（デバッグ用にdata属性で出力）
+          const initial = (event.title || '').replace(/^[:：\s　]+/, '').charAt(0);
+          const eventClass = `calendar-event-item ${event.isAllDay ? 'all-day' : ''}`.trim();
           const eventData = encodeURIComponent(JSON.stringify(event));
 
           html += `
             <div class="${eventClass}"
+                 data-caltype="${calendarType}"
+                 data-initial="${initial}"
                  onclick="CalendarEventViewer.showEventPopup(event, '${eventData}')"
                  title="${this.escapeHtml(event.title)}">
               ${timeStr}${this.escapeHtml(event.title)}

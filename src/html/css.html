@@ -3591,25 +3591,23 @@
     border-left-color: #6366f1;
   }
 
-  /* 電気予定：「長」で始まるイベント → 緑 */
-  .calendar-event-item.electrical-naga,
-  .calendar-event-item.all-day.electrical-naga {
+  /* 電気予定：「長」で始まるイベント → 緑（data属性セレクタ） */
+  .calendar-event-item[data-caltype="electrical"][data-initial="長"] {
     background: #2ECC71 !important;
     border-left: 4px solid #27AE60 !important;
     color: #fff !important;
   }
-  .calendar-event-item.electrical-naga:hover {
+  .calendar-event-item[data-caltype="electrical"][data-initial="長"]:hover {
     background: #27AE60 !important;
   }
 
-  /* 電気予定：「奥」で始まるイベント → オレンジ */
-  .calendar-event-item.electrical-oku,
-  .calendar-event-item.all-day.electrical-oku {
+  /* 電気予定：「奥」で始まるイベント → オレンジ（data属性セレクタ） */
+  .calendar-event-item[data-caltype="electrical"][data-initial="奥"] {
     background: #F39C12 !important;
     border-left: 4px solid #E67E22 !important;
     color: #fff !important;
   }
-  .calendar-event-item.electrical-oku:hover {
+  .calendar-event-item[data-caltype="electrical"][data-initial="奥"]:hover {
     background: #E67E22 !important;
   }
 
