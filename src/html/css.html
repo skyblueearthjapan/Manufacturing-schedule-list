@@ -3591,6 +3591,28 @@
     border-left-color: #6366f1;
   }
 
+  /* 電気予定：「長」で始まるイベント → 緑 */
+  .calendar-event-item.electrical-naga,
+  .calendar-event-item.all-day.electrical-naga {
+    background: #2ECC71 !important;
+    border-left: 4px solid #27AE60 !important;
+    color: #fff !important;
+  }
+  .calendar-event-item.electrical-naga:hover {
+    background: #27AE60 !important;
+  }
+
+  /* 電気予定：「奥」で始まるイベント → オレンジ */
+  .calendar-event-item.electrical-oku,
+  .calendar-event-item.all-day.electrical-oku {
+    background: #F39C12 !important;
+    border-left: 4px solid #E67E22 !important;
+    color: #fff !important;
+  }
+  .calendar-event-item.electrical-oku:hover {
+    background: #E67E22 !important;
+  }
+
   .calendar-event-time {
     font-weight: 600;
     margin-right: 4px;
