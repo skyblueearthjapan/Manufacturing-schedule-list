@@ -175,14 +175,14 @@ function getCalendarEvents(calendarId, startDate, endDate) {
       const endTime = event.getEndTime();
 
       // 終日イベントの終了日修正
-      // Google Calendar API では終日イベントの endTime は「翌日の00:00」を返す
+      // Google Calendar API では終日イベントの endTime は「翌日の00:00」を返す（排他的）
       // 例: 1/11の終日イベント → endTime = 2026-01-12T00:00:00
-      // 表示用には1日引いて正しい終了日にする
+      // 「1日引く」だとタイムゾーン境界でズレる可能性があるため、
+      // 「1ミリ秒引く」方式で確実に前日の日付を取得する
       let adjustedEndDate;
       if (isAllDay) {
-        const endDate = new Date(endTime);
-        endDate.setDate(endDate.getDate() - 1);  // 1日引く
-        adjustedEndDate = formatDate(endDate);
+        const endMinus1ms = new Date(endTime.getTime() - 1);  // 1ms引いて前日23:59:59.999に
+        adjustedEndDate = formatDate(endMinus1ms);
       } else {
         adjustedEndDate = formatDate(endTime);
       }
@@ -302,13 +302,13 @@ function parseICS(icsContent, startDate, endDate) {
         const eventEnd = currentEvent.endDate ? new Date(currentEvent.endDate) : eventStart;
 
         if (eventStart <= endFilter && eventEnd >= startFilter) {
-          // ICSの終日イベントも終了日が翌日になっている場合がある
-          // 終日イベントでendDate > startDateの場合は1日引く
+          // ICSの終日イベントも終了日が翌日になっている（排他的）
+          // 「1ミリ秒引く」方式で確実に前日の日付を取得
           let adjustedEndDate = currentEvent.endDate || currentEvent.startDate;
           if (currentEvent.isAllDay && currentEvent.endDate && currentEvent.endDate > currentEvent.startDate) {
-            const endDate = new Date(currentEvent.endDate);
-            endDate.setDate(endDate.getDate() - 1);
-            adjustedEndDate = Utilities.formatDate(endDate, 'Asia/Tokyo', 'yyyy-MM-dd');
+            const endDate = new Date(currentEvent.endDate + 'T00:00:00');
+            const endMinus1ms = new Date(endDate.getTime() - 1);  // 1ms引いて前日23:59:59.999に
+            adjustedEndDate = Utilities.formatDate(endMinus1ms, 'Asia/Tokyo', 'yyyy-MM-dd');
           }
 
           events.push({
