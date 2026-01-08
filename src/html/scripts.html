@@ -8994,7 +8994,8 @@ const CalendarEventViewer = {
       let current = Utils.parseLocalDate(eventStart);
       const endCheck = Utils.parseLocalDate(eventEnd);
 
-      while (current <= endCheck) {
+      // 終了日は排他的（終日イベントは翌日00:00が返る）ので < で比較
+      while (current < endCheck) {
         const dateStr = Utils.formatDate(current);
         if (!eventsByDate[dateStr]) {
           eventsByDate[dateStr] = [];
