@@ -169,19 +169,38 @@ function getCalendarEvents(calendarId, startDate, endDate) {
     const events = calendar.getEvents(start, end);
     Logger.log('[getCalendarEvents] SUCCESS: Found ' + events.length + ' events');
 
-    const mappedEvents = events.map(event => ({
-      id: event.getId(),
-      title: event.getTitle(),
-      description: event.getDescription() || '',
-      location: event.getLocation() || '',
-      startTime: formatDateTime(event.getStartTime()),
-      endTime: formatDateTime(event.getEndTime()),
-      isAllDay: event.isAllDayEvent(),
-      startDate: formatDate(event.getStartTime()),
-      endDate: formatDate(event.getEndTime()),
-      color: event.getColor() || '',
-      source: 'CalendarApp'
-    }));
+    const mappedEvents = events.map(event => {
+      const isAllDay = event.isAllDayEvent();
+      const startTime = event.getStartTime();
+      const endTime = event.getEndTime();
+
+      // 終日イベントの終了日修正
+      // Google Calendar API では終日イベントの endTime は「翌日の00:00」を返す
+      // 例: 1/11の終日イベント → endTime = 2026-01-12T00:00:00
+      // 表示用には1日引いて正しい終了日にする
+      let adjustedEndDate;
+      if (isAllDay) {
+        const endDate = new Date(endTime);
+        endDate.setDate(endDate.getDate() - 1);  // 1日引く
+        adjustedEndDate = formatDate(endDate);
+      } else {
+        adjustedEndDate = formatDate(endTime);
+      }
+
+      return {
+        id: event.getId(),
+        title: event.getTitle(),
+        description: event.getDescription() || '',
+        location: event.getLocation() || '',
+        startTime: formatDateTime(startTime),
+        endTime: formatDateTime(endTime),
+        isAllDay: isAllDay,
+        startDate: formatDate(startTime),
+        endDate: adjustedEndDate,
+        color: event.getColor() || '',
+        source: 'CalendarApp'
+      };
+    });
 
     Logger.log('[getCalendarEvents] ========== END (SUCCESS) ==========');
     return {
@@ -283,6 +302,15 @@ function parseICS(icsContent, startDate, endDate) {
         const eventEnd = currentEvent.endDate ? new Date(currentEvent.endDate) : eventStart;
 
         if (eventStart <= endFilter && eventEnd >= startFilter) {
+          // ICSの終日イベントも終了日が翌日になっている場合がある
+          // 終日イベントでendDate > startDateの場合は1日引く
+          let adjustedEndDate = currentEvent.endDate || currentEvent.startDate;
+          if (currentEvent.isAllDay && currentEvent.endDate && currentEvent.endDate > currentEvent.startDate) {
+            const endDate = new Date(currentEvent.endDate);
+            endDate.setDate(endDate.getDate() - 1);
+            adjustedEndDate = Utilities.formatDate(endDate, 'Asia/Tokyo', 'yyyy-MM-dd');
+          }
+
           events.push({
             id: currentEvent.uid || '',
             title: currentEvent.summary || '(タイトルなし)',
@@ -292,7 +320,7 @@ function parseICS(icsContent, startDate, endDate) {
             endTime: currentEvent.endTime || '',
             isAllDay: currentEvent.isAllDay || false,
             startDate: currentEvent.startDate,
-            endDate: currentEvent.endDate || currentEvent.startDate,
+            endDate: adjustedEndDate,
             color: '',
             source: 'ICS'
           });
