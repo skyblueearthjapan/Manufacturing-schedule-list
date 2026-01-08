@@ -9086,13 +9086,16 @@ const CalendarEventViewer = {
           const eventData = encodeURIComponent(JSON.stringify(event));
 
           // 電気予定の場合、タイトル先頭文字で色を決定
+          // CSS上書き対策で !important を使用、テキストも白に
           let colorStyle = '';
           if (calendarType === 'electrical') {
             const firstChar = (event.title || '').replace(/^[:：\s]+/, '').charAt(0);
             if (firstChar === '長') {
-              colorStyle = 'background-color: #2ECC71; border-left-color: #27AE60;';  // 緑
+              // 緑：白文字で見やすく
+              colorStyle = 'background-color: #2ECC71 !important; border-left-color: #27AE60 !important; color: #fff !important;';
             } else if (firstChar === '奥') {
-              colorStyle = 'background-color: #F39C12; border-left-color: #E67E22;';  // オレンジ
+              // オレンジ：白文字で見やすく
+              colorStyle = 'background-color: #F39C12 !important; border-left-color: #E67E22 !important; color: #fff !important;';
             }
           }
 
