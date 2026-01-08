@@ -54,9 +54,27 @@ function getDeptHeaderColor(dept) {
 // ========================================
 
 const Utils = {
+  /**
+   * YYYY-MM-DD文字列をローカル日付として安全にパース
+   * new Date("2026-01-13") はUTC解釈されるが、
+   * new Date(2026, 0, 13) はローカル解釈される
+   * @param {string} dateStr - YYYY-MM-DD形式の日付文字列
+   * @returns {Date} ローカルタイムゾーンの日付
+   */
+  parseLocalDate(dateStr) {
+    if (!dateStr) return new Date();
+    if (dateStr instanceof Date) return dateStr;
+    const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) {
+      return new Date(parseInt(match[1]), parseInt(match[2]) - 1, parseInt(match[3]));
+    }
+    // フォールバック（非推奨だがエラー回避）
+    return new Date(dateStr);
+  },
+
   formatDate(date) {
     if (!date) return '';
-    const d = new Date(date);
+    const d = date instanceof Date ? date : this.parseLocalDate(date);
     const year = d.getFullYear();
     const month = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
@@ -68,25 +86,25 @@ const Utils = {
   },
 
   addDays(dateStr, days) {
-    const d = new Date(dateStr);
+    const d = this.parseLocalDate(dateStr);
     d.setDate(d.getDate() + days);
     return this.formatDate(d);
   },
 
   getDaysBetween(startDate, endDate) {
-    const start = new Date(startDate);
-    const end = new Date(endDate);
+    const start = this.parseLocalDate(startDate);
+    const end = this.parseLocalDate(endDate);
     return Math.ceil((end - start) / (1000 * 60 * 60 * 24));
   },
 
   getDayOfWeek(dateStr) {
     const days = ['日', '月', '火', '水', '木', '金', '土'];
-    const d = new Date(dateStr);
+    const d = this.parseLocalDate(dateStr);
     return days[d.getDay()];
   },
 
   isWeekend(dateStr) {
-    const d = new Date(dateStr);
+    const d = this.parseLocalDate(dateStr);
     const day = d.getDay();
     return day === 0 || day === 6;
   },
@@ -96,11 +114,11 @@ const Utils = {
   },
 
   getMonth(dateStr) {
-    return new Date(dateStr).getMonth() + 1;
+    return this.parseLocalDate(dateStr).getMonth() + 1;
   },
 
   getDay(dateStr) {
-    return new Date(dateStr).getDate();
+    return this.parseLocalDate(dateStr).getDate();
   },
 
   formatShortDate(dateStr) {
@@ -8014,8 +8032,8 @@ const TravelPlan = {
     const isLocked = trip.isLocked === true;
     const lockIcon = isLocked ? '<span class="travel-lock-icon">🔒</span>' : '';
 
-    // Phase C: 開始日バッジ（月/日）
-    const startDate = new Date(trip.start);
+    // Phase C: 開始日バッジ（月/日）- parseLocalDateでUTC問題を回避
+    const startDate = Utils.parseLocalDate(trip.start);
     const startBadge = `${startDate.getMonth() + 1}/${startDate.getDate()}`;
 
     if (trip.kind === 'move') {
@@ -8335,7 +8353,7 @@ const TravelPlan = {
   renderEmbeddedTripBar(trip, xStart, width) {
     const isLocked = trip.isLocked === true;
     const lockIcon = isLocked ? '<span class="travel-lock-icon">🔒</span>' : '';
-    const startDate = new Date(trip.start);
+    const startDate = Utils.parseLocalDate(trip.start);
     const startBadge = `${startDate.getMonth() + 1}/${startDate.getDate()}`;
 
     if (trip.kind === 'move') {
@@ -8907,11 +8925,8 @@ const CalendarEventViewer = {
     // ローディング表示
     container.innerHTML = '<div class="calendar-events-loading">カレンダー読み込み中...</div>';
 
-    // 終了日を計算
-    const start = new Date(startDate);
-    const end = new Date(start);
-    end.setDate(end.getDate() + days - 1);
-    const endDate = end.toISOString().slice(0, 10);
+    // 終了日を計算（Utils.addDaysを使ってUTC問題を回避）
+    const endDate = Utils.addDays(startDate, days - 1);
 
     // イベントを取得
     const result = await this.fetchEvents(calendarType, startDate, endDate);
@@ -8965,23 +8980,22 @@ const CalendarEventViewer = {
    */
   renderMonthView(container, events, startDate, days, calendarType, sourceNote = '') {
     const dates = Utils.generateDateRange(startDate, days);
-    const today = new Date().toISOString().slice(0, 10);
+    const today = Utils.getToday();
 
     // イベントを日付でマップ化
     const eventsByDate = {};
     events.forEach(event => {
       // 終日イベントや複数日イベントの処理
       const eventStart = event.startDate;
-      const eventEnd = event.isAllDay
-        ? event.endDate
-        : event.endDate;
+      const eventEnd = event.endDate;
 
       // イベントが含まれる各日にマッピング
-      let current = new Date(eventStart);
-      const endCheck = new Date(eventEnd);
+      // Utils.parseLocalDate()を使ってUTC解釈を回避
+      let current = Utils.parseLocalDate(eventStart);
+      const endCheck = Utils.parseLocalDate(eventEnd);
 
       while (current <= endCheck) {
-        const dateStr = current.toISOString().slice(0, 10);
+        const dateStr = Utils.formatDate(current);
         if (!eventsByDate[dateStr]) {
           eventsByDate[dateStr] = [];
         }
@@ -9009,12 +9023,12 @@ const CalendarEventViewer = {
 
       // 月の最初の日と最後の日
       const monthDates = monthGroups[month];
-      const firstDate = new Date(monthDates[0]);
-      const lastDate = new Date(monthDates[monthDates.length - 1]);
+      const firstDate = Utils.parseLocalDate(monthDates[0]);
+      const lastDate = Utils.parseLocalDate(monthDates[monthDates.length - 1]);
 
-      // 月全体のカレンダーグリッドを生成
-      const firstDayOfMonth = new Date(year, parseInt(monthNum) - 1, 1);
-      const lastDayOfMonth = new Date(year, parseInt(monthNum), 0);
+      // 月全体のカレンダーグリッドを生成（これはローカル生成なのでOK）
+      const firstDayOfMonth = new Date(parseInt(year), parseInt(monthNum) - 1, 1);
+      const lastDayOfMonth = new Date(parseInt(year), parseInt(monthNum), 0);
       const startDayOfWeek = firstDayOfMonth.getDay(); // 0=Sun
 
       html += `
@@ -9041,8 +9055,8 @@ const CalendarEventViewer = {
 
       // 月の各日を描画
       for (let day = 1; day <= lastDayOfMonth.getDate(); day++) {
-        const date = new Date(year, parseInt(monthNum) - 1, day);
-        const dateStr = date.toISOString().slice(0, 10);
+        const date = new Date(parseInt(year), parseInt(monthNum) - 1, day);
+        const dateStr = Utils.formatDate(date);  // toISOStringはUTCなので使わない
         const dayOfWeek = date.getDay();
         const isInRange = monthDates.includes(dateStr);
 
