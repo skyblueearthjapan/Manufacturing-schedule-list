@@ -4619,88 +4619,85 @@
     overflow: visible;
   }
 
-  /* 矢印バー（SVG版） */
+  /* ====== バー共通スタイル ====== */
   .excel-bar {
     position: absolute;
-    height: 14px;
+    border-radius: 2px;
     pointer-events: auto;
     cursor: pointer;
     transition: filter 0.15s;
+    box-sizing: border-box;
   }
 
   .excel-bar:hover {
     filter: brightness(1.1);
   }
 
-  .excel-bar svg {
-    width: 100%;
-    height: 100%;
-  }
-
-  /* バー上のテキスト（はみ出しOK） */
-  .excel-bar-text {
+  .excel-bar .bar-label {
     position: absolute;
-    top: 0;
     left: 4px;
     right: 4px;
-    height: 14px;
-    line-height: 14px;
+    top: 0;
+    bottom: 0;
+    line-height: inherit;
     font-size: 10px;
     white-space: nowrap;
-    overflow: visible;
+    overflow: hidden;
+    text-overflow: ellipsis;
     color: #fff;
     text-shadow: 0 1px 1px rgba(0,0,0,0.3);
     pointer-events: none;
-  }
-
-  .excel-bar-text.dark-text {
-    color: #333;
-    text-shadow: none;
-  }
-
-  /* CSSベースの矢印バー（SVGの代替） */
-  .excel-bar-arrow {
-    position: absolute;
-    height: 14px;
     display: flex;
     align-items: center;
-    pointer-events: auto;
-    cursor: pointer;
-    transition: filter 0.15s;
   }
 
-  .excel-bar-arrow:hover {
-    filter: brightness(1.1);
+  /* ====== 矩形バー（rect）====== */
+  .excel-bar--rect {
+    border-radius: 3px;
   }
 
-  .excel-bar-arrow .bar-body {
+  .excel-bar--rect .bar-label {
+    line-height: 16px;
+  }
+
+  /* ====== 矢印バー（arrow）====== */
+  .excel-bar--arrow {
+    display: flex;
+    align-items: center;
+    background: transparent !important;
+  }
+
+  .excel-bar--arrow .bar-body {
     flex: 1;
-    height: 10px;
+    height: 12px;
     min-width: 4px;
     border-radius: 2px 0 0 2px;
   }
 
-  .excel-bar-arrow .bar-arrow {
+  .excel-bar--arrow .bar-arrow {
     width: 0;
     height: 0;
-    border-top: 7px solid transparent;
-    border-bottom: 7px solid transparent;
-    border-left-width: 8px;
+    border-top: 8px solid transparent;
+    border-bottom: 8px solid transparent;
+    border-left-width: 10px;
     border-left-style: solid;
   }
 
-  .excel-bar-arrow .bar-label {
-    position: absolute;
-    left: 4px;
-    top: 0;
-    height: 14px;
-    line-height: 14px;
-    font-size: 10px;
-    white-space: nowrap;
-    overflow: visible;
-    color: #fff;
-    text-shadow: 0 1px 1px rgba(0,0,0,0.3);
-    pointer-events: none;
+  .excel-bar--arrow .bar-label {
+    left: 6px;
+    right: 14px;
+  }
+
+  /* ====== 破線バー（dash）====== */
+  .excel-bar--dash {
+    background: transparent;
+    border: 2px dashed;
+    border-radius: 3px;
+  }
+
+  .excel-bar--dash .bar-label {
+    text-shadow: none;
+    font-weight: 500;
   }
 
   /* ====== 下部横スクロールバー ====== */

@@ -5430,9 +5430,21 @@ const ExcelGantt = {
     rowHeight: 44,            // 1案件(2行)の高さ
     headerHeight: 50,         // 日付ヘッダ高さ
     leftPaneWidth: 520,       // 左ペイン幅
-    barHeight: 14,            // バーの高さ
-    barTopOffset: 6,          // バー上部オフセット
-    barBottomOffset: 24,      // 下段バー用オフセット
+    barHeight: 16,            // バーの高さ
+    barTopOffset: 3,          // 行内上部余白
+    barGap: 2,                // バー間ギャップ
+  },
+
+  // バー種類別スタイル定義
+  // shape: "arrow" | "rect" | "dash"
+  // lane: 同一行内で上下に並べる段（0,1,2...）
+  BAR_STYLE: {
+    '出荷':     { shape: 'arrow', lane: 0 },
+    '電気設計': { shape: 'rect',  lane: 1 },
+    '機械設計': { shape: 'rect',  lane: 1 },
+    '治具':     { shape: 'rect',  lane: 1 },
+    '準備':     { shape: 'dash',  lane: 0 },
+    '_default': { shape: 'rect',  lane: 0 },
   },
 
   dates: [],
@@ -5679,9 +5691,65 @@ const ExcelGantt = {
     grid.innerHTML = html;
   },
 
-  // バー（矢印）描画
+  // バーHTML生成（shape別テンプレート）
+  buildBarHtml({ left, width, topInRow, color, label, shape, scheduleId, jobId }) {
+    const safeLabel = Utils.escapeHtml(label || '');
+    const h = this.config.barHeight;
+    const baseStyle = `left:${left}px; top:${topInRow}px; width:${width}px; height:${h}px;`;
+
+    if (shape === 'arrow') {
+      // 矢印付きバー（出荷など）
+      return `
+        <div class="excel-bar excel-bar--arrow"
+             style="${baseStyle}"
+             data-schedule-id="${scheduleId}"
+             onclick="ExcelGantt.onBarClick('${jobId}', '${scheduleId}')">
+          <div class="bar-body" style="background:${color};"></div>
+          <div class="bar-arrow" style="border-left-color:${color};"></div>
+          <span class="bar-label">${safeLabel}</span>
+        </div>`;
+    }
+    if (shape === 'dash') {
+      // 破線バー（準備など）
+      return `
+        <div class="excel-bar excel-bar--dash"
+             style="${baseStyle} border-color:${color};"
+             data-schedule-id="${scheduleId}"
+             onclick="ExcelGantt.onBarClick('${jobId}', '${scheduleId}')">
+          <span class="bar-label" style="color:${color};">${safeLabel}</span>
+        </div>`;
+    }
+    // rect（矩形バー、デフォルト）
+    return `
+      <div class="excel-bar excel-bar--rect"
+           style="${baseStyle} background:${color};"
+           data-schedule-id="${scheduleId}"
+           onclick="ExcelGantt.onBarClick('${jobId}', '${scheduleId}')">
+        <span class="bar-label">${safeLabel}</span>
+      </div>`;
+  },
+
+  // 工程名からBAR_STYLEを取得
+  getBarStyle(processName) {
+    // 完全一致を先に試す
+    if (this.BAR_STYLE[processName]) {
+      return this.BAR_STYLE[processName];
+    }
+    // 部分一致を試す（「出荷」が含まれるなど）
+    for (const key of Object.keys(this.BAR_STYLE)) {
+      if (key !== '_default' && processName.includes(key)) {
+        return this.BAR_STYLE[key];
+      }
+    }
+    return this.BAR_STYLE['_default'];
+  },
+
+  // バー描画
   renderBars(jobs) {
     const colW = this.config.colWidth;
+    const barH = this.config.barHeight;
+    const barGap = this.config.barGap;
+    const topOffset = this.config.barTopOffset;
 
     jobs.forEach((job) => {
       // 各行の.bar-layerを取得
@@ -5692,11 +5760,8 @@ const ExcelGantt = {
 
       const schedules = Store.getSchedulesByJobId(job.jobId);
 
-      // レーン割り当て（重なり対応）
-      const { items, laneCount } = this.assignLanes(schedules);
-
       let html = '';
-      items.forEach(sch => {
+      schedules.forEach(sch => {
         const startIdx = this.getDateIndex(sch.start);
         const endIdx = this.getDateIndex(sch.end);
 
@@ -5711,26 +5776,25 @@ const ExcelGantt = {
         const left = visStart * colW;
         const width = (visEnd - visStart + 1) * colW;
 
-        // Y位置（レーン内のオフセットのみ、topは不要）
-        const lane = sch._lane || 0;
-        const topInRow = this.config.barTopOffset + (lane * (this.config.barHeight + 2));
-
-        // 工程色
+        // 工程情報取得
         const process = Store.getProcessById(sch.processId);
+        const processName = process?.['工程名'] || '';
         const color = process?.['工程色'] || '#4A90E2';
-        const label = sch.label || process?.['工程名'] || '';
+        const label = sch.label || processName;
 
-        // 矢印バー描画（CSS版）
-        html += `
-          <div class="excel-bar-arrow"
-               style="left:${left}px; top:${topInRow}px; width:${width}px;"
-               data-schedule-id="${sch.scheduleId}"
-               onclick="ExcelGantt.onBarClick('${job.jobId}', '${sch.scheduleId}')">
-            <div class="bar-body" style="background:${color};"></div>
-            <div class="bar-arrow" style="border-left-color:${color};"></div>
-            <span class="bar-label">${Utils.escapeHtml(label)}</span>
-          </div>
-        `;
+        // BAR_STYLEからshapeとlaneを取得
+        const style = this.getBarStyle(processName);
+        const lane = style.lane || 0;
+        const shape = style.shape || 'rect';
+
+        // Y位置（lane基準）
+        const topInRow = topOffset + (lane * (barH + barGap));
+
+        html += this.buildBarHtml({
+          left, width, topInRow, color, label, shape,
+          scheduleId: sch.scheduleId,
+          jobId: job.jobId
+        });
       });
 
       layer.innerHTML = html;
