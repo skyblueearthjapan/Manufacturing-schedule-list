@@ -4306,7 +4306,7 @@
   .xl-row {
     display: grid;
     grid-template-columns: 46px 1fr 80px 90px;
-    border-bottom: 1px solid #808080;
+    border-bottom: 1px solid #ccc;
     border-left: 1px solid #808080;
     background: #fff;
     height: var(--excel-row-h);
@@ -4344,13 +4344,14 @@
     border-bottom: 1px solid #ccc;
   }
 
-  /* 共通：下段セル */
+  /* 共通：下段セル（行の境界線） */
   .xl-no .no-bottom,
   .xl-main-line2,
   .xl-ship .ship-bottom,
   .xl-draw .draw-bottom {
     display: flex;
     align-items: center;
+    border-bottom: 1px solid #ccc;
   }
 
   /* No列 */
