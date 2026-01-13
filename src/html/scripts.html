@@ -5654,7 +5654,10 @@ const ExcelGantt = {
 
     let html = '';
     for (let r = 0; r < jobs.length; r++) {
-      html += `<div class="excel-grid-row">`;
+      const jobId = jobs[r].jobId;
+      html += `<div class="excel-grid-row" data-job-id="${jobId}">`;
+      // バー用レイヤーを各行に追加
+      html += `<div class="bar-layer"></div>`;
       for (let c = 0; c < this.dates.length; c++) {
         const date = this.dates[c];
         const d = Utils.parseLocalDate(date);
@@ -5678,19 +5681,21 @@ const ExcelGantt = {
 
   // バー（矢印）描画
   renderBars(jobs) {
-    const layer = document.getElementById('excelBarsLayer');
-    if (!layer) return;
-
-    let html = '';
     const colW = this.config.colWidth;
-    const rowH = this.config.rowHeight;
 
-    jobs.forEach((job, rowIndex) => {
+    jobs.forEach((job) => {
+      // 各行の.bar-layerを取得
+      const row = document.querySelector(`.excel-grid-row[data-job-id="${job.jobId}"]`);
+      if (!row) return;
+      const layer = row.querySelector('.bar-layer');
+      if (!layer) return;
+
       const schedules = Store.getSchedulesByJobId(job.jobId);
 
       // レーン割り当て（重なり対応）
       const { items, laneCount } = this.assignLanes(schedules);
 
+      let html = '';
       items.forEach(sch => {
         const startIdx = this.getDateIndex(sch.start);
         const endIdx = this.getDateIndex(sch.end);
@@ -5706,10 +5711,9 @@ const ExcelGantt = {
         const left = visStart * colW;
         const width = (visEnd - visStart + 1) * colW;
 
-        // Y位置（レーンに応じて）
+        // Y位置（レーン内のオフセットのみ、topは不要）
         const lane = sch._lane || 0;
-        const topBase = rowIndex * rowH;
-        const top = topBase + this.config.barTopOffset + (lane * (this.config.barHeight + 2));
+        const topInRow = this.config.barTopOffset + (lane * (this.config.barHeight + 2));
 
         // 工程色
         const process = Store.getProcessById(sch.processId);
@@ -5719,7 +5723,7 @@ const ExcelGantt = {
         // 矢印バー描画（CSS版）
         html += `
           <div class="excel-bar-arrow"
-               style="left:${left}px; top:${top}px; width:${width}px;"
+               style="left:${left}px; top:${topInRow}px; width:${width}px;"
                data-schedule-id="${sch.scheduleId}"
                onclick="ExcelGantt.onBarClick('${job.jobId}', '${sch.scheduleId}')">
             <div class="bar-body" style="background:${color};"></div>
@@ -5728,9 +5732,9 @@ const ExcelGantt = {
           </div>
         `;
       });
-    });
 
-    layer.innerHTML = html;
+      layer.innerHTML = html;
+    });
   },
 
   // 日付インデックス取得
