@@ -5573,6 +5573,11 @@ const ExcelGantt = {
       const mainPerson = job.mainPersonId ? Store.getPersonById(job.mainPersonId) : null;
       const mainName = mainPerson?.['氏名'] || '';
 
+      // PDF情報
+      const pdfInfo = Store.getJobPdfInfo(jobNo);
+      const hasOrderPdf = pdfInfo?.order?.fileId ? true : false;
+      const hasInstructionPdf = pdfInfo?.instruction?.fileId ? true : false;
+
       // 強調行（重要メモありの場合）
       const highlightClass = statusText ? ' highlight-row' : '';
 
@@ -5582,13 +5587,25 @@ const ExcelGantt = {
             <span class="code">${Utils.escapeHtml(jobNo)}</span>
             <span class="pill">${Utils.escapeHtml(qty)}</span>
             <span class="text">${Utils.escapeHtml(customer)}</span>
-            <span class="text-secondary">/ ${Utils.escapeHtml(product)}</span>
-            ${statusText ? `<span class="pill status-important">${Utils.escapeHtml(statusText)}</span>` : ''}
+            <span class="text-secondary" style="flex:1;overflow:hidden;text-overflow:ellipsis;">/ ${Utils.escapeHtml(product)}</span>
+            <button type="button"
+              class="text-xs px-1 py-0 rounded border border-gray-300 text-gray-500 hover:bg-gray-100"
+              onclick="event.stopPropagation(); JobModal.openEdit(Store.getJobById('${job.jobId}'));"
+              title="工番を編集">✎</button>
+            <button type="button"
+              class="text-xs px-1 py-0 rounded border ${hasOrderPdf ? 'border-blue-400 text-blue-600' : 'border-gray-200 text-gray-300'}"
+              onclick="event.stopPropagation(); Gantt.openJobPdf('${Utils.escapeHtml(jobNo)}', 'order');"
+              title="受注表PDF" ${hasOrderPdf ? '' : 'disabled'}>受</button>
+            <button type="button"
+              class="text-xs px-1 py-0 rounded border ${hasInstructionPdf ? 'border-green-400 text-green-600' : 'border-gray-200 text-gray-300'}"
+              onclick="event.stopPropagation(); Gantt.openJobPdf('${Utils.escapeHtml(jobNo)}', 'instruction');"
+              title="指示書PDF" ${hasInstructionPdf ? '' : 'disabled'}>指</button>
           </div>
           <div class="excel-job-line">
             <span class="pill">出荷:${shipDate || '-'}</span>
             <span class="pill">出図:${drawDate || '-'}</span>
-            ${dest ? `<span class="pill">納入:${Utils.escapeHtml(dest)}</span>` : ''}
+            ${statusText ? `<span class="pill status-important">${Utils.escapeHtml(statusText)}</span>` : ''}
+            ${dest ? `<span class="pill">納:${Utils.escapeHtml(dest)}</span>` : ''}
             ${mainName ? `<span class="text-secondary">担当:${Utils.escapeHtml(mainName)}</span>` : ''}
           </div>
         </div>
@@ -9760,7 +9777,17 @@ const App = {
 
     // Excel風 大工程表を使用
     ExcelGantt.init();
-    // Gantt.init(); // 旧版は無効化
+
+    // 旧GanttのメソッドをExcelGanttにブリッジ（互換性維持）
+    Gantt.render = () => ExcelGantt.render();
+    Gantt.updateTodayLinePosition = () => ExcelGantt.updateTodayLine();
+    Gantt.toggleTripSection = () => ExcelGantt.toggleTripSection();
+    Gantt.handleTripPersonSearch = () => ExcelGantt.handleTripPersonSearch();
+    Gantt.clearTripPersonFilter = () => ExcelGantt.clearTripPersonFilter();
+    Gantt.renderTrips = () => ExcelGantt.renderTrips();
+    Gantt.onJobClick = (jobId) => ExcelGantt.onJobClick(jobId);
+    // openJobPdfは旧Ganttの実装を維持（変更不要）
+
     Modal.init();
     DaySettingButtons.init();
     ProcessModal.init();
