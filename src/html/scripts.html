@@ -1715,6 +1715,10 @@ const Store = {
     return this.state.people.find(p => p.personId === personId) || null;
   },
 
+  getScheduleById(scheduleId) {
+    return this.state.schedules.find(s => s.scheduleId === scheduleId) || null;
+  },
+
   /**
    * 氏名からpersonIdを解決（完全一致）
    * @param {string} name - 氏名
@@ -5481,91 +5485,146 @@ const ExcelGantt = {
     // クリックイベント（ドラッグしなかった場合のみ発火）
     grid.addEventListener('click', (e) => this.onBarClick(e));
 
+    // ドラッグキャンセル：マウスがグリッド外に出た場合（セル選択時のみ）
+    grid.addEventListener('pointerleave', (e) => {
+      if (this.dragState && this.dragState.type === 'selection') {
+        this.clearHighlight();
+        this.dragState = null;
+      }
+    });
+
     console.log('[ExcelGantt] Drag events set up');
   },
 
   // ポインターダウン：ドラッグ開始
   onPointerDown(e) {
+    // 左クリック以外は無視
+    if (e.button !== 0) return;
+
     const bar = e.target.closest('.excel-bar');
-    if (!bar) return;
+    if (bar) {
+      // === 既存バーのドラッグ（移動・リサイズ）===
+      const scheduleId = bar.dataset.scheduleId;
+      const jobId = bar.dataset.jobId;
+      if (!scheduleId) return;
 
-    const scheduleId = bar.dataset.scheduleId;
-    const jobId = bar.dataset.jobId;
-    if (!scheduleId) return;
+      // スケジュール情報を取得
+      const schedule = Store.state.schedules.find(s => s.scheduleId === scheduleId);
+      if (!schedule) return;
 
-    // スケジュール情報を取得
-    const schedule = Store.state.schedules.find(s => s.scheduleId === scheduleId);
-    if (!schedule) return;
+      // ハンドルクリックか判定
+      const handle = e.target.closest('.bar-handle');
+      let mode = 'move';
+      if (handle) {
+        mode = handle.dataset.handle === 'left' ? 'resize-left' : 'resize-right';
+      }
 
-    // ハンドルクリックか判定
-    const handle = e.target.closest('.bar-handle');
-    let mode = 'move';
-    if (handle) {
-      mode = handle.dataset.handle === 'left' ? 'resize-left' : 'resize-right';
+      // ドラッグ状態を設定
+      this.dragState = {
+        type: 'bar',
+        scheduleId,
+        jobId,
+        mode,
+        startX: e.clientX,
+        origStartDate: schedule.start,
+        origEndDate: schedule.end,
+        dayW: this.config.colWidth,
+        barEl: bar,
+        origLeft: parseFloat(bar.style.left) || 0,
+        origWidth: parseFloat(bar.style.width) || 0,
+        hasMoved: false
+      };
+
+      bar.classList.add('dragging');
+      bar.setPointerCapture(e.pointerId);
+      e.preventDefault();
+    } else {
+      // === 空セルの範囲選択（新規スケジュール作成）===
+      const cell = e.target.closest('.excel-grid-cell');
+      if (!cell) return;
+
+      const row = cell.closest('.excel-grid-row');
+      if (!row) return;
+
+      const jobId = row.dataset.jobId;
+      const date = cell.dataset.date;
+      if (!jobId || !date) return;
+
+      this.dragState = {
+        type: 'selection',
+        jobId,
+        startDate: date,
+        endDate: date,
+        hasMoved: false
+      };
+
+      this.highlightRange();
+      e.preventDefault();
     }
-
-    // ドラッグ状態を設定
-    this.dragState = {
-      scheduleId,
-      jobId,
-      mode,
-      startX: e.clientX,
-      origStartDate: schedule.start,
-      origEndDate: schedule.end,
-      dayW: this.config.colWidth,
-      barEl: bar,
-      origLeft: parseFloat(bar.style.left) || 0,
-      origWidth: parseFloat(bar.style.width) || 0,
-      hasMoved: false
-    };
-
-    bar.classList.add('dragging');
-    bar.setPointerCapture(e.pointerId);
-    e.preventDefault();
   },
 
   // ポインタームーブ：ドラッグ中のプレビュー更新
   onPointerMove(e) {
     if (!this.dragState) return;
 
-    const { startX, dayW, mode, barEl, origLeft, origWidth, origStartDate, origEndDate } = this.dragState;
-    const dx = e.clientX - startX;
+    if (this.dragState.type === 'selection') {
+      // === 空セルの範囲選択 ===
+      const cell = e.target.closest('.excel-grid-cell');
+      if (!cell) return;
 
-    // 移動があったことを記録
-    if (Math.abs(dx) > 3) {
-      this.dragState.hasMoved = true;
+      const row = cell.closest('.excel-grid-row');
+      if (!row) return;
+
+      // 同じjobId（同じ行）のみ範囲選択可能
+      if (row.dataset.jobId !== this.dragState.jobId) return;
+
+      const newDate = cell.dataset.date;
+      if (newDate && newDate !== this.dragState.endDate) {
+        this.dragState.endDate = newDate;
+        this.dragState.hasMoved = true;
+        this.highlightRange();
+      }
+    } else if (this.dragState.type === 'bar') {
+      // === 既存バーのドラッグ ===
+      const { startX, dayW, mode, barEl, origLeft, origWidth, origStartDate, origEndDate } = this.dragState;
+      const dx = e.clientX - startX;
+
+      // 移動があったことを記録
+      if (Math.abs(dx) > 3) {
+        this.dragState.hasMoved = true;
+      }
+
+      const deltaDays = Math.round(dx / dayW);
+      if (deltaDays === this.dragState.lastDeltaDays) return;
+      this.dragState.lastDeltaDays = deltaDays;
+
+      // 日付計算
+      let newStart = origStartDate;
+      let newEnd = origEndDate;
+
+      if (mode === 'move') {
+        // 平行移動
+        newStart = Utils.addDays(origStartDate, deltaDays);
+        newEnd = Utils.addDays(origEndDate, deltaDays);
+      } else if (mode === 'resize-left') {
+        // 左伸縮（開始日のみ変更）
+        newStart = Utils.addDays(origStartDate, deltaDays);
+        // start > end を防止
+        if (newStart > origEndDate) newStart = origEndDate;
+      } else if (mode === 'resize-right') {
+        // 右伸縮（終了日のみ変更）
+        newEnd = Utils.addDays(origEndDate, deltaDays);
+        // end < start を防止
+        if (newEnd < origStartDate) newEnd = origStartDate;
+      }
+
+      // プレビュー日付を保存
+      this.dragState.newStart = newStart;
+      this.dragState.newEnd = newEnd;
+
+      // UIプレビュー更新（DOM直接操作）
+      this.applyBarPreview(barEl, newStart, newEnd, origLeft, origWidth, mode, deltaDays, dayW);
     }
-
-    const deltaDays = Math.round(dx / dayW);
-    if (deltaDays === this.dragState.lastDeltaDays) return;
-    this.dragState.lastDeltaDays = deltaDays;
-
-    // 日付計算
-    let newStart = origStartDate;
-    let newEnd = origEndDate;
-
-    if (mode === 'move') {
-      // 平行移動
-      newStart = Utils.addDays(origStartDate, deltaDays);
-      newEnd = Utils.addDays(origEndDate, deltaDays);
-    } else if (mode === 'resize-left') {
-      // 左伸縮（開始日のみ変更）
-      newStart = Utils.addDays(origStartDate, deltaDays);
-      // start > end を防止
-      if (newStart > origEndDate) newStart = origEndDate;
-    } else if (mode === 'resize-right') {
-      // 右伸縮（終了日のみ変更）
-      newEnd = Utils.addDays(origEndDate, deltaDays);
-      // end < start を防止
-      if (newEnd < origStartDate) newEnd = origStartDate;
-    }
-
-    // プレビュー日付を保存
-    this.dragState.newStart = newStart;
-    this.dragState.newEnd = newEnd;
-
-    // UIプレビュー更新（DOM直接操作）
-    this.applyBarPreview(barEl, newStart, newEnd, origLeft, origWidth, mode, deltaDays, dayW);
   },
 
   // バープレビュー更新（DOM直接操作）
@@ -5590,27 +5649,45 @@ const ExcelGantt = {
   onPointerUp(e) {
     if (!this.dragState) return;
 
-    const { scheduleId, barEl, hasMoved, newStart, newEnd, origStartDate, origEndDate } = this.dragState;
+    if (this.dragState.type === 'selection') {
+      // === 空セルの範囲選択終了 → モーダルを開く ===
+      const { jobId, startDate, endDate } = this.dragState;
 
-    barEl.classList.remove('dragging');
-    barEl.releasePointerCapture(e.pointerId);
+      // ハイライトをクリア
+      this.clearHighlight();
 
-    // 移動があり、日付が変わった場合のみ保存
-    if (hasMoved && (newStart !== origStartDate || newEnd !== origEndDate)) {
-      // pendingChangesに追加
-      ChangeBuffer.add('schedule', 'upsert', scheduleId, {
-        start: newStart,
-        end: newEnd
-      }, 'master');
+      // 範囲確定（開始 <= 終了 になるよう調整）
+      const rangeStart = startDate <= endDate ? startDate : endDate;
+      const rangeEnd = startDate <= endDate ? endDate : startDate;
 
-      // ローカルStoreも更新（即時反映）
-      const schedule = Store.state.schedules.find(s => s.scheduleId === scheduleId);
-      if (schedule) {
-        schedule.start = newStart;
-        schedule.end = newEnd;
+      // モーダルを開く
+      Modal.openNew(jobId, rangeStart, rangeEnd);
+
+      console.log(`[ExcelGantt] Selection complete: jobId=${jobId}, ${rangeStart}〜${rangeEnd}`);
+    } else if (this.dragState.type === 'bar') {
+      // === 既存バーのドラッグ終了 ===
+      const { scheduleId, barEl, hasMoved, newStart, newEnd, origStartDate, origEndDate } = this.dragState;
+
+      barEl.classList.remove('dragging');
+      barEl.releasePointerCapture(e.pointerId);
+
+      // 移動があり、日付が変わった場合のみ保存
+      if (hasMoved && (newStart !== origStartDate || newEnd !== origEndDate)) {
+        // pendingChangesに追加
+        ChangeBuffer.add('schedule', 'upsert', scheduleId, {
+          start: newStart,
+          end: newEnd
+        }, 'master');
+
+        // ローカルStoreも更新（即時反映）
+        const schedule = Store.state.schedules.find(s => s.scheduleId === scheduleId);
+        if (schedule) {
+          schedule.start = newStart;
+          schedule.end = newEnd;
+        }
+
+        console.log(`[ExcelGantt] Schedule ${scheduleId} updated: ${origStartDate}~${origEndDate} → ${newStart}~${newEnd}`);
       }
-
-      console.log(`[ExcelGantt] Schedule ${scheduleId} updated: ${origStartDate}~${origEndDate} → ${newStart}~${newEnd}`);
     }
 
     this.dragState = null;
@@ -5627,14 +5704,46 @@ const ExcelGantt = {
     // ハンドルクリックは無視
     if (e.target.closest('.bar-handle')) return;
 
-    const jobId = bar.dataset.jobId;
     const scheduleId = bar.dataset.scheduleId;
-    if (jobId && scheduleId) {
-      // 詳細ダイアログを開く（既存機能があれば）
-      if (typeof JobDetail !== 'undefined' && JobDetail.open) {
-        JobDetail.open(jobId);
+    if (scheduleId) {
+      // スケジュール編集モーダルを開く（旧UIと同じ）
+      const schedule = Store.getScheduleById(scheduleId);
+      if (schedule) {
+        Modal.openEdit(schedule);
       }
     }
+  },
+
+  // 選択範囲をハイライト
+  highlightRange() {
+    this.clearHighlight();
+
+    if (!this.dragState || this.dragState.type !== 'selection') return;
+
+    const { jobId, startDate, endDate } = this.dragState;
+    if (!jobId || !startDate || !endDate) return;
+
+    const rangeStart = startDate <= endDate ? startDate : endDate;
+    const rangeEnd = startDate <= endDate ? endDate : startDate;
+
+    // 該当行のセルをハイライト
+    const row = document.querySelector(`.excel-grid-row[data-job-id="${jobId}"]`);
+    if (!row) return;
+
+    const cells = row.querySelectorAll('.excel-grid-cell');
+    cells.forEach(cell => {
+      const date = cell.dataset.date;
+      if (date >= rangeStart && date <= rangeEnd) {
+        cell.classList.add('selected-range');
+      }
+    });
+  },
+
+  // ハイライトをクリア
+  clearHighlight() {
+    document.querySelectorAll('#excelGrid .selected-range').forEach(cell => {
+      cell.classList.remove('selected-range');
+    });
   },
 
   // スクロール同期設定
