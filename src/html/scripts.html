@@ -5588,8 +5588,11 @@ const ExcelGantt = {
 
       html += `
         <div class="xl-row${highlightClass}" data-job-id="${job.jobId}" onclick="ExcelGantt.onJobClick('${job.jobId}')">
-          <!-- No列（番号のみ） -->
-          <div class="xl-no">${rowNum}</div>
+          <!-- No列（上段：番号、下段：空） -->
+          <div class="xl-no">
+            <div class="no-top">${rowNum}</div>
+            <div class="no-bottom"></div>
+          </div>
 
           <!-- メイン列（2行） -->
           <div class="xl-main">
@@ -5619,11 +5622,17 @@ const ExcelGantt = {
             </div>
           </div>
 
-          <!-- 出荷予定日列（日付のみ） -->
-          <div class="xl-ship">${shipDate || '-'}</div>
+          <!-- 出荷予定日列（上段：日付、下段：空） -->
+          <div class="xl-ship">
+            <div class="ship-top">${shipDate || '-'}</div>
+            <div class="ship-bottom"></div>
+          </div>
 
-          <!-- 出図日列（日付のみ） -->
-          <div class="xl-draw">${drawDatePlan || '-'}</div>
+          <!-- 出図日列（上段：日付、下段：空） -->
+          <div class="xl-draw">
+            <div class="draw-top">${drawDatePlan || '-'}</div>
+            <div class="draw-bottom"></div>
+          </div>
         </div>
       `;
     });
