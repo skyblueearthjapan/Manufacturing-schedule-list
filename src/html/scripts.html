@@ -5545,7 +5545,7 @@ const ExcelGantt = {
     cols.style.width = `${this.dates.length * this.config.colWidth}px`;
   },
 
-  // 左ペイン（工番情報）描画
+  // 左ペイン（工番情報）描画 - Excel風4列レイアウト
   renderLeft(jobs) {
     const container = document.getElementById('excelLeftRows');
     if (!container) return;
@@ -5564,10 +5564,11 @@ const ExcelGantt = {
       const jobNo = job['工番'] || '';
       const customer = job['顧客名'] || '';
       const product = job['設備/製品名'] || '';
-      const qty = job['台数'] || '';
+      const qty = job['台数'] || '1式';
       const dest = job['納入先'] || '';
       const shipDate = this.formatShortDate(job['出荷予定日']);
-      const drawDate = this.formatShortDate(job['出図予定日']);
+      const drawDatePlan = this.formatShortDate(job['出図予定日']);
+      const drawDateActual = this.formatShortDate(job['出図実績日']);
       const statusText = job['重要メモ'] || '';
 
       // 担当者
@@ -5582,32 +5583,55 @@ const ExcelGantt = {
       // 強調行（重要メモありの場合）
       const highlightClass = statusText ? ' highlight-row' : '';
 
+      // No列の表示（連番）
+      const rowNum = idx + 1;
+
       html += `
-        <div class="excel-job-card${highlightClass}" data-job-id="${job.jobId}" onclick="ExcelGantt.onJobClick('${job.jobId}')">
-          <div class="excel-job-line">
-            <span class="code">${Utils.escapeHtml(jobNo)}</span>
-            <span class="pill">${Utils.escapeHtml(qty)}</span>
-            <span class="text">${Utils.escapeHtml(customer)}</span>
-            <span class="text-secondary" style="flex:1;overflow:hidden;text-overflow:ellipsis;">/ ${Utils.escapeHtml(product)}</span>
-            <button type="button"
-              class="text-xs px-1 py-0 rounded border border-gray-300 text-gray-500 hover:bg-gray-100"
-              onclick="event.stopPropagation(); JobModal.openEdit(Store.getJobById('${job.jobId}'));"
-              title="工番を編集">✎</button>
-            <button type="button"
-              class="text-xs px-1 py-0 rounded border ${hasOrderPdf ? 'border-blue-400 text-blue-600' : 'border-gray-200 text-gray-300'}"
-              onclick="event.stopPropagation(); Gantt.openJobPdf('${Utils.escapeHtml(jobNo)}', 'order');"
-              title="受注表PDF" ${hasOrderPdf ? '' : 'disabled'}>受</button>
-            <button type="button"
-              class="text-xs px-1 py-0 rounded border ${hasInstructionPdf ? 'border-green-400 text-green-600' : 'border-gray-200 text-gray-300'}"
-              onclick="event.stopPropagation(); Gantt.openJobPdf('${Utils.escapeHtml(jobNo)}', 'instruction');"
-              title="指示書PDF" ${hasInstructionPdf ? '' : 'disabled'}>指</button>
+        <div class="xl-row${highlightClass}" data-job-id="${job.jobId}" onclick="ExcelGantt.onJobClick('${job.jobId}')">
+          <!-- No列 -->
+          <div class="xl-no">
+            <div class="no-top">${rowNum}</div>
+            <div class="no-bottom">${Utils.escapeHtml(jobNo)}</div>
           </div>
-          <div class="excel-job-line">
-            <span class="pill">出荷:${shipDate || '-'}</span>
-            <span class="pill">出図:${drawDate || '-'}</span>
-            ${statusText ? `<span class="pill status-important">${Utils.escapeHtml(statusText)}</span>` : ''}
-            ${dest ? `<span class="pill">納:${Utils.escapeHtml(dest)}</span>` : ''}
-            ${mainName ? `<span class="text-secondary">担当:${Utils.escapeHtml(mainName)}</span>` : ''}
+
+          <!-- メイン列（2行） -->
+          <div class="xl-main">
+            <div class="xl-main-line1">
+              <span class="job-link" onclick="event.stopPropagation(); JobModal.openEdit(Store.getJobById('${job.jobId}'));">${Utils.escapeHtml(jobNo)}</span>
+              <span class="unit">${Utils.escapeHtml(qty)}</span>
+              <span class="title">${Utils.escapeHtml(customer)}</span>
+              <span style="color:#666;">/ ${Utils.escapeHtml(product)}</span>
+              <div class="xl-actions">
+                <button type="button"
+                  onclick="event.stopPropagation(); JobModal.openEdit(Store.getJobById('${job.jobId}'));"
+                  title="工番を編集">✎</button>
+                <button type="button"
+                  class="btn-order${hasOrderPdf ? ' active' : ''}"
+                  onclick="event.stopPropagation(); Gantt.openJobPdf('${Utils.escapeHtml(jobNo)}', 'order');"
+                  title="受注表PDF" ${hasOrderPdf ? '' : 'disabled'}>受</button>
+                <button type="button"
+                  class="btn-inst${hasInstructionPdf ? ' active' : ''}"
+                  onclick="event.stopPropagation(); Gantt.openJobPdf('${Utils.escapeHtml(jobNo)}', 'instruction');"
+                  title="指示書PDF" ${hasInstructionPdf ? '' : 'disabled'}>指</button>
+              </div>
+            </div>
+            <div class="xl-main-line2">
+              ${statusText ? `<span style="color:#c62828;font-weight:600;">${Utils.escapeHtml(statusText)}</span>` : ''}
+              ${dest ? `<span class="dest">納:${Utils.escapeHtml(dest)}</span>` : ''}
+              ${mainName ? `<span style="color:#666;">担当:${Utils.escapeHtml(mainName)}</span>` : ''}
+            </div>
+          </div>
+
+          <!-- 出荷予定日列 -->
+          <div class="xl-ship">
+            <div class="ship-top">${shipDate || '-'}</div>
+            <div class="ship-bottom"></div>
+          </div>
+
+          <!-- 出図日列（希望日/実績） -->
+          <div class="xl-draw">
+            <div class="draw-top">${drawDatePlan || '-'}</div>
+            <div class="draw-bottom">${drawDateActual ? '→' + drawDateActual : ''}</div>
           </div>
         </div>
       `;
