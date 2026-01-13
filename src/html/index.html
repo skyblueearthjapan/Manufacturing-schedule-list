@@ -170,82 +170,66 @@
       </div>
     </div>
 
-    <!-- MasterView（大工程表）- 2ペイン構造（縦スクロール統一） -->
+    <!-- MasterView（大工程表）- Excel風2ペイン構造 -->
     <div id="view-master" class="view-container flex flex-col">
-      <!-- 縦スクロールコンテナ（横スクロールバー分を除く高さ） -->
-      <div id="gantt-v-scroll" class="flex-1 overflow-y-auto relative min-h-0">
-
-        <!-- ヘッダ（sticky top） -->
-        <div class="sticky top-0 z-30 bg-white border-b border-gray-300">
-          <div class="flex">
-            <!-- 左ヘッダ：固定 -->
-            <div class="w-[360px] shrink-0 border-r border-gray-300 bg-gray-100 px-3 py-2 flex items-center justify-between">
-              <div class="text-xs text-gray-600 font-semibold">工番情報</div>
-              <div class="flex items-center space-x-2">
-                <!-- 工番検索 -->
-                <div class="relative" id="job-search-container">
-                  <input type="text" id="job-search-input" class="border border-gray-300 rounded px-2 py-1 text-xs w-24 focus:ring-1 focus:ring-primary focus:border-primary" placeholder="工番/顧客/製品">
-                  <button type="button" id="job-search-clear" class="absolute right-1 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 hidden" title="クリア">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                    </svg>
-                  </button>
-                </div>
-                <!-- 担当者検索 -->
-                <div class="relative" id="person-search-container">
-                  <input type="text" id="person-search-input" class="border border-gray-300 rounded px-2 py-1 text-xs w-20 focus:ring-1 focus:ring-primary focus:border-primary" placeholder="担当者名">
-                  <button type="button" id="person-search-clear" class="absolute right-1 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 hidden" title="クリア">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                    </svg>
-                  </button>
-                </div>
-                <span id="job-search-count" class="text-xs text-gray-500 hidden"></span>
-                <button type="button" class="btn btn-primary text-xs py-1 px-2" onclick="JobModal.openNew()">＋ 工番追加</button>
-              </div>
+      <!-- Excel風工程表ラッパー -->
+      <div class="excel-gantt-wrap flex-1">
+        <!-- 左ペイン：工番情報 -->
+        <div class="excel-left-pane">
+          <!-- 左ヘッダ -->
+          <div class="excel-left-header">
+            <div class="title">工番情報</div>
+            <!-- 工番検索 -->
+            <div class="relative" id="job-search-container">
+              <input type="text" id="job-search-input" class="border border-gray-400 rounded px-2 py-0.5 text-xs w-20 focus:ring-1 focus:ring-primary" placeholder="工番/顧客">
+              <button type="button" id="job-search-clear" class="absolute right-1 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 hidden" title="クリア">×</button>
             </div>
-
-            <!-- 右ヘッダ：横スクロール（ボディと連動） -->
-            <div class="flex-1 overflow-hidden bg-gray-100">
-              <div id="gantt-h-scroll-header" class="overflow-x-auto gantt-hide-scrollbar">
-                <div class="gantt-date-header flex" id="gantt-date-header">
-                  <!-- JSで生成 -->
-                </div>
-              </div>
+            <!-- 担当者検索 -->
+            <div class="relative" id="person-search-container">
+              <input type="text" id="person-search-input" class="border border-gray-400 rounded px-2 py-0.5 text-xs w-16 focus:ring-1 focus:ring-primary" placeholder="担当者">
+              <button type="button" id="person-search-clear" class="absolute right-1 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 hidden" title="クリア">×</button>
             </div>
+            <span id="job-search-count" class="text-xs text-gray-500 hidden"></span>
+            <button type="button" class="btn btn-primary text-xs py-0.5 px-2" onclick="JobModal.openNew()">＋追加</button>
+          </div>
+          <!-- 左の行コンテナ -->
+          <div id="excelLeftRows" class="excel-left-rows">
+            <!-- JSで生成 -->
           </div>
         </div>
 
-        <!-- ボディ -->
-        <div class="flex">
-          <!-- 左ボディ：縦スクロールは親に任せる（overflowなし） -->
-          <div id="gantt-job-pane" class="w-[360px] shrink-0 border-r border-gray-300 bg-white">
-            <!-- 工番情報ブロック × n（JSで生成） -->
-          </div>
-
-          <!-- 右ボディ：横スクロールのみ -->
-          <div class="flex-1 overflow-hidden">
-            <div id="gantt-h-scroll-body" class="overflow-x-auto">
-              <div class="gantt-grid relative" id="gantt-grid">
-                <!-- グリッド行 × n（JSで生成） -->
-              </div>
+        <!-- 右ペイン：日付グリッド -->
+        <div class="excel-right-pane">
+          <!-- 日付ヘッダ（sticky） -->
+          <div id="excelTimeHeader" class="excel-time-header">
+            <div id="excelTimeHeaderCols" class="cols">
+              <!-- JSで生成 -->
             </div>
+          </div>
+          <!-- 本体スクロール領域 -->
+          <div id="excelTimeBody" class="excel-time-body">
+            <div id="excelGrid" class="excel-grid" style="--days: 0; --rows: 0;">
+              <!-- JSで生成 -->
+            </div>
+            <!-- バー描画レイヤ -->
+            <div class="excel-bars-layer" id="excelBarsLayer">
+              <!-- JSで生成 -->
+            </div>
+            <!-- 今日ライン -->
+            <div class="excel-today-line" id="excelTodayLine" style="display:none;"></div>
           </div>
         </div>
 
-        <!-- 今日ライン -->
-        <div class="today-line" id="today-line"></div>
-      </div>
-
-      <!-- 横スクロールバー（ガントチャートと出張予定の間に配置） -->
-      <div id="gantt-sticky-scrollbar" class="gantt-bottom-scrollbar">
-        <div id="gantt-scrollbar-content" class="gantt-scrollbar-content"></div>
+        <!-- 下部横スクロールバー -->
+        <div id="excelBottomScrollbar" class="excel-bottom-scrollbar">
+          <div id="excelScrollbarContent" class="excel-scrollbar-content"></div>
+        </div>
       </div>
 
       <!-- 埋め込み出張計画セクション（初期状態：折りたたみ） -->
       <div class="embedded-trip-section collapsed" id="gantt-trip-section">
         <div class="embedded-trip-toggle">
-          <div class="embedded-trip-toggle-left" onclick="Gantt.toggleTripSection()">
+          <div class="embedded-trip-toggle-left" onclick="ExcelGantt.toggleTripSection()">
             <svg class="embedded-trip-toggle-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M19 9l-7 7-7-7"/>
             </svg>
@@ -258,11 +242,11 @@
                    id="gantt-trip-person-input"
                    class="embedded-trip-search-input"
                    placeholder="例）今泉 / P.01"
-                   onkeydown="if(event.key==='Enter'){Gantt.handleTripPersonSearch();}"
+                   onkeydown="if(event.key==='Enter'){ExcelGantt.handleTripPersonSearch();}"
             >
             <button type="button"
                     class="embedded-trip-search-clear"
-                    onclick="Gantt.clearTripPersonFilter()"
+                    onclick="ExcelGantt.clearTripPersonFilter()"
                     title="クリア">×</button>
             <span id="gantt-trip-filter-error" class="embedded-trip-filter-error"></span>
           </div>

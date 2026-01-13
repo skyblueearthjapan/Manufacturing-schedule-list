@@ -5420,6 +5420,484 @@ const JobDetail = {
 console.log('[DEBUG] JobDetail defined');
 
 // ========================================
+// ExcelGantt - Excel風 大工程表
+// ========================================
+
+const ExcelGantt = {
+  config: {
+    colWidth: 28,             // 1日あたりの列幅
+    rowHeight: 44,            // 1案件(2行)の高さ
+    headerHeight: 50,         // 日付ヘッダ高さ
+    leftPaneWidth: 520,       // 左ペイン幅
+    barHeight: 14,            // バーの高さ
+    barTopOffset: 6,          // バー上部オフセット
+    barBottomOffset: 24,      // 下段バー用オフセット
+  },
+
+  dates: [],
+  viewStart: null,
+
+  // 初期化
+  init() {
+    this.setupEventListeners();
+    this.setupScrollSync();
+    Store.subscribe(() => this.render());
+    console.log('[ExcelGantt] Initialized');
+  },
+
+  // イベントリスナー設定
+  setupEventListeners() {
+    // 検索機能は既存のものを流用
+  },
+
+  // スクロール同期設定
+  setupScrollSync() {
+    const leftRows = document.getElementById('excelLeftRows');
+    const timeBody = document.getElementById('excelTimeBody');
+    const timeHeader = document.getElementById('excelTimeHeader');
+    const bottomScrollbar = document.getElementById('excelBottomScrollbar');
+
+    if (timeBody && leftRows) {
+      // 右ボディスクロール → 左追従 + ヘッダ追従
+      timeBody.addEventListener('scroll', () => {
+        leftRows.scrollTop = timeBody.scrollTop;
+        if (timeHeader) {
+          timeHeader.scrollLeft = timeBody.scrollLeft;
+        }
+        if (bottomScrollbar) {
+          bottomScrollbar.scrollLeft = timeBody.scrollLeft;
+        }
+        this.updateTodayLine();
+      }, { passive: true });
+    }
+
+    if (leftRows && timeBody) {
+      // 左スクロール → 右追従
+      leftRows.addEventListener('scroll', () => {
+        timeBody.scrollTop = leftRows.scrollTop;
+      }, { passive: true });
+    }
+
+    if (bottomScrollbar && timeBody && timeHeader) {
+      // 下部スクロールバー → 本体追従
+      bottomScrollbar.addEventListener('scroll', () => {
+        timeBody.scrollLeft = bottomScrollbar.scrollLeft;
+        timeHeader.scrollLeft = bottomScrollbar.scrollLeft;
+        this.updateTodayLine();
+      }, { passive: true });
+    }
+  },
+
+  // メイン描画
+  render() {
+    const { displayStartDate, displayDays } = Store.state;
+    const jobs = Store.getVisibleJobs();
+
+    this.viewStart = Utils.parseLocalDate(displayStartDate);
+    this.dates = Utils.generateDateRange(displayStartDate, displayDays);
+
+    const gridWidth = this.dates.length * this.config.colWidth;
+
+    this.renderHeader();
+    this.renderLeft(jobs);
+    this.renderGrid(jobs);
+    this.renderBars(jobs);
+    this.updateTodayLine();
+    this.updateScrollbarWidth(gridWidth);
+    this.renderTrips();
+  },
+
+  // 日付ヘッダ描画
+  renderHeader() {
+    const cols = document.getElementById('excelTimeHeaderCols');
+    if (!cols) return;
+
+    const today = Utils.getToday();
+    let html = '';
+
+    this.dates.forEach((date, i) => {
+      const d = Utils.parseLocalDate(date);
+      const month = d.getMonth() + 1;
+      const day = d.getDate();
+      const dow = ['日','月','火','水','木','金','土'][d.getDay()];
+      const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+      const isToday = date === today;
+      const daySetting = Store.getDaySetting(date);
+
+      let cls = 'excel-time-col';
+      if (isWeekend) cls += ' weekend';
+      if (isToday) cls += ' today';
+      if (daySetting === 'HOLIDAY') cls += ' holiday';
+
+      // 月初めの場合に月を表示
+      const showMonth = i === 0 || day === 1;
+
+      html += `
+        <div class="${cls}" data-date="${date}">
+          <div class="md">${showMonth ? month + '/' : ''}${day}</div>
+          <div class="dow">${dow}</div>
+        </div>
+      `;
+    });
+
+    cols.innerHTML = html;
+    cols.style.width = `${this.dates.length * this.config.colWidth}px`;
+  },
+
+  // 左ペイン（工番情報）描画
+  renderLeft(jobs) {
+    const container = document.getElementById('excelLeftRows');
+    if (!container) return;
+
+    if (jobs.length === 0) {
+      container.innerHTML = `
+        <div class="flex items-center justify-center h-32 text-gray-400 text-sm">
+          工番データがありません
+        </div>
+      `;
+      return;
+    }
+
+    let html = '';
+    jobs.forEach((job, idx) => {
+      const jobNo = job['工番'] || '';
+      const customer = job['顧客名'] || '';
+      const product = job['設備/製品名'] || '';
+      const qty = job['台数'] || '';
+      const dest = job['納入先'] || '';
+      const shipDate = this.formatShortDate(job['出荷予定日']);
+      const drawDate = this.formatShortDate(job['出図予定日']);
+      const statusText = job['重要メモ'] || '';
+
+      // 担当者
+      const mainPerson = job.mainPersonId ? Store.getPersonById(job.mainPersonId) : null;
+      const mainName = mainPerson?.['氏名'] || '';
+
+      // 強調行（重要メモありの場合）
+      const highlightClass = statusText ? ' highlight-row' : '';
+
+      html += `
+        <div class="excel-job-card${highlightClass}" data-job-id="${job.jobId}" onclick="ExcelGantt.onJobClick('${job.jobId}')">
+          <div class="excel-job-line">
+            <span class="code">${Utils.escapeHtml(jobNo)}</span>
+            <span class="pill">${Utils.escapeHtml(qty)}</span>
+            <span class="text">${Utils.escapeHtml(customer)}</span>
+            <span class="text-secondary">/ ${Utils.escapeHtml(product)}</span>
+            ${statusText ? `<span class="pill status-important">${Utils.escapeHtml(statusText)}</span>` : ''}
+          </div>
+          <div class="excel-job-line">
+            <span class="pill">出荷:${shipDate || '-'}</span>
+            <span class="pill">出図:${drawDate || '-'}</span>
+            ${dest ? `<span class="pill">納入:${Utils.escapeHtml(dest)}</span>` : ''}
+            ${mainName ? `<span class="text-secondary">担当:${Utils.escapeHtml(mainName)}</span>` : ''}
+          </div>
+        </div>
+      `;
+    });
+
+    container.innerHTML = html;
+  },
+
+  // グリッド背景描画
+  renderGrid(jobs) {
+    const grid = document.getElementById('excelGrid');
+    if (!grid) return;
+
+    grid.style.setProperty('--days', this.dates.length);
+    grid.style.setProperty('--rows', jobs.length);
+    grid.style.width = `${this.dates.length * this.config.colWidth}px`;
+    grid.style.height = `${jobs.length * this.config.rowHeight}px`;
+
+    const today = Utils.getToday();
+
+    let html = '';
+    for (let r = 0; r < jobs.length; r++) {
+      html += `<div class="excel-grid-row">`;
+      for (let c = 0; c < this.dates.length; c++) {
+        const date = this.dates[c];
+        const d = Utils.parseLocalDate(date);
+        const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+        const isToday = date === today;
+        const daySetting = Store.getDaySetting(date);
+
+        let cls = 'excel-grid-cell';
+        if (isWeekend) cls += ' weekend';
+        if (isToday) cls += ' today';
+        if (daySetting === 'HOLIDAY') cls += ' holiday';
+        if (daySetting === 'WORKDAY') cls += ' workday';
+
+        html += `<div class="${cls}" data-date="${date}"></div>`;
+      }
+      html += `</div>`;
+    }
+
+    grid.innerHTML = html;
+  },
+
+  // バー（矢印）描画
+  renderBars(jobs) {
+    const layer = document.getElementById('excelBarsLayer');
+    if (!layer) return;
+
+    let html = '';
+    const colW = this.config.colWidth;
+    const rowH = this.config.rowHeight;
+
+    jobs.forEach((job, rowIndex) => {
+      const schedules = Store.getSchedulesByJobId(job.jobId);
+
+      // レーン割り当て（重なり対応）
+      const { items, laneCount } = this.assignLanes(schedules);
+
+      items.forEach(sch => {
+        const startIdx = this.getDateIndex(sch.start);
+        const endIdx = this.getDateIndex(sch.end);
+
+        if (startIdx === -1 && endIdx === -1) return; // 表示範囲外
+        if (endIdx < 0) return; // 完全に左側
+        if (startIdx >= this.dates.length) return; // 完全に右側
+
+        // クランプ
+        const visStart = Math.max(0, startIdx);
+        const visEnd = Math.min(this.dates.length - 1, endIdx);
+
+        const left = visStart * colW;
+        const width = (visEnd - visStart + 1) * colW;
+
+        // Y位置（レーンに応じて）
+        const lane = sch._lane || 0;
+        const topBase = rowIndex * rowH;
+        const top = topBase + this.config.barTopOffset + (lane * (this.config.barHeight + 2));
+
+        // 工程色
+        const process = Store.getProcessById(sch.processId);
+        const color = process?.['工程色'] || '#4A90E2';
+        const label = sch.label || process?.['工程名'] || '';
+
+        // 矢印バー描画（CSS版）
+        html += `
+          <div class="excel-bar-arrow"
+               style="left:${left}px; top:${top}px; width:${width}px;"
+               data-schedule-id="${sch.scheduleId}"
+               onclick="ExcelGantt.onBarClick('${job.jobId}', '${sch.scheduleId}')">
+            <div class="bar-body" style="background:${color};"></div>
+            <div class="bar-arrow" style="border-left-color:${color};"></div>
+            <span class="bar-label">${Utils.escapeHtml(label)}</span>
+          </div>
+        `;
+      });
+    });
+
+    layer.innerHTML = html;
+  },
+
+  // 日付インデックス取得
+  getDateIndex(dateStr) {
+    const idx = this.dates.indexOf(dateStr);
+    if (idx !== -1) return idx;
+
+    // 範囲外の場合、相対位置を計算
+    const target = Utils.parseLocalDate(dateStr);
+    const start = this.viewStart;
+    const diffDays = Math.floor((target - start) / (1000 * 60 * 60 * 24));
+    return diffDays;
+  },
+
+  // レーン割り当て（重なり対応）
+  assignLanes(schedules) {
+    if (schedules.length === 0) {
+      return { items: [], laneCount: 1 };
+    }
+
+    const items = [...schedules].sort((a, b) => a.start.localeCompare(b.start));
+    const laneEnds = [];
+
+    for (const s of items) {
+      let placed = false;
+      for (let i = 0; i < laneEnds.length; i++) {
+        if (laneEnds[i] < s.start) {
+          s._lane = i;
+          laneEnds[i] = s.end;
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) {
+        s._lane = laneEnds.length;
+        laneEnds.push(s.end);
+      }
+    }
+
+    return { items, laneCount: Math.max(1, laneEnds.length) };
+  },
+
+  // 今日ライン更新
+  updateTodayLine() {
+    const line = document.getElementById('excelTodayLine');
+    const body = document.getElementById('excelTimeBody');
+    if (!line || !body) return;
+
+    const today = Utils.getToday();
+    const idx = this.dates.indexOf(today);
+
+    if (idx === -1) {
+      line.style.display = 'none';
+      return;
+    }
+
+    const left = idx * this.config.colWidth + (this.config.colWidth / 2);
+    line.style.display = 'block';
+    line.style.left = `${left}px`;
+  },
+
+  // スクロールバー幅更新
+  updateScrollbarWidth(gridWidth) {
+    const content = document.getElementById('excelScrollbarContent');
+    if (content) {
+      content.style.width = `${gridWidth}px`;
+    }
+  },
+
+  // 日付フォーマット
+  formatShortDate(dateStr) {
+    if (!dateStr) return '';
+    const d = Utils.parseLocalDate(dateStr);
+    return `${d.getMonth() + 1}/${d.getDate()}`;
+  },
+
+  // 工番クリック
+  onJobClick(jobId) {
+    const job = Store.getJobById(jobId);
+    if (job) {
+      JobDetail.open(job);
+    }
+  },
+
+  // バークリック
+  onBarClick(jobId, scheduleId) {
+    const job = Store.getJobById(jobId);
+    const schedule = Store.getScheduleById(scheduleId);
+    if (job && schedule) {
+      EntryModal.open(job, schedule.start, schedule);
+    }
+  },
+
+  // ====== 出張予定セクション ======
+  tripPersonFilter: null,
+
+  renderTrips() {
+    const container = document.getElementById('gantt-trip-container');
+    const countEl = document.getElementById('gantt-trip-count');
+    if (!container) return;
+
+    const trips = Store.state.trips || [];
+    let filteredTrips = trips;
+
+    // 担当者フィルタ
+    if (this.tripPersonFilter) {
+      filteredTrips = trips.filter(t => t.personId === this.tripPersonFilter);
+    }
+
+    // 期間内フィルタ
+    const startDate = Store.state.displayStartDate;
+    const endDate = Utils.addDays(startDate, Store.state.displayDays - 1);
+    filteredTrips = filteredTrips.filter(t => t.endDate >= startDate && t.startDate <= endDate);
+
+    if (countEl) {
+      countEl.textContent = `${filteredTrips.length}件`;
+    }
+
+    if (filteredTrips.length === 0) {
+      container.innerHTML = '<div class="text-center text-gray-400 py-4">出張予定がありません</div>';
+      return;
+    }
+
+    // 担当者ごとにグループ化
+    const byPerson = {};
+    filteredTrips.forEach(trip => {
+      const person = Store.getPersonById(trip.personId);
+      const name = person?.['氏名'] || '未設定';
+      if (!byPerson[name]) byPerson[name] = [];
+      byPerson[name].push(trip);
+    });
+
+    let html = '';
+    Object.keys(byPerson).sort().forEach(name => {
+      html += `<div class="embedded-trip-person-group">`;
+      html += `<div class="embedded-trip-person-name">${Utils.escapeHtml(name)}</div>`;
+      html += `<div class="embedded-trip-bars">`;
+
+      byPerson[name].forEach(trip => {
+        const startIdx = this.getDateIndex(trip.startDate);
+        const endIdx = this.getDateIndex(trip.endDate);
+
+        const visStart = Math.max(0, startIdx);
+        const visEnd = Math.min(this.dates.length - 1, endIdx);
+
+        if (visEnd < 0 || visStart >= this.dates.length) return;
+
+        const left = visStart * this.config.colWidth;
+        const width = (visEnd - visStart + 1) * this.config.colWidth;
+
+        html += `
+          <div class="embedded-trip-bar"
+               style="left:${left}px; width:${width}px;"
+               onclick="TripModal.open('${trip.tripId}')">
+            ${Utils.escapeHtml(trip.destination || '')}
+          </div>
+        `;
+      });
+
+      html += `</div></div>`;
+    });
+
+    container.innerHTML = html;
+  },
+
+  toggleTripSection() {
+    const section = document.getElementById('gantt-trip-section');
+    if (section) {
+      section.classList.toggle('collapsed');
+    }
+  },
+
+  handleTripPersonSearch() {
+    const input = document.getElementById('gantt-trip-person-input');
+    const errorEl = document.getElementById('gantt-trip-filter-error');
+    if (!input) return;
+
+    const query = input.value.trim();
+    if (!query) {
+      this.clearTripPersonFilter();
+      return;
+    }
+
+    // 担当者検索
+    const people = Store.state.people || [];
+    const found = people.find(p => p['氏名']?.includes(query));
+
+    if (found) {
+      this.tripPersonFilter = found.personId;
+      if (errorEl) errorEl.textContent = '';
+      this.renderTrips();
+    } else {
+      if (errorEl) errorEl.textContent = '該当なし';
+    }
+  },
+
+  clearTripPersonFilter() {
+    const input = document.getElementById('gantt-trip-person-input');
+    const errorEl = document.getElementById('gantt-trip-filter-error');
+    if (input) input.value = '';
+    if (errorEl) errorEl.textContent = '';
+    this.tripPersonFilter = null;
+    this.renderTrips();
+  }
+};
+
+console.log('[DEBUG] ExcelGantt defined');
+
+// ========================================
 // ResourceView - 作業者別工程表
 // ========================================
 
@@ -9280,7 +9758,9 @@ const App = {
     ChangeBuffer.init();
     SaveBar.init();
 
-    Gantt.init();
+    // Excel風 大工程表を使用
+    ExcelGantt.init();
+    // Gantt.init(); // 旧版は無効化
     Modal.init();
     DaySettingButtons.init();
     ProcessModal.init();
