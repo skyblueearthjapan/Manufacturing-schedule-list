@@ -9775,18 +9775,8 @@ const App = {
     ChangeBuffer.init();
     SaveBar.init();
 
-    // Excel風 大工程表を使用
-    ExcelGantt.init();
-
-    // 旧GanttのメソッドをExcelGanttにブリッジ（互換性維持）
-    Gantt.render = () => ExcelGantt.render();
-    Gantt.updateTodayLinePosition = () => ExcelGantt.updateTodayLine();
-    Gantt.toggleTripSection = () => ExcelGantt.toggleTripSection();
-    Gantt.handleTripPersonSearch = () => ExcelGantt.handleTripPersonSearch();
-    Gantt.clearTripPersonFilter = () => ExcelGantt.clearTripPersonFilter();
-    Gantt.renderTrips = () => ExcelGantt.renderTrips();
-    Gantt.onJobClick = (jobId) => ExcelGantt.onJobClick(jobId);
-    // openJobPdfは旧Ganttの実装を維持（変更不要）
+    // 旧Ganttを通常通り初期化
+    Gantt.init();
 
     Modal.init();
     DaySettingButtons.init();
