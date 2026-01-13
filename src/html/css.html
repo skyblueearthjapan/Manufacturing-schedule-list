@@ -4700,6 +4700,49 @@
     font-weight: 500;
   }
 
+  /* ====== バードラッグ用ハンドル ====== */
+  .excel-bar {
+    cursor: grab;
+  }
+
+  .excel-bar.dragging {
+    cursor: grabbing;
+    opacity: 0.9;
+    z-index: 100;
+  }
+
+  .bar-handle {
+    position: absolute;
+    top: 0;
+    width: 8px;
+    height: 100%;
+    background: transparent;
+    z-index: 5;
+    opacity: 0;
+    transition: opacity 0.15s, background 0.15s;
+  }
+
+  .bar-handle--left {
+    left: 0;
+    cursor: ew-resize;
+    border-radius: 3px 0 0 3px;
+  }
+
+  .bar-handle--right {
+    right: 0;
+    cursor: ew-resize;
+    border-radius: 0 3px 3px 0;
+  }
+
+  .excel-bar:hover .bar-handle {
+    opacity: 1;
+    background: rgba(0, 0, 0, 0.15);
+  }
+
+  .excel-bar.dragging .bar-handle {
+    opacity: 0;
+  }
+
   /* ====== 下部横スクロールバー ====== */
   .excel-bottom-scrollbar {
     grid-row: 3;

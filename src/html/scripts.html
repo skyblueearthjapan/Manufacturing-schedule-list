@@ -5450,10 +5450,14 @@ const ExcelGantt = {
   dates: [],
   viewStart: null,
 
+  // ドラッグ状態管理
+  dragState: null,
+
   // 初期化
   init() {
     this.setupEventListeners();
     this.setupScrollSync();
+    this.setupDragEvents();
     Store.subscribe(() => this.render());
     console.log('[ExcelGantt] Initialized');
   },
@@ -5461,6 +5465,176 @@ const ExcelGantt = {
   // イベントリスナー設定
   setupEventListeners() {
     // 検索機能は既存のものを流用
+  },
+
+  // ドラッグイベント委譲設定
+  setupDragEvents() {
+    const grid = document.getElementById('excelGrid');
+    if (!grid) return;
+
+    // イベント委譲でバーのドラッグを処理
+    grid.addEventListener('pointerdown', (e) => this.onPointerDown(e));
+    grid.addEventListener('pointermove', (e) => this.onPointerMove(e));
+    grid.addEventListener('pointerup', (e) => this.onPointerUp(e));
+    grid.addEventListener('pointercancel', (e) => this.onPointerUp(e));
+
+    // クリックイベント（ドラッグしなかった場合のみ発火）
+    grid.addEventListener('click', (e) => this.onBarClick(e));
+
+    console.log('[ExcelGantt] Drag events set up');
+  },
+
+  // ポインターダウン：ドラッグ開始
+  onPointerDown(e) {
+    const bar = e.target.closest('.excel-bar');
+    if (!bar) return;
+
+    const scheduleId = bar.dataset.scheduleId;
+    const jobId = bar.dataset.jobId;
+    if (!scheduleId) return;
+
+    // スケジュール情報を取得
+    const schedule = Store.state.schedules.find(s => s.scheduleId === scheduleId);
+    if (!schedule) return;
+
+    // ハンドルクリックか判定
+    const handle = e.target.closest('.bar-handle');
+    let mode = 'move';
+    if (handle) {
+      mode = handle.dataset.handle === 'left' ? 'resize-left' : 'resize-right';
+    }
+
+    // ドラッグ状態を設定
+    this.dragState = {
+      scheduleId,
+      jobId,
+      mode,
+      startX: e.clientX,
+      origStartDate: schedule.start,
+      origEndDate: schedule.end,
+      dayW: this.config.colWidth,
+      barEl: bar,
+      origLeft: parseFloat(bar.style.left) || 0,
+      origWidth: parseFloat(bar.style.width) || 0,
+      hasMoved: false
+    };
+
+    bar.classList.add('dragging');
+    bar.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  },
+
+  // ポインタームーブ：ドラッグ中のプレビュー更新
+  onPointerMove(e) {
+    if (!this.dragState) return;
+
+    const { startX, dayW, mode, barEl, origLeft, origWidth, origStartDate, origEndDate } = this.dragState;
+    const dx = e.clientX - startX;
+
+    // 移動があったことを記録
+    if (Math.abs(dx) > 3) {
+      this.dragState.hasMoved = true;
+    }
+
+    const deltaDays = Math.round(dx / dayW);
+    if (deltaDays === this.dragState.lastDeltaDays) return;
+    this.dragState.lastDeltaDays = deltaDays;
+
+    // 日付計算
+    let newStart = origStartDate;
+    let newEnd = origEndDate;
+
+    if (mode === 'move') {
+      // 平行移動
+      newStart = Utils.addDays(origStartDate, deltaDays);
+      newEnd = Utils.addDays(origEndDate, deltaDays);
+    } else if (mode === 'resize-left') {
+      // 左伸縮（開始日のみ変更）
+      newStart = Utils.addDays(origStartDate, deltaDays);
+      // start > end を防止
+      if (newStart > origEndDate) newStart = origEndDate;
+    } else if (mode === 'resize-right') {
+      // 右伸縮（終了日のみ変更）
+      newEnd = Utils.addDays(origEndDate, deltaDays);
+      // end < start を防止
+      if (newEnd < origStartDate) newEnd = origStartDate;
+    }
+
+    // プレビュー日付を保存
+    this.dragState.newStart = newStart;
+    this.dragState.newEnd = newEnd;
+
+    // UIプレビュー更新（DOM直接操作）
+    this.applyBarPreview(barEl, newStart, newEnd, origLeft, origWidth, mode, deltaDays, dayW);
+  },
+
+  // バープレビュー更新（DOM直接操作）
+  applyBarPreview(barEl, newStart, newEnd, origLeft, origWidth, mode, deltaDays, dayW) {
+    const deltaLeft = deltaDays * dayW;
+
+    if (mode === 'move') {
+      barEl.style.left = `${origLeft + deltaLeft}px`;
+    } else if (mode === 'resize-left') {
+      // 左を動かす：leftを変更、widthも調整
+      const clampedDelta = Math.min(deltaLeft, origWidth - dayW);
+      barEl.style.left = `${origLeft + clampedDelta}px`;
+      barEl.style.width = `${origWidth - clampedDelta}px`;
+    } else if (mode === 'resize-right') {
+      // 右を動かす：widthのみ変更
+      const newWidth = Math.max(dayW, origWidth + deltaLeft);
+      barEl.style.width = `${newWidth}px`;
+    }
+  },
+
+  // ポインターアップ：ドラッグ終了、変更を確定
+  onPointerUp(e) {
+    if (!this.dragState) return;
+
+    const { scheduleId, barEl, hasMoved, newStart, newEnd, origStartDate, origEndDate } = this.dragState;
+
+    barEl.classList.remove('dragging');
+    barEl.releasePointerCapture(e.pointerId);
+
+    // 移動があり、日付が変わった場合のみ保存
+    if (hasMoved && (newStart !== origStartDate || newEnd !== origEndDate)) {
+      // pendingChangesに追加
+      ChangeBuffer.add('schedule', 'upsert', scheduleId, {
+        start: newStart,
+        end: newEnd
+      }, 'master');
+
+      // ローカルStoreも更新（即時反映）
+      const schedule = Store.state.schedules.find(s => s.scheduleId === scheduleId);
+      if (schedule) {
+        schedule.start = newStart;
+        schedule.end = newEnd;
+      }
+
+      console.log(`[ExcelGantt] Schedule ${scheduleId} updated: ${origStartDate}~${origEndDate} → ${newStart}~${newEnd}`);
+    }
+
+    this.dragState = null;
+  },
+
+  // バークリック処理（ドラッグしなかった場合のみ）
+  onBarClick(e) {
+    // ドラッグ中はクリックを無視
+    if (this.dragState) return;
+
+    const bar = e.target.closest('.excel-bar');
+    if (!bar) return;
+
+    // ハンドルクリックは無視
+    if (e.target.closest('.bar-handle')) return;
+
+    const jobId = bar.dataset.jobId;
+    const scheduleId = bar.dataset.scheduleId;
+    if (jobId && scheduleId) {
+      // 詳細ダイアログを開く（既存機能があれば）
+      if (typeof JobDetail !== 'undefined' && JobDetail.open) {
+        JobDetail.open(jobId);
+      }
+    }
   },
 
   // スクロール同期設定
@@ -5696,6 +5870,9 @@ const ExcelGantt = {
     const safeLabel = Utils.escapeHtml(label || '');
     const h = this.config.barHeight;
     const baseStyle = `left:${left}px; top:${topInRow}px; width:${width}px; height:${h}px;`;
+    const handles = `
+      <div class="bar-handle bar-handle--left" data-handle="left"></div>
+      <div class="bar-handle bar-handle--right" data-handle="right"></div>`;
 
     if (shape === 'arrow') {
       // 矢印付きバー（出荷など）
@@ -5703,7 +5880,8 @@ const ExcelGantt = {
         <div class="excel-bar excel-bar--arrow"
              style="${baseStyle}"
              data-schedule-id="${scheduleId}"
-             onclick="ExcelGantt.onBarClick('${jobId}', '${scheduleId}')">
+             data-job-id="${jobId}">
+          ${handles}
           <div class="bar-body" style="background:${color};"></div>
           <div class="bar-arrow" style="border-left-color:${color};"></div>
           <span class="bar-label">${safeLabel}</span>
@@ -5715,7 +5893,8 @@ const ExcelGantt = {
         <div class="excel-bar excel-bar--dash"
              style="${baseStyle} border-color:${color};"
              data-schedule-id="${scheduleId}"
-             onclick="ExcelGantt.onBarClick('${jobId}', '${scheduleId}')">
+             data-job-id="${jobId}">
+          ${handles}
           <span class="bar-label" style="color:${color};">${safeLabel}</span>
         </div>`;
     }
@@ -5724,7 +5903,8 @@ const ExcelGantt = {
       <div class="excel-bar excel-bar--rect"
            style="${baseStyle} background:${color};"
            data-schedule-id="${scheduleId}"
-           onclick="ExcelGantt.onBarClick('${jobId}', '${scheduleId}')">
+           data-job-id="${jobId}">
+        ${handles}
         <span class="bar-label">${safeLabel}</span>
       </div>`;
   },
