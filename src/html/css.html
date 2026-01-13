@@ -4209,14 +4209,8 @@
     top: 0;
     z-index: 30;
     height: var(--excel-header-h);
-    display: flex;
-    align-items: center;
-    padding: 6px 10px;
-    gap: 8px;
     border-bottom: 2px solid #808080;
     background: #e8e8e8;
-    font-weight: 700;
-    font-size: var(--excel-font);
   }
 
   .excel-left-header .title {
@@ -4315,7 +4309,8 @@
     border-bottom: 1px solid #808080;
     border-left: 1px solid #808080;
     background: #fff;
-    min-height: var(--excel-row-h);
+    height: var(--excel-row-h);
+    box-sizing: border-box;
     cursor: pointer;
     transition: background 0.15s;
   }
@@ -4347,12 +4342,13 @@
     background: #f5f5f5;
   }
   .xl-no .no-top {
-    height: 23px;
+    height: 22px;
     display: flex;
     align-items: center;
     justify-content: center;
     border-bottom: 1px solid #ccc;
     font-weight: 600;
+    box-sizing: border-box;
   }
   .xl-no .no-bottom {
     height: 22px;
@@ -4370,12 +4366,13 @@
     min-width: 0;
   }
   .xl-main-line1, .xl-main-line2 {
-    height: 23px;
+    height: 22px;
     display: flex;
     align-items: center;
     gap: 6px;
     overflow: hidden;
     white-space: nowrap;
+    box-sizing: border-box;
   }
   .xl-main-line1 {
     border-bottom: 1px solid #ccc;
@@ -4455,13 +4452,14 @@
     background: #f5f5f5;
   }
   .xl-ship .ship-top {
-    height: 23px;
+    height: 22px;
     display: flex;
     align-items: center;
     justify-content: center;
     border-bottom: 1px solid #ccc;
     font-weight: 600;
     color: #d32f2f;
+    box-sizing: border-box;
   }
   .xl-ship .ship-bottom {
     height: 22px;
@@ -4479,13 +4477,14 @@
     background: #f5f5f5;
   }
   .xl-draw .draw-top {
-    height: 23px;
+    height: 22px;
     display: flex;
     align-items: center;
     justify-content: center;
     border-bottom: 1px solid #ccc;
     font-weight: 600;
     color: #1565c0;
+    box-sizing: border-box;
   }
   .xl-draw .draw-bottom {
     height: 22px;
@@ -4500,10 +4499,9 @@
   .xl-header-row {
     display: grid;
     grid-template-columns: 46px 1fr 80px 90px;
-    border-bottom: 2px solid #808080;
     border-left: 1px solid #808080;
     background: #e0e0e0;
-    height: var(--excel-header-h);
+    height: 100%;
     font-size: 10px;
     font-weight: 600;
   }
@@ -4513,6 +4511,8 @@
     align-items: center;
     justify-content: center;
     padding: 0 4px;
+    text-align: center;
+    line-height: 1.2;
   }
 
   /* ====== 右ペイン（日付グリッド） ====== */
@@ -4597,6 +4597,7 @@
   .excel-grid-row {
     position: relative;
     height: var(--excel-row-h);
+    box-sizing: border-box;
     border-bottom: 1px solid var(--excel-grid-line);
     display: grid;
     grid-auto-flow: column;
