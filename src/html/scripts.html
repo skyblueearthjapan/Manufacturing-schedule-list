@@ -5915,6 +5915,68 @@ const ExcelGantt = {
 console.log('[DEBUG] ExcelGantt defined');
 
 // ========================================
+// GanttUIMode - UI切替管理
+// ========================================
+
+const GanttUIMode = {
+  currentMode: 'classic', // 'classic' or 'excel'
+
+  init() {
+    // ローカルストレージから前回のモードを復元
+    const savedMode = localStorage.getItem('ganttUIMode');
+    if (savedMode === 'excel') {
+      this.setMode('excel', false);
+    }
+    console.log('[GanttUIMode] Initialized, mode:', this.currentMode);
+  },
+
+  setMode(mode, save = true) {
+    this.currentMode = mode;
+
+    const classicContainer = document.getElementById('gantt-classic-container');
+    const excelContainer = document.getElementById('gantt-excel-container');
+    const classicBtn = document.getElementById('ui-mode-classic');
+    const excelBtn = document.getElementById('ui-mode-excel');
+
+    if (mode === 'classic') {
+      // 旧UI表示
+      if (classicContainer) classicContainer.classList.remove('hidden');
+      if (excelContainer) excelContainer.classList.add('hidden');
+      if (classicBtn) classicBtn.classList.add('ui-mode-btn-active');
+      if (excelBtn) excelBtn.classList.remove('ui-mode-btn-active');
+      // 旧Ganttで再描画
+      Gantt.render();
+    } else {
+      // Excel風UI表示
+      if (classicContainer) classicContainer.classList.add('hidden');
+      if (excelContainer) excelContainer.classList.remove('hidden');
+      if (classicBtn) classicBtn.classList.remove('ui-mode-btn-active');
+      if (excelBtn) excelBtn.classList.add('ui-mode-btn-active');
+      // ExcelGanttで再描画
+      ExcelGantt.render();
+    }
+
+    // ローカルストレージに保存
+    if (save) {
+      localStorage.setItem('ganttUIMode', mode);
+    }
+
+    console.log('[GanttUIMode] Mode changed to:', mode);
+  },
+
+  // 現在のモードに応じてrender
+  render() {
+    if (this.currentMode === 'classic') {
+      Gantt.render();
+    } else {
+      ExcelGantt.render();
+    }
+  }
+};
+
+console.log('[DEBUG] GanttUIMode defined');
+
+// ========================================
 // ResourceView - 作業者別工程表
 // ========================================
 
@@ -9775,8 +9837,12 @@ const App = {
     ChangeBuffer.init();
     SaveBar.init();
 
-    // 旧Ganttを通常通り初期化
+    // 両方のGanttを初期化
     Gantt.init();
+    ExcelGantt.init();
+
+    // UIモード切替を初期化
+    GanttUIMode.init();
 
     Modal.init();
     DaySettingButtons.init();
