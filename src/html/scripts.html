@@ -8685,23 +8685,32 @@ const TravelPlan = {
       const startOffset = Utils.getDaysBetween(this.displayStartDate, trip.start);
       const duration = Utils.getDaysBetween(trip.start, trip.end) + 1;
 
-      // 表示範囲外
-      if (startOffset + duration < 0 || startOffset >= this.dates.length) {
+      // 表示範囲外（完全に範囲外の場合は非表示）
+      if (startOffset + duration <= 0 || startOffset >= this.dates.length) {
         return { ...trip, _visible: false };
       }
 
-      // x座標計算（固定幅）
-      const xStart = startOffset * this.config.cellWidth;
+      // 表示範囲にクリップ（左右のはみ出しを防止）
+      const visibleStartOffset = Math.max(0, startOffset);
+      const visibleEndOffset = Math.min(this.dates.length - 1, startOffset + duration - 1);
+      const visibleDuration = visibleEndOffset - visibleStartOffset + 1;
 
-      // バー幅計算（埋め込み版と統一：シンプルに duration * cellWidth）
-      const barWidth = duration * this.config.cellWidth;
+      if (visibleDuration <= 0) {
+        return { ...trip, _visible: false };
+      }
+
+      // x座標計算（クリップ後）
+      const xStart = visibleStartOffset * this.config.cellWidth;
+
+      // バー幅計算（クリップ後）
+      const barWidth = visibleDuration * this.config.cellWidth;
 
       return {
         ...trip,
         _visible: true,
         _xStart: xStart,
         _width: barWidth,
-        _duration: duration
+        _duration: visibleDuration
       };
     });
   },
@@ -9453,9 +9462,18 @@ const TravelPlan = {
       layoutTrips.forEach(trip => {
         const startOffset = Utils.getDaysBetween(dates[0], trip.start);
         const duration = Utils.getDaysBetween(trip.start, trip.end) + 1;
-        if (startOffset + duration < 0 || startOffset >= dates.length) return;
-        const xStart = getXForDate(trip.start);
-        const barWidth = duration * cellWidth;
+        if (startOffset + duration <= 0 || startOffset >= dates.length) return;
+
+        // 表示範囲にクリップ（左右のはみ出しを防止）
+        const visibleStartOffset = Math.max(0, startOffset);
+        const visibleEndOffset = Math.min(dates.length - 1, startOffset + duration - 1);
+        const visibleDuration = visibleEndOffset - visibleStartOffset + 1;
+
+        if (visibleDuration <= 0) return;
+
+        const xStart = visibleStartOffset * cellWidth;
+        const barWidth = visibleDuration * cellWidth;
+
         // lane位置からtopを計算
         const lane = trip.lane || 0;
         const topInRow = BASE_TOP + lane * (LANE_HEIGHT + LANE_GAP);
