@@ -8403,11 +8403,8 @@ console.log('[DEBUG] TripModal defined');
 
 const TravelPlan = {
   config: {
-    cellWidth: 70,  // 日付列幅
-    rowHeight: 72,
-    maxExpandDays: 4,  // 現場カード自動拡大の最大日数（追加分）
-    cardPadding: 24,   // カード内パディング
-    cardGap: 4         // カード間の隙間
+    cellWidth: 28,    // 日付列幅（ExcelGanttと統一）
+    rowHeight: 44,    // 行高さ（ExcelGanttと統一）
   },
   dates: [],
   displayStartDate: null,
@@ -8607,45 +8604,10 @@ const TravelPlan = {
 
   /**
    * 全作業者の予定から必要なextraWidthを計算
-   * @param {Object[]} trips - 全予定
+   * ※両矢印スタイルに変更後は押し広げ不要（固定幅）
    */
   calculateExtraWidths(trips) {
-    this._dateExtraWidths = {};
-
-    // 現場カード（site）のみ対象
-    const siteTrips = trips.filter(t => t.kind === 'site');
-
-    siteTrips.forEach(trip => {
-      const startOffset = Utils.getDaysBetween(this.displayStartDate, trip.start);
-      const duration = Utils.getDaysBetween(trip.start, trip.end) + 1;
-
-      // 表示範囲外はスキップ
-      if (startOffset + duration < 0 || startOffset >= this.dates.length) return;
-
-      // テキスト幅を計測
-      const description = trip['用件'] || '';
-      const lines = description.split('\n');
-      const line1 = lines[0] || '';
-      const line2 = lines[1] || '';
-      const line3 = lines[2] || trip['行先'] || '';
-
-      const neededWidth = this.calculateSiteCardWidth(line1, line2, line3);
-      const baseWidth = duration * this.config.cellWidth;
-
-      // 追加幅が必要な場合
-      if (neededWidth > baseWidth) {
-        let extraWidth = neededWidth - baseWidth;
-        // 上限: maxExpandDays日分
-        const maxExtra = this.config.maxExpandDays * this.config.cellWidth;
-        extraWidth = Math.min(extraWidth, maxExtra);
-
-        // 開始日に追加幅を設定（既存より大きい場合のみ更新）
-        const startDate = trip.start;
-        if (!this._dateExtraWidths[startDate] || this._dateExtraWidths[startDate] < extraWidth) {
-          this._dateExtraWidths[startDate] = extraWidth;
-        }
-      }
-    });
+    this._dateExtraWidths = {};  // 常に空（固定幅）
   },
 
   /**
