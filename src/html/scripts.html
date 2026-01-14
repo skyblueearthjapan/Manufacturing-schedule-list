@@ -5679,7 +5679,7 @@ const ExcelGantt = {
       console.log(`[ExcelGantt] Selection complete: jobId=${jobId}, ${rangeStart}〜${rangeEnd}`);
     } else if (this.dragState.type === 'bar') {
       // === 既存バーのドラッグ終了 ===
-      const { scheduleId, barEl, hasMoved, newStart, newEnd, origStartDate, origEndDate } = this.dragState;
+      const { scheduleId, barEl, hasMoved, newStart, newEnd, origStartDate, origEndDate, mode } = this.dragState;
 
       barEl.classList.remove('dragging');
       barEl.releasePointerCapture(e.pointerId);
@@ -5700,6 +5700,14 @@ const ExcelGantt = {
         }
 
         console.log(`[ExcelGantt] Schedule ${scheduleId} updated: ${origStartDate}~${origEndDate} → ${newStart}~${newEnd}`);
+      } else if (!hasMoved && mode === 'move') {
+        // ドラッグしなかった場合（クリック扱い）→ 編集モーダルを開く
+        // ハンドル（リサイズ）の場合はモーダルを開かない
+        const schedule = Store.getScheduleById(scheduleId);
+        if (schedule) {
+          console.log(`[ExcelGantt] Bar clicked (no drag), opening edit modal: ${scheduleId}`);
+          Modal.openEdit(schedule);
+        }
       }
     }
 
