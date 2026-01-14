@@ -10811,6 +10811,11 @@ const App = {
     // PDF情報を非同期で読み込み（UIブロックしない）
     Store.loadAllJobPdfInfo();
 
+    // 初期ビューを正しく設定（navタブのactiveクラスとview-containerの表示状態）
+    const initialView = Store.state.currentView || 'master';
+    console.log(`[App] Setting initial view: ${initialView}`);
+    this.switchView(initialView);
+
     console.log('App initialized successfully');
   },
 
