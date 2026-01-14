@@ -704,9 +704,15 @@ const ChangeBuffer = {
         user: 'user'
       });
 
-      if (result && result.ok) {
-        // 保存成功：差分反映
-        Store.applySavedResults(result.results);
+      // 成功判定: result が null/undefined でも成功扱い（GASあるある対策）
+      // 明示的に ok:false の場合のみ失敗
+      const isSuccess = (result == null) || (result.ok !== false);
+
+      if (isSuccess) {
+        // 保存成功：差分反映（resultがある場合のみ）
+        if (result && result.results) {
+          Store.applySavedResults(result.results);
+        }
 
         // 保存した変更をバッファから削除
         changesToSave.forEach(c => {
@@ -720,7 +726,7 @@ const ChangeBuffer = {
         console.log('[ChangeBuffer] Flush successful');
         return { ok: true, saved: changesToSave.length };
       } else {
-        throw new Error(result?.error || '保存に失敗しました');
+        throw new Error(result?.error || result?.message || '保存に失敗しました');
       }
     } catch (error) {
       console.error('[ChangeBuffer] Flush failed:', error);
