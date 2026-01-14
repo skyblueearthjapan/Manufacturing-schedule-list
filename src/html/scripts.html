@@ -8628,29 +8628,17 @@ const TravelPlan = {
         return { ...trip, _visible: false };
       }
 
-      // x座標は累積extraWidthを考慮
-      const xStart = this.getXForDate(trip.start);
+      // x座標計算（固定幅）
+      const xStart = startOffset * this.config.cellWidth;
 
-      // カード幅の計算
-      let cardWidth;
-      if (trip.kind === 'site') {
-        // 現場カード: 拡張幅を含む
-        const description = trip['用件'] || '';
-        const lines = description.split('\n');
-        const neededWidth = this.calculateSiteCardWidth(lines[0] || '', lines[1] || '', lines[2] || trip['行先'] || '');
-        const baseWidth = duration * this.config.cellWidth;
-        const extraWidth = this._dateExtraWidths[trip.start] || 0;
-        cardWidth = Math.max(neededWidth, baseWidth + extraWidth) - this.config.cardGap;
-      } else {
-        // 移動カード: 基本幅のみ
-        cardWidth = duration * this.config.cellWidth - this.config.cardGap;
-      }
+      // バー幅計算（埋め込み版と統一：シンプルに duration * cellWidth）
+      const barWidth = duration * this.config.cellWidth;
 
       return {
         ...trip,
         _visible: true,
         _xStart: xStart,
-        _width: cardWidth,
+        _width: barWidth,
         _duration: duration
       };
     });
@@ -8865,15 +8853,24 @@ const TravelPlan = {
         const trip = trips.find(t => t.tripId === tripId);
         if (!trip) return;
 
+        // ハンドルクリックか判定（リサイズ or 移動）
+        const handle = e.target.closest('.bar-handle');
+        let mode = 'move';
+        if (handle) {
+          mode = handle.dataset.handle === 'left' ? 'resize-left' : 'resize-right';
+        }
+
         // ドラッグ状態を初期化
         this._tripDragState = {
           tripId,
+          mode,
           barEl: bar,
           startX: e.clientX,
           origStartDate: trip.start,
           origEndDate: trip.end,
           dayW: this.config.cellWidth,
           origLeft: parseFloat(bar.style.left) || 0,
+          origWidth: parseFloat(bar.style.width) || 0,
           hasMoved: false,
           lastDeltaDays: 0
         };
@@ -8886,24 +8883,50 @@ const TravelPlan = {
       bar.addEventListener('pointermove', (e) => {
         if (!this._tripDragState || this._tripDragState.barEl !== bar) return;
 
-        const dx = e.clientX - this._tripDragState.startX;
+        const { startX, dayW, mode, origLeft, origWidth, origStartDate, origEndDate } = this._tripDragState;
+        const dx = e.clientX - startX;
+
         if (Math.abs(dx) > 3) {
           this._tripDragState.hasMoved = true;
         }
 
-        const deltaDays = Math.round(dx / this._tripDragState.dayW);
+        const deltaDays = Math.round(dx / dayW);
         if (deltaDays === this._tripDragState.lastDeltaDays) return;
         this._tripDragState.lastDeltaDays = deltaDays;
 
-        // 新しい日付を計算
-        const newStart = Utils.addDays(this._tripDragState.origStartDate, deltaDays);
-        const newEnd = Utils.addDays(this._tripDragState.origEndDate, deltaDays);
+        // 日付計算（モード別）
+        let newStart = origStartDate;
+        let newEnd = origEndDate;
+
+        if (mode === 'move') {
+          // 平行移動
+          newStart = Utils.addDays(origStartDate, deltaDays);
+          newEnd = Utils.addDays(origEndDate, deltaDays);
+        } else if (mode === 'resize-left') {
+          // 左リサイズ（開始日のみ変更）
+          newStart = Utils.addDays(origStartDate, deltaDays);
+          if (newStart > origEndDate) newStart = origEndDate;  // 最小1日
+        } else if (mode === 'resize-right') {
+          // 右リサイズ（終了日のみ変更）
+          newEnd = Utils.addDays(origEndDate, deltaDays);
+          if (newEnd < origStartDate) newEnd = origStartDate;  // 最小1日
+        }
+
         this._tripDragState.newStart = newStart;
         this._tripDragState.newEnd = newEnd;
 
         // DOMプレビュー更新
-        const newLeft = this._tripDragState.origLeft + (deltaDays * this._tripDragState.dayW);
-        bar.style.left = `${newLeft}px`;
+        const deltaLeft = deltaDays * dayW;
+        if (mode === 'move') {
+          bar.style.left = `${origLeft + deltaLeft}px`;
+        } else if (mode === 'resize-left') {
+          const clampedDelta = Math.min(deltaLeft, origWidth - dayW);
+          bar.style.left = `${origLeft + clampedDelta}px`;
+          bar.style.width = `${origWidth - clampedDelta}px`;
+        } else if (mode === 'resize-right') {
+          const newWidth = Math.max(dayW, origWidth + deltaLeft);
+          bar.style.width = `${newWidth}px`;
+        }
       });
 
       // ポインターアップ：確定
@@ -8913,7 +8936,7 @@ const TravelPlan = {
         bar.classList.remove('dragging');
         bar.releasePointerCapture(e.pointerId);
 
-        const { tripId, hasMoved, newStart, newEnd, origStartDate, origEndDate } = this._tripDragState;
+        const { tripId, mode, hasMoved, newStart, newEnd, origStartDate, origEndDate } = this._tripDragState;
 
         if (hasMoved && newStart && (newStart !== origStartDate || newEnd !== origEndDate)) {
           // データ更新
@@ -8929,13 +8952,16 @@ const TravelPlan = {
             trip.end = newEnd;
           }
 
-          Utils.showToast('予定を移動しました（保存待ち）', 'info');
+          const actionLabel = mode === 'move' ? '移動' : '期間変更';
+          Utils.showToast(`予定を${actionLabel}しました（保存待ち）`, 'info');
           this.render();  // 再描画
         } else if (!hasMoved) {
-          // クリック（移動なし）→ モーダルを開く
-          const trip = trips.find(t => t.tripId === tripId);
-          if (trip) {
-            TripModal.open(trip);
+          // クリック（移動なし）→ モーダルを開く（ハンドルクリックは除外）
+          if (!e.target.closest('.bar-handle')) {
+            const trip = trips.find(t => t.tripId === tripId);
+            if (trip) {
+              TripModal.open(trip);
+            }
           }
         }
 
@@ -8946,8 +8972,9 @@ const TravelPlan = {
       bar.addEventListener('pointercancel', (e) => {
         if (this._tripDragState && this._tripDragState.barEl === bar) {
           bar.classList.remove('dragging');
-          // 元の位置に戻す
+          // 元の位置・サイズに戻す
           bar.style.left = `${this._tripDragState.origLeft}px`;
+          bar.style.width = `${this._tripDragState.origWidth}px`;
           this._tripDragState = null;
         }
       });
@@ -9092,7 +9119,7 @@ const TravelPlan = {
     const lockPrefix = isLocked ? '🔒 ' : '';
     const safeLabel = Utils.escapeHtml(lockPrefix + label);
 
-    // 両矢印スタイルHTML（ExcelGanttと同じ構造）
+    // 両矢印スタイルHTML（ExcelGanttと同じ構造 + リサイズハンドル）
     const lineClass = shape === 'dash' ? 'bar-line bar-line--dash' : 'bar-line';
     const baseStyle = `left:${trip._xStart}px; width:${trip._width}px; color:${color};`;
 
@@ -9102,6 +9129,8 @@ const TravelPlan = {
            data-trip-id="${trip.tripId}"
            title="${safeLabel}">
         <div class="${lineClass}"></div>
+        <div class="bar-handle bar-handle--left" data-handle="left"></div>
+        <div class="bar-handle bar-handle--right" data-handle="right"></div>
         <div class="bar-label">${safeLabel}</div>
       </div>
     `;
