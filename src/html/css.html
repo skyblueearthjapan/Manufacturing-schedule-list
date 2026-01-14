@@ -59,14 +59,17 @@
   #gantt-trip-section {
     grid-row: 3;
     flex-shrink: 0;
-    max-height: 300px;  /* 最大高さを制限 */
-    overflow: hidden;
   }
 
-  /* 出張計画が展開時のコンテンツ領域 */
-  #gantt-trip-section .embedded-trip-content {
+  /* 出張計画が展開時のコンテンツ領域（collapsedクラスがない時のみ） */
+  #gantt-trip-section:not(.collapsed) .embedded-trip-content {
     max-height: 250px;
     overflow-y: auto;
+  }
+
+  /* 折りたたみ時は確実にmax-height: 0を適用 */
+  #gantt-trip-section.collapsed .embedded-trip-content {
+    max-height: 0 !important;
   }
 
   /* ========================================
