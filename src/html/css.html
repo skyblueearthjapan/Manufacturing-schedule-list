@@ -4795,26 +4795,27 @@
   }
 
   .trip-left-row {
+    display: grid;
+    grid-template-columns: 6px 1fr;  /* 左に細い色帯 */
     border-bottom: 1px solid #e5e7eb;
+    background: #fff;
+    box-sizing: border-box;
+  }
+
+  /* 左端の縦色帯 */
+  .trip-color-bar {
+    width: 6px;
+  }
+
+  /* 名前セル */
+  .trip-name-cell {
     padding: 2px 8px;
     display: flex;
     flex-direction: column;
     justify-content: center;
     font-size: 10px;
     line-height: 1.2;
-    background: #fff;
-    box-sizing: border-box;
-  }
-
-  .trip-left-row--dept {
-    font-weight: 600;
-    font-size: 11px;
-    flex-direction: row;
-    align-items: center;
-  }
-
-  .trip-left-row--person {
-    /* 個人行 */
+    overflow: hidden;
   }
 
   .trip-left-dept {

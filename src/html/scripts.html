@@ -9096,7 +9096,6 @@ const TravelPlan = {
     const cellWidth = ExcelGantt.config.colWidth;  // 28px
     const totalWidth = dates.length * cellWidth;
     const rowHeight = 36;  // 作業者行の高さ
-    const deptRowHeight = 24;  // 部署ヘッダー行の高さ
 
     // 部署の優先表示順
     const PRIMARY_DEPT_ORDER = ['組立', 'TSC', '電気設計', '機械設計'];
@@ -9138,9 +9137,7 @@ const TravelPlan = {
       ];
       const rows = [];
       for (const dept of deptKeys) {
-        if (!personId && !deptFilter) {
-          rows.push({ type: 'deptHeader', dept });
-        }
+        // 部署ヘッダーは廃止（横帯削除）、作業者行のみ
         const members = groups.get(dept)
           .slice()
           .sort((a, b) => (a['氏名'] || '').localeCompare(b['氏名'] || '', 'ja'));
@@ -9168,29 +9165,23 @@ const TravelPlan = {
 
     const today = Utils.getToday();
 
-    // ===== 左ペイン（固定：作業者名）=====
+    // ===== 左ペイン（固定：作業者名 + 左端に色帯）=====
     let leftHtml = '';
     // ヘッダー
     leftHtml += '<div class="trip-left-head">出張予定</div>';
-    // 行
+    // 行（部署ヘッダー廃止、色帯のみ）
     workerRows.forEach(row => {
-      if (row.type === 'deptHeader') {
-        const deptColor = getDeptHeaderColor(row.dept);
-        leftHtml += `
-          <div class="trip-left-row trip-left-row--dept" style="height:${deptRowHeight}px; background:${deptColor.background}; color:${deptColor.text};">
-            ${Utils.escapeHtml(row.dept)}
-          </div>
-        `;
-      } else {
-        const person = row.person;
-        const personColor = Utils.normalizeColor(person['作業者色(colorHex)']) || '#6b7280';
-        leftHtml += `
-          <div class="trip-left-row trip-left-row--person" style="height:${rowHeight}px; border-left:4px solid ${personColor};">
+      const person = row.person;
+      const personColor = Utils.normalizeColor(person['作業者色(colorHex)']) || '#6b7280';
+      leftHtml += `
+        <div class="trip-left-row" style="height:${rowHeight}px;">
+          <div class="trip-color-bar" style="background:${personColor};"></div>
+          <div class="trip-name-cell">
             <div class="trip-left-dept">${Utils.escapeHtml(person['部署/区分'] || '')}</div>
             <div class="trip-left-name">${Utils.escapeHtml(person['氏名'] || '')}</div>
           </div>
-        `;
-      }
+        </div>
+      `;
     });
 
     // ===== 右ペイン（横スクロール：日付グリッド）=====
@@ -9223,47 +9214,40 @@ const TravelPlan = {
     });
     rightHtml += '</div>';
 
-    // グリッドボディ
+    // グリッドボディ（部署ヘッダー廃止、作業者行のみ）
     rightHtml += `<div class="trip-time-body" style="width:${totalWidth}px;">`;
     workerRows.forEach(row => {
-      if (row.type === 'deptHeader') {
-        const deptColor = getDeptHeaderColor(row.dept);
-        rightHtml += `
-          <div class="trip-time-row trip-time-row--dept" style="height:${deptRowHeight}px; background:${deptColor.background};"></div>
-        `;
-      } else {
-        const person = row.person;
-        const personTrips = visibleTrips.filter(t => t.personId === person.personId);
+      const person = row.person;
+      const personTrips = visibleTrips.filter(t => t.personId === person.personId);
 
-        rightHtml += `<div class="trip-time-row trip-time-row--person" style="height:${rowHeight}px;">`;
+      rightHtml += `<div class="trip-time-row" style="height:${rowHeight}px;">`;
 
-        // グリッドセル（背景線用）
-        dates.forEach(date => {
-          const isWeekend = Utils.isWeekend(date);
-          const isToday = date === today;
-          const daySetting = Store.getDaySetting(date);
-          let classes = 'trip-grid-cell';
-          if (isWeekend) classes += ' weekend';
-          if (isToday) classes += ' today';
-          if (daySetting === 'WORKDAY') classes += ' is-workday';
-          if (daySetting === 'HOLIDAY') classes += ' is-holiday';
-          rightHtml += `<div class="${classes}" style="width:${cellWidth}px;" data-person-id="${person.personId}" data-date="${date}"></div>`;
-        });
+      // グリッドセル（背景線用）
+      dates.forEach(date => {
+        const isWeekend = Utils.isWeekend(date);
+        const isToday = date === today;
+        const daySetting = Store.getDaySetting(date);
+        let classes = 'trip-grid-cell';
+        if (isWeekend) classes += ' weekend';
+        if (isToday) classes += ' today';
+        if (daySetting === 'WORKDAY') classes += ' is-workday';
+        if (daySetting === 'HOLIDAY') classes += ' is-holiday';
+        rightHtml += `<div class="${classes}" style="width:${cellWidth}px;" data-person-id="${person.personId}" data-date="${date}"></div>`;
+      });
 
-        // バーレイヤ
-        rightHtml += '<div class="trip-bar-layer">';
-        personTrips.forEach(trip => {
-          const startOffset = Utils.getDaysBetween(dates[0], trip.start);
-          const duration = Utils.getDaysBetween(trip.start, trip.end) + 1;
-          if (startOffset + duration < 0 || startOffset >= dates.length) return;
-          const xStart = getXForDate(trip.start);
-          const barWidth = duration * cellWidth;
-          rightHtml += this.renderEmbeddedTripBar(trip, xStart, barWidth);
-        });
-        rightHtml += '</div>';
+      // バーレイヤ
+      rightHtml += '<div class="trip-bar-layer">';
+      personTrips.forEach(trip => {
+        const startOffset = Utils.getDaysBetween(dates[0], trip.start);
+        const duration = Utils.getDaysBetween(trip.start, trip.end) + 1;
+        if (startOffset + duration < 0 || startOffset >= dates.length) return;
+        const xStart = getXForDate(trip.start);
+        const barWidth = duration * cellWidth;
+        rightHtml += this.renderEmbeddedTripBar(trip, xStart, barWidth);
+      });
+      rightHtml += '</div>';
 
-        rightHtml += '</div>';
-      }
+      rightHtml += '</div>';
     });
     rightHtml += '</div>';
 
