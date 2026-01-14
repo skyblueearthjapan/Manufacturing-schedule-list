@@ -4765,6 +4765,43 @@
     grid-column: 1 / 3;
   }
 
+  /* 埋め込み出張計画のバー（excel-bar両矢印スタイル） */
+  .embedded-trip-bar {
+    top: 18px;  /* 行中央に配置（36px行高の中央） */
+  }
+
+  /* 埋め込み出張計画グリッドでのoverflow許可 */
+  .embedded-trip-person-grid {
+    overflow: visible;
+  }
+
+  .embedded-trip-person-row {
+    overflow: visible;
+  }
+
+  /* 行高さを少し縮小（28px列幅に合わせてコンパクトに） */
+  .embedded-trip-person-row,
+  .embedded-trip-grid-cell {
+    min-height: 36px;
+    height: 36px;
+  }
+
+  /* 日付ヘッダーセルもコンパクトに（28px幅対応） */
+  .embedded-trip-date-cell {
+    font-size: 8px;
+    padding: 1px 0;
+  }
+  .embedded-trip-date-cell .month {
+    font-size: 7px;
+    height: 10px;
+  }
+  .embedded-trip-date-cell .day {
+    font-size: 9px;
+  }
+  .embedded-trip-date-cell .dow {
+    font-size: 7px;
+  }
+
   /* ====== 横スクロール同期 ====== */
   .excel-time-body::-webkit-scrollbar,
   .excel-time-header::-webkit-scrollbar {

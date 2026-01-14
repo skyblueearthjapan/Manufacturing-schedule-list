@@ -9082,6 +9082,10 @@ const TravelPlan = {
     const { people, trips } = Store.state;
     const dates = Utils.generateDateRange(dateFrom, days);
 
+    // ExcelGanttと同じ列幅を使用（タイムライン統一）
+    const cellWidth = ExcelGantt.config.colWidth;  // 28px
+    const totalWidth = dates.length * cellWidth;
+
     // 部署の優先表示順
     const PRIMARY_DEPT_ORDER = ['組立', 'TSC', '電気設計', '機械設計'];
 
@@ -9156,42 +9160,12 @@ const TravelPlan = {
       return startDate <= rangeEnd && endDate >= rangeStart;
     });
 
-    // 日付ごとの幅を計算（現場カードの押し広げ対応）
-    const dateExtraWidths = {};
-    dates.forEach(d => { dateExtraWidths[d] = 0; });
-
-    // 現場カードの幅を計算して押し広げ
-    visibleTrips.filter(t => t.kind === 'site').forEach(trip => {
-      const description = trip['用件'] || '';
-      const lines = description.split('\n');
-      const neededWidth = this.calculateSiteCardWidth(lines[0] || '', lines[1] || '', lines[2] || trip['行先'] || '');
-      const duration = Utils.getDaysBetween(trip.start, trip.end) + 1;
-      const baseWidth = duration * this.config.cellWidth;
-      const extraNeeded = Math.max(0, neededWidth - baseWidth);
-      if (extraNeeded > 0 && dates.includes(trip.start)) {
-        dateExtraWidths[trip.start] = Math.max(dateExtraWidths[trip.start], extraNeeded);
-      }
-    });
-
-    // 累積X座標計算用
+    // X座標計算（固定幅）
     const getXForDate = (date) => {
-      let x = 0;
-      for (const d of dates) {
-        if (d === date) return x;
-        x += this.config.cellWidth + (dateExtraWidths[d] || 0);
-      }
-      return x;
+      const idx = dates.indexOf(date);
+      return idx >= 0 ? idx * cellWidth : 0;
     };
 
-    const getCellWidthForDate = (date) => {
-      return this.config.cellWidth + (dateExtraWidths[date] || 0);
-    };
-
-    const getTotalWidth = () => {
-      return dates.reduce((sum, d) => sum + getCellWidthForDate(d), 0);
-    };
-
-    const totalWidth = getTotalWidth();
     const today = Utils.getToday();
 
     // HTML生成
@@ -9213,7 +9187,6 @@ const TravelPlan = {
       const daySetting = Store.getDaySetting(date);
       const showMonth = month !== currentMonth;
       currentMonth = month;
-      const cellWidth = getCellWidthForDate(date);
 
       let classes = 'embedded-trip-date-cell';
       if (isWeekend) classes += ' weekend';
@@ -9269,7 +9242,6 @@ const TravelPlan = {
           const isWeekend = Utils.isWeekend(date);
           const isToday = date === today;
           const daySetting = Store.getDaySetting(date);
-          const cellWidth = getCellWidthForDate(date);
 
           let classes = 'embedded-trip-grid-cell';
           if (isWeekend) classes += ' weekend';
@@ -9283,7 +9255,7 @@ const TravelPlan = {
                         data-date="${date}"></div>`;
         });
 
-        // 予定バー
+        // 予定バー（ExcelGanttと同じ両矢印スタイル）
         personTrips.forEach(trip => {
           const startOffset = Utils.getDaysBetween(dates[0], trip.start);
           const duration = Utils.getDaysBetween(trip.start, trip.end) + 1;
@@ -9292,19 +9264,10 @@ const TravelPlan = {
           if (startOffset + duration < 0 || startOffset >= dates.length) return;
 
           const xStart = getXForDate(trip.start);
-          let cardWidth;
-          if (trip.kind === 'site') {
-            const description = trip['用件'] || '';
-            const lines = description.split('\n');
-            const neededWidth = this.calculateSiteCardWidth(lines[0] || '', lines[1] || '', lines[2] || trip['行先'] || '');
-            const baseWidth = duration * this.config.cellWidth;
-            const extraWidth = dateExtraWidths[trip.start] || 0;
-            cardWidth = Math.max(neededWidth, baseWidth + extraWidth) - this.config.cardGap;
-          } else {
-            cardWidth = duration * this.config.cellWidth - this.config.cardGap;
-          }
+          // シンプルな固定幅（push-expand削除）
+          const barWidth = duration * cellWidth;
 
-          html += this.renderEmbeddedTripBar(trip, xStart, cardWidth);
+          html += this.renderEmbeddedTripBar(trip, xStart, barWidth);
         });
 
         html += `
@@ -9326,57 +9289,47 @@ const TravelPlan = {
   },
 
   /**
-   * 埋め込み用トリップバーをレンダリング
+   * 埋め込み用トリップバーをレンダリング（ExcelGanttと同じ両矢印スタイル）
    */
   renderEmbeddedTripBar(trip, xStart, width) {
     const isLocked = trip.isLocked === true;
-    const lockIcon = isLocked ? '<span class="travel-lock-icon">🔒</span>' : '';
-    const startDate = Utils.parseLocalDate(trip.start);
-    const startBadge = `${startDate.getMonth() + 1}/${startDate.getDate()}`;
+    // ラベル生成
+    let label = '';
+    let shape = 'arrow';  // デフォルト: 実線矢印
+    let color = '#6b7280';  // デフォルト色
 
     if (trip.kind === 'move') {
-      const destination = trip['行先'] || '';
-      return `
-        <div class="embedded-trip-move-bar ${isLocked ? 'locked' : ''}"
-             style="left: ${xStart}px; width: ${width}px;"
-             data-trip-id="${trip.tripId}"
-             title="移動: ${destination}">
-          ${lockIcon}
-          <span class="bar-icon">🚗</span>
-          <span>移動</span>
-        </div>
-      `;
+      label = '移動';
+      shape = 'dash';  // 移動は破線
+      color = '#9ca3af';
     } else if (trip.kind === 'site') {
       const description = trip['用件'] || '';
       const lines = description.split('\n');
-      const line1 = lines[0] || '';
-      const line2 = lines[1] || '';
-      const line3 = lines[2] || trip['行先'] || '';
-
-      return `
-        <div class="embedded-trip-site-bar ${isLocked ? 'locked' : ''}"
-             style="left: ${xStart}px; width: ${width}px;"
-             data-trip-id="${trip.tripId}"
-             title="${Utils.escapeHtml(description)}">
-          ${lockIcon}
-          <span class="travel-date-badge">${startBadge}</span>
-          <div class="bar-line1">${Utils.escapeHtml(line1)}</div>
-          <div class="bar-line2">${Utils.escapeHtml(line2)}</div>
-          <div class="bar-line3">${Utils.escapeHtml(line3)}</div>
-        </div>
-      `;
+      // 1行目を使用（工番+顧客名など）
+      label = lines[0] || trip['行先'] || '';
+      color = '#3b82f6';  // 現場は青
     } else {
-      const destination = trip['行先'] || '';
-      const purpose = trip['用件'] || '';
-      return `
-        <div class="embedded-trip-move-bar"
-             style="left: ${xStart}px; width: ${width}px; background: linear-gradient(135deg, #a78bfa, #8b5cf6); color: white; border-color: #7c3aed;"
-             data-trip-id="${trip.tripId}"
-             title="${destination} - ${purpose}">
-          <span>${Utils.escapeHtml(destination || purpose)}</span>
-        </div>
-      `;
+      label = trip['行先'] || trip['用件'] || '';
+      color = '#8b5cf6';  // その他は紫
     }
+
+    // ロックアイコン
+    const lockPrefix = isLocked ? '🔒 ' : '';
+    const safeLabel = Utils.escapeHtml(lockPrefix + label);
+
+    // 両矢印スタイルHTML（ExcelGanttと同じ構造）
+    const lineClass = shape === 'dash' ? 'bar-line bar-line--dash' : 'bar-line';
+    const baseStyle = `left:${xStart}px; width:${width}px; color:${color};`;
+
+    return `
+      <div class="excel-bar excel-bar--arrow embedded-trip-bar"
+           style="${baseStyle}"
+           data-trip-id="${trip.tripId}"
+           title="${safeLabel}">
+        <div class="${lineClass}"></div>
+        <div class="bar-label">${safeLabel}</div>
+      </div>
+    `;
   },
 
   /**
@@ -9412,15 +9365,31 @@ const TravelPlan = {
   },
 
   /**
-   * 埋め込み用スクロール同期設定
+   * 埋め込み用スクロール同期設定（ExcelGanttの横スクロールと連動）
    */
   setupEmbeddedScrollSync(containerId) {
     const dateScroll = document.getElementById(`${containerId}-date-scroll`);
     const bodyScroll = document.getElementById(`${containerId}-body-scroll`);
+    const excelTimeBody = document.getElementById('excelTimeBody');
+    const excelTimeHeader = document.getElementById('excelTimeHeader');
+    const excelBottomScrollbar = document.getElementById('excelBottomScrollbar');
 
+    // 出張計画内部スクロール同期
     if (dateScroll && bodyScroll) {
       bodyScroll.addEventListener('scroll', () => {
         dateScroll.scrollLeft = bodyScroll.scrollLeft;
+        // ExcelGanttにも同期（無限ループ防止フラグ不要：scrollLeftは同値なら何もしない）
+        if (excelTimeBody) excelTimeBody.scrollLeft = bodyScroll.scrollLeft;
+        if (excelTimeHeader) excelTimeHeader.scrollLeft = bodyScroll.scrollLeft;
+        if (excelBottomScrollbar) excelBottomScrollbar.scrollLeft = bodyScroll.scrollLeft;
+      });
+    }
+
+    // ExcelGantt → 出張計画への同期（ExcelGantt.setupScrollSyncで設定される場合もある）
+    if (excelTimeBody && bodyScroll) {
+      excelTimeBody.addEventListener('scroll', () => {
+        if (bodyScroll) bodyScroll.scrollLeft = excelTimeBody.scrollLeft;
+        if (dateScroll) dateScroll.scrollLeft = excelTimeBody.scrollLeft;
       });
     }
   }
