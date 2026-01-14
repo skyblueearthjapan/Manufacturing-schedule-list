@@ -6241,6 +6241,20 @@ const ExcelGantt = {
     const trips = Store.state.trips || [];
     let filteredTrips = trips;
 
+    // デバッグログ: 埋め込み出張計画の状態
+    console.log('[TripEmbed] timeline', {
+      start: Store.state.displayStartDate,
+      end: Utils.addDays(Store.state.displayStartDate, Store.state.displayDays - 1),
+      days: Store.state.displayDays,
+      colWidth: this.config?.colWidth
+    });
+    console.log('[TripEmbed] raw trips', trips.map(t => ({
+      tripId: t.tripId,
+      personId: t.personId,
+      start: t.start,
+      end: t.end
+    })));
+
     // 担当者フィルタ
     if (this.tripPersonFilter) {
       filteredTrips = trips.filter(t => t.personId === this.tripPersonFilter);
@@ -6249,7 +6263,14 @@ const ExcelGantt = {
     // 期間内フィルタ
     const startDate = Store.state.displayStartDate;
     const endDate = Utils.addDays(startDate, Store.state.displayDays - 1);
-    filteredTrips = filteredTrips.filter(t => t.endDate >= startDate && t.startDate <= endDate);
+    const beforeFilterCount = filteredTrips.length;
+    filteredTrips = filteredTrips.filter(t => t.end >= startDate && t.start <= endDate);
+
+    console.log('[TripEmbed] filter', {
+      assigneeFilter: this.tripPersonFilter,
+      beforePeriodFilter: beforeFilterCount,
+      afterAllFiltersCount: filteredTrips.length
+    });
 
     if (countEl) {
       countEl.textContent = `${filteredTrips.length}件`;
@@ -6276,8 +6297,8 @@ const ExcelGantt = {
       html += `<div class="embedded-trip-bars">`;
 
       byPerson[name].forEach(trip => {
-        const startIdx = this.getDateIndex(trip.startDate);
-        const endIdx = this.getDateIndex(trip.endDate);
+        const startIdx = this.getDateIndex(trip.start);
+        const endIdx = this.getDateIndex(trip.end);
 
         const visStart = Math.max(0, startIdx);
         const visEnd = Math.min(this.dates.length - 1, endIdx);
