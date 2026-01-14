@@ -5756,8 +5756,14 @@ const ExcelGantt = {
     const timeHeader = document.getElementById('excelTimeHeader');
     const bottomScrollbar = document.getElementById('excelBottomScrollbar');
 
+    // 埋め込み出張計画のスクロール要素を取得（動的生成のため関数化）
+    const getTripScrollElements = () => ({
+      tripBodyScroll: document.getElementById('gantt-trip-container-body-scroll'),
+      tripDateScroll: document.getElementById('gantt-trip-container-date-scroll')
+    });
+
     if (timeBody && leftRows) {
-      // 右ボディスクロール → 左追従 + ヘッダ追従
+      // 右ボディスクロール → 左追従 + ヘッダ追従 + 埋め込み出張追従
       timeBody.addEventListener('scroll', () => {
         leftRows.scrollTop = timeBody.scrollTop;
         if (timeHeader) {
@@ -5766,6 +5772,10 @@ const ExcelGantt = {
         if (bottomScrollbar) {
           bottomScrollbar.scrollLeft = timeBody.scrollLeft;
         }
+        // 埋め込み出張にも横スクロール同期
+        const { tripBodyScroll, tripDateScroll } = getTripScrollElements();
+        if (tripBodyScroll) tripBodyScroll.scrollLeft = timeBody.scrollLeft;
+        if (tripDateScroll) tripDateScroll.scrollLeft = timeBody.scrollLeft;
         this.updateTodayLine();
       }, { passive: true });
     }
@@ -5778,10 +5788,14 @@ const ExcelGantt = {
     }
 
     if (bottomScrollbar && timeBody && timeHeader) {
-      // 下部スクロールバー → 本体追従
+      // 下部スクロールバー → 本体追従 + 埋め込み出張追従
       bottomScrollbar.addEventListener('scroll', () => {
         timeBody.scrollLeft = bottomScrollbar.scrollLeft;
         timeHeader.scrollLeft = bottomScrollbar.scrollLeft;
+        // 埋め込み出張にも横スクロール同期
+        const { tripBodyScroll, tripDateScroll } = getTripScrollElements();
+        if (tripBodyScroll) tripBodyScroll.scrollLeft = bottomScrollbar.scrollLeft;
+        if (tripDateScroll) tripDateScroll.scrollLeft = bottomScrollbar.scrollLeft;
         this.updateTodayLine();
       }, { passive: true });
     }
