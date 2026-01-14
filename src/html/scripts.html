@@ -9380,9 +9380,10 @@ const TravelPlan = {
 
     const today = Utils.getToday();
 
-    // lane計算用の定数（左右ペインで共有するため先に定義）
-    const LANE_HEIGHT = 14;  // 1レーンあたりの高さ
-    const LANE_GAP = 2;      // レーン間のギャップ
+    // lane計算用の定数（設計指示に基づく固定値）
+    const BASE_TOP = 24;     // 1段目の基準：24px（上寄せ配置）
+    const LANE_HEIGHT = 18;  // 段の高さ（laneピッチ）：18px（14pxバー＋余白）
+    const BAR_HEIGHT = 14;   // 実際のバー描画高さ
     const MIN_PADDING = 8;   // 最小上下パディング合計
 
     // 各作業者の行データを事前計算（lane割り当て + 行高さ計算）
@@ -9394,12 +9395,12 @@ const TravelPlan = {
       // 最大lane数を取得
       const maxLane = layoutTrips.reduce((max, t) => Math.max(max, t.lane || 0), 0);
       const laneCount = maxLane + 1;
-      // 全バーが占める高さ
-      const totalBarsHeight = laneCount * LANE_HEIGHT + (laneCount - 1) * LANE_GAP;
+      // 全バーが占める高さ（2段以上の場合に対応）
+      const totalBarsHeight = BASE_TOP + laneCount * LANE_HEIGHT;
       // 行高さを動的計算（最低rowHeight、バーが収まるように拡大）
       const dynamicHeight = Math.max(rowHeight, totalBarsHeight + MIN_PADDING);
-      // バーを中央に配置するためのbaseTop計算
-      const baseTop = Math.floor((dynamicHeight - totalBarsHeight) / 2);
+      // baseTopは固定（上寄せ配置）
+      const baseTop = BASE_TOP;
       const personColor = Utils.normalizeColor(person['作業者色(colorHex)']) || '#6b7280';
       return { person, layoutTrips, dynamicHeight, laneCount, personColor, baseTop };
     });
@@ -9486,10 +9487,10 @@ const TravelPlan = {
         const xStart = visibleStartOffset * cellWidth;
         const barWidth = visibleDuration * cellWidth;
 
-        // lane位置からtopを計算（中央配置）
+        // lane位置からtopを計算（上寄せ配置：baseTop + lane * laneHeight）
         const lane = trip.lane || 0;
-        const topInRow = baseTop + lane * (LANE_HEIGHT + LANE_GAP);
-        rightHtml += this.renderEmbeddedTripBar(trip, xStart, barWidth, topInRow, LANE_HEIGHT);
+        const topInRow = baseTop + lane * LANE_HEIGHT;
+        rightHtml += this.renderEmbeddedTripBar(trip, xStart, barWidth, topInRow, BAR_HEIGHT);
       });
       rightHtml += '</div>';
 

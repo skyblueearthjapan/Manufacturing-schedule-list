@@ -4962,7 +4962,8 @@
     position: relative;
     border-bottom: 1px solid #e5e7eb;
     box-sizing: border-box;
-    overflow: hidden;  /* バーが上の行にはみ出さないようにする */
+    overflow-x: hidden;    /* 横方向はクリップ */
+    overflow-y: visible;   /* 縦方向はラベルのはみ出しを許可（見切れ防止） */
   }
 
   .trip-time-row--dept {
@@ -5012,27 +5013,40 @@
     position: absolute;
     inset: 0;
     pointer-events: none;
-    overflow: hidden;  /* 上の行にはみ出さないようにする */
+    overflow-x: hidden;    /* 横方向はクリップ */
+    overflow-y: visible;   /* 縦方向はラベルのはみ出しを許可（見切れ防止） */
   }
 
   /* 埋め込み出張計画のバー（excel-bar両矢印スタイル）- lane対応でtop/heightはinline指定 */
   .embedded-trip-bar {
     height: auto !important;  /* 親の height:0 を上書き、inlineで指定 */
     pointer-events: auto;
-    display: flex;
-    align-items: center;      /* 線とラベルを縦中央に配置 */
-    line-height: 14px;        /* バー高さに合わせる */
+    z-index: 50;              /* ヘッダーより前面に */
   }
 
+  /* ラベル共通：バーの上側に固定（下側に落とさない） */
   .embedded-trip-bar .bar-label {
-    position: relative;    /* absoluteからrelativeに変更（親のoverflow:hiddenでクリップされないように） */
-    top: auto;             /* top:-12px を無効化 */
-    left: auto;            /* left:8px を無効化 */
+    position: absolute;
+    top: -2px;             /* バーの上側に配置 */
+    left: 8px;             /* 行き先ラベルは左寄せ */
     line-height: 14px;
     white-space: nowrap;
-    margin-left: 8px;      /* バーの横に配置 */
-    z-index: 2;            /* バーの線より前面に */
+    overflow: visible;
+    pointer-events: none;
+    z-index: 9999;         /* ヘッダーより前面に */
   }
+
+  /* 「移動」ラベル：左右端に固定して上側表示（将来用） */
+  .embedded-trip-bar .bar-move-label {
+    position: absolute;
+    top: -2px;
+    line-height: 14px;
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 9999;
+  }
+  .embedded-trip-bar .bar-move-label.left  { left: -22px; }
+  .embedded-trip-bar .bar-move-label.right { right: -22px; }
 
   /* ====== 横スクロール同期 ====== */
   .excel-time-body::-webkit-scrollbar,
