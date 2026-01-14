@@ -10998,14 +10998,17 @@ const App = {
     const allContainers = document.querySelectorAll('.view-container');
     console.log(`[App] switchView: found ${allContainers.length} view-containers`);
     allContainers.forEach(container => {
+      // hiddenクラスが効かない場合があるため、style.displayを直接操作
       container.classList.add('hidden');
+      container.style.display = 'none';
     });
 
     const viewContainer = document.getElementById(`view-${view}`);
     console.log(`[App] switchView: target container view-${view} exists: ${!!viewContainer}`);
     if (viewContainer) {
       viewContainer.classList.remove('hidden');
-      console.log(`[App] switchView: view-${view} is now visible (hidden=${viewContainer.classList.contains('hidden')})`);
+      viewContainer.style.display = '';  // インラインスタイルを解除してCSSに任せる
+      console.log(`[App] switchView: view-${view} is now visible (display=${viewContainer.style.display || 'default'})`);
     } else {
       console.error(`[App] switchView: ERROR - view-${view} not found in DOM!`);
     }
