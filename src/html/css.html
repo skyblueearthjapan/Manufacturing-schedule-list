@@ -10,11 +10,14 @@
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
     overflow: hidden; /* ページ全体のスクロールを防止（各ビューで個別制御） */
     height: 100vh;
+    display: flex;
+    flex-direction: column;
   }
 
-  /* メインコンテンツ領域 */
+  /* メインコンテンツ領域 - flex: 1で残り全部を占有 */
   main {
-    height: calc(100vh - 64px - 40px); /* ヘッダー高さ + タスクバー分の余白 */
+    flex: 1;
+    min-height: 0; /* flexboxで縮小を許可 */
     overflow: hidden;
   }
 
@@ -22,6 +25,43 @@
   .view-container {
     height: 100%;
     overflow: hidden;
+  }
+
+  /* ========================================
+     大工程表レイアウト（出張計画下ドック対応）
+     ======================================== */
+  /* view-masterをgrid構造に変更（Tailwindのflex-colをオーバーライド） */
+  #view-master.view-container {
+    display: grid !important;
+    grid-template-rows: auto 1fr auto;
+    flex-direction: unset !important;
+  }
+
+  /* 工程表コンテナ（Classic/Excel共通）- 可変で伸縮 */
+  #gantt-classic-container,
+  #gantt-excel-container {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  /* 出張計画セクション - 下ドック（常に表示） */
+  #gantt-trip-section.embedded-trip-section {
+    flex-shrink: 0;
+    min-height: 0;
+    max-height: 280px;
+    overflow: hidden;
+    border-top: 3px solid #ea580c;
+  }
+
+  /* 出張計画が展開されている時 */
+  #gantt-trip-section.embedded-trip-section:not(.collapsed) {
+    min-height: 200px;
+  }
+
+  /* 出張計画のコンテンツ - 高さ自動調整 */
+  #gantt-trip-section .embedded-trip-content {
+    max-height: 230px;
+    overflow: auto;
   }
 
   /* ========================================
@@ -3816,6 +3856,10 @@
     border-right: 1px solid #e5e7eb;
     display: flex;
     align-items: center;
+    /* 左列固定 */
+    position: sticky;
+    left: 0;
+    z-index: 15;
   }
 
   .embedded-trip-date-scroll {
@@ -3926,6 +3970,10 @@
     background: white;
     font-size: 10px;
     line-height: 1.3;
+    /* 左列固定（横スクロールしても固定） */
+    position: sticky;
+    left: 0;
+    z-index: 5;
   }
 
   .embedded-trip-person-info .dept {

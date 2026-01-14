@@ -1911,6 +1911,83 @@ const Gantt = {
     this.setupEventListeners();
     this.attachGridEventListeners(); // イベント委譲は一度だけ設定
     Store.subscribe(() => this.render());
+    this.setupTripResizeObserver(); // 出張計画の再描画用
+  },
+
+  /**
+   * 出張計画セクションのResizeObserver設定
+   * コンテナサイズが変わったら再描画（「出る/出ない」問題を解消）
+   */
+  setupTripResizeObserver() {
+    const section = document.getElementById('gantt-trip-section');
+    if (!section) return;
+
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        // 幅が50px未満なら描画しない
+        if (entry.contentRect.width < 50) return;
+        // 高さが0なら折りたたまれている
+        if (entry.contentRect.height < 10) return;
+        // 再描画
+        requestAnimationFrame(() => {
+          this.renderTrips();
+          this.syncTripScrollWithGantt();
+        });
+      }
+    });
+    ro.observe(section);
+
+    // 折りたたみ状態の変更も監視
+    const observer = new MutationObserver(() => {
+      if (!section.classList.contains('collapsed')) {
+        requestAnimationFrame(() => {
+          this.renderTrips();
+          this.syncTripScrollWithGantt();
+        });
+      }
+    });
+    observer.observe(section, { attributes: true, attributeFilter: ['class'] });
+  },
+
+  /**
+   * 出張計画と工程表の横スクロールを同期
+   */
+  syncTripScrollWithGantt() {
+    const ganttScrollBody = document.getElementById('gantt-h-scroll-body');
+    const excelTimeBody = document.getElementById('excelTimeBody');
+    const tripBodyScroll = document.getElementById('gantt-trip-container-body-scroll');
+    const tripDateScroll = document.getElementById('gantt-trip-container-date-scroll');
+
+    if (!tripBodyScroll) return;
+
+    // Classic UI の場合
+    if (ganttScrollBody && !ganttScrollBody.closest('.hidden')) {
+      this._syncScrollElements(ganttScrollBody, tripBodyScroll, tripDateScroll);
+    }
+    // Excel UI の場合
+    if (excelTimeBody && !excelTimeBody.closest('.hidden')) {
+      this._syncScrollElements(excelTimeBody, tripBodyScroll, tripDateScroll);
+    }
+  },
+
+  _syncScrollElements(source, tripBody, tripHeader) {
+    if (!source || !tripBody) return;
+
+    // 初期同期
+    tripBody.scrollLeft = source.scrollLeft;
+    if (tripHeader) tripHeader.scrollLeft = source.scrollLeft;
+
+    // 工程表 → 出張計画
+    source.addEventListener('scroll', () => {
+      tripBody.scrollLeft = source.scrollLeft;
+      if (tripHeader) tripHeader.scrollLeft = source.scrollLeft;
+    });
+
+    // 出張計画 → 工程表
+    tripBody.addEventListener('scroll', () => {
+      source.scrollLeft = tripBody.scrollLeft;
+      if (tripHeader) tripHeader.scrollLeft = tripBody.scrollLeft;
+    });
   },
 
   // スケジュールにレーンを割り当てる（重なり対応）
@@ -8245,11 +8322,12 @@ console.log('[DEBUG] TripModal defined');
 
 const TravelPlan = {
   config: {
-    cellWidth: 70,  // 日付列幅
+    cellWidth: 70,           // 独立ビュー（view-travel）用の日付列幅
+    embeddedCellWidth: 32,   // 埋め込み用の日付列幅（工程表と同じ）
     rowHeight: 72,
-    maxExpandDays: 4,  // 現場カード自動拡大の最大日数（追加分）
-    cardPadding: 24,   // カード内パディング
-    cardGap: 4         // カード間の隙間
+    maxExpandDays: 4,        // 現場カード自動拡大の最大日数（追加分）
+    cardPadding: 24,         // カード内パディング
+    cardGap: 4               // カード間の隙間
   },
   dates: [],
   displayStartDate: null,
@@ -9012,13 +9090,16 @@ const TravelPlan = {
     const dateExtraWidths = {};
     dates.forEach(d => { dateExtraWidths[d] = 0; });
 
+    // 埋め込み用のセル幅（工程表と同じ32px）
+    const cellW = this.config.embeddedCellWidth;
+
     // 現場カードの幅を計算して押し広げ
     visibleTrips.filter(t => t.kind === 'site').forEach(trip => {
       const description = trip['用件'] || '';
       const lines = description.split('\n');
       const neededWidth = this.calculateSiteCardWidth(lines[0] || '', lines[1] || '', lines[2] || trip['行先'] || '');
       const duration = Utils.getDaysBetween(trip.start, trip.end) + 1;
-      const baseWidth = duration * this.config.cellWidth;
+      const baseWidth = duration * cellW;
       const extraNeeded = Math.max(0, neededWidth - baseWidth);
       if (extraNeeded > 0 && dates.includes(trip.start)) {
         dateExtraWidths[trip.start] = Math.max(dateExtraWidths[trip.start], extraNeeded);
@@ -9030,13 +9111,13 @@ const TravelPlan = {
       let x = 0;
       for (const d of dates) {
         if (d === date) return x;
-        x += this.config.cellWidth + (dateExtraWidths[d] || 0);
+        x += cellW + (dateExtraWidths[d] || 0);
       }
       return x;
     };
 
     const getCellWidthForDate = (date) => {
-      return this.config.cellWidth + (dateExtraWidths[date] || 0);
+      return cellW + (dateExtraWidths[date] || 0);
     };
 
     const getTotalWidth = () => {
@@ -9088,28 +9169,23 @@ const TravelPlan = {
     html += `<div class="embedded-trip-body-scroll" id="${containerId}-body-scroll">`;
     html += `<div class="embedded-trip-body" style="min-width: ${totalWidth + 120}px;">`;
 
-    // 部署ヘッダーと作業者行を描画
+    // 作業者行を描画（部署ヘッダー帯は削除、左端色バーのみ）
     workerRows.forEach(row => {
       if (row.type === 'deptHeader') {
-        // 部署ヘッダー行（色は設定から取得）
-        const deptColor = getDeptHeaderColor(row.dept);
-        html += `
-          <div class="embedded-trip-dept-header" style="background: ${deptColor.background};">
-            <div class="embedded-trip-dept-name" style="color: ${deptColor.text};">${Utils.escapeHtml(row.dept)}</div>
-            <div class="embedded-trip-dept-grid" style="width: ${totalWidth}px; background: ${deptColor.background};"></div>
-          </div>
-        `;
+        // 部署ヘッダー行は描画しない（左端色バーに統合）
+        return;
       } else {
         // 作業者行
         const person = row.person;
         const personTrips = visibleTrips.filter(t => t.personId === person.personId);
         const dept = person['部署/区分'] || '';
         const name = person['氏名'] || '';
-        const personColor = Utils.normalizeColor(person['作業者色(colorHex)']) || '#6b7280';
+        // 部署の色を左端バーに使用
+        const deptColor = getDeptHeaderColor(dept);
 
         html += `
           <div class="embedded-trip-person-row">
-            <div class="embedded-trip-person-info" style="border-left: 4px solid ${personColor}">
+            <div class="embedded-trip-person-info" style="border-left: 6px solid ${deptColor.background}">
               <div class="dept">${Utils.escapeHtml(dept)}</div>
               <div class="name">${Utils.escapeHtml(name)}</div>
             </div>
@@ -9149,11 +9225,11 @@ const TravelPlan = {
             const description = trip['用件'] || '';
             const lines = description.split('\n');
             const neededWidth = this.calculateSiteCardWidth(lines[0] || '', lines[1] || '', lines[2] || trip['行先'] || '');
-            const baseWidth = duration * this.config.cellWidth;
+            const baseWidth = duration * cellW;
             const extraWidth = dateExtraWidths[trip.start] || 0;
             cardWidth = Math.max(neededWidth, baseWidth + extraWidth) - this.config.cardGap;
           } else {
-            cardWidth = duration * this.config.cellWidth - this.config.cardGap;
+            cardWidth = duration * cellW - this.config.cardGap;
           }
 
           html += this.renderEmbeddedTripBar(trip, xStart, cardWidth);
