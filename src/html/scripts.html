@@ -9080,6 +9080,78 @@ const TravelPlan = {
   },
 
   /**
+   * 2つの予定が重なるかチェック
+   */
+  tripsOverlap(a, b) {
+    return !(a.end < b.start || b.end < a.start);
+  },
+
+  /**
+   * 作業者ごとの予定にlaneを割り当て（重なり回避）
+   * @param {Object[]} personTrips - その人の予定配列
+   * @returns {Object[]} lane情報付きの予定配列
+   */
+  assignLanesForPerson(personTrips) {
+    if (!personTrips || personTrips.length === 0) return [];
+
+    // 開始日でソート
+    const items = personTrips.slice().sort((a, b) => a.start.localeCompare(b.start));
+
+    // lanes配列：各laneに配置済みの予定を保持
+    const lanes = [];
+
+    // 1) laneLocked=trueのものを先に配置（指定laneを尊重）
+    for (const trip of items.filter(t => t.laneLocked && Number.isFinite(t.lane))) {
+      const L = trip.lane;
+      lanes[L] = lanes[L] || [];
+      lanes[L].push(trip);
+    }
+
+    // 2) 非lockedを空きlaneに配置
+    for (const trip of items.filter(t => !(t.laneLocked && Number.isFinite(t.lane)))) {
+      let placed = false;
+      for (let L = 0; L < lanes.length; L++) {
+        lanes[L] = lanes[L] || [];
+        if (!lanes[L].some(p => this.tripsOverlap(p, trip))) {
+          trip.lane = L;
+          lanes[L].push(trip);
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) {
+        const L = lanes.length;
+        trip.lane = L;
+        lanes[L] = [trip];
+      }
+    }
+
+    // 3) locked同士の衝突解決（後勝ち）
+    for (let L = 0; L < lanes.length; L++) {
+      const laneItems = (lanes[L] || []).sort((a, b) => a.start.localeCompare(b.start));
+      for (let i = 0; i < laneItems.length; i++) {
+        for (let j = i + 1; j < laneItems.length; j++) {
+          const a = laneItems[i], b = laneItems[j];
+          if (a.laneLocked && b.laneLocked && this.tripsOverlap(a, b)) {
+            // bを空きlaneへ移動
+            for (let newL = 0; ; newL++) {
+              lanes[newL] = lanes[newL] || [];
+              if (newL !== L && !lanes[newL].some(p => this.tripsOverlap(p, b))) {
+                b.lane = newL;
+                lanes[newL].push(b);
+                break;
+              }
+              if (newL > 10) break; // 安全弁
+            }
+          }
+        }
+      }
+    }
+
+    return items;
+  },
+
+  /**
    * 埋め込み用レンダリング（大工程表・担当者別大工程表の下段用）
    * 2ペイン構造：左固定（作業者名）+ 右スクロール（日付グリッド）
    * @param {Object} options - { containerId, personId?, deptFilter?, dateFrom, days }
@@ -9165,16 +9237,34 @@ const TravelPlan = {
 
     const today = Utils.getToday();
 
+    // lane計算用の定数（左右ペインで共有するため先に定義）
+    const LANE_HEIGHT = 14;  // 1レーンあたりの高さ
+    const LANE_GAP = 2;      // レーン間のギャップ
+    const BASE_TOP = 4;      // 行上端からのオフセット
+
+    // 各作業者の行データを事前計算（lane割り当て + 行高さ計算）
+    const rowDataList = workerRows.map(row => {
+      const person = row.person;
+      const personTrips = visibleTrips.filter(t => t.personId === person.personId);
+      // lane割り当て
+      const layoutTrips = this.assignLanesForPerson(personTrips);
+      // 最大lane数を取得
+      const maxLane = layoutTrips.reduce((max, t) => Math.max(max, t.lane || 0), 0);
+      const laneCount = maxLane + 1;
+      // 行高さを動的計算（最低rowHeight、lane数に応じて拡大）
+      const dynamicHeight = Math.max(rowHeight, BASE_TOP * 2 + laneCount * (LANE_HEIGHT + LANE_GAP));
+      const personColor = Utils.normalizeColor(person['作業者色(colorHex)']) || '#6b7280';
+      return { person, layoutTrips, dynamicHeight, laneCount, personColor };
+    });
+
     // ===== 左ペイン（固定：作業者名 + 左端に色帯）=====
     let leftHtml = '';
     // ヘッダー
     leftHtml += '<div class="trip-left-head">出張予定</div>';
-    // 行（部署ヘッダー廃止、色帯のみ）
-    workerRows.forEach(row => {
-      const person = row.person;
-      const personColor = Utils.normalizeColor(person['作業者色(colorHex)']) || '#6b7280';
+    // 行（部署ヘッダー廃止、色帯のみ）- 動的高さ使用
+    rowDataList.forEach(({ person, dynamicHeight, personColor }) => {
       leftHtml += `
-        <div class="trip-left-row" style="height:${rowHeight}px;">
+        <div class="trip-left-row" style="height:${dynamicHeight}px;">
           <div class="trip-color-bar" style="background:${personColor};"></div>
           <div class="trip-name-cell">
             <div class="trip-left-dept">${Utils.escapeHtml(person['部署/区分'] || '')}</div>
@@ -9216,11 +9306,8 @@ const TravelPlan = {
 
     // グリッドボディ（部署ヘッダー廃止、作業者行のみ）
     rightHtml += `<div class="trip-time-body" style="width:${totalWidth}px;">`;
-    workerRows.forEach(row => {
-      const person = row.person;
-      const personTrips = visibleTrips.filter(t => t.personId === person.personId);
-
-      rightHtml += `<div class="trip-time-row" style="height:${rowHeight}px;">`;
+    rowDataList.forEach(({ person, layoutTrips, dynamicHeight }) => {
+      rightHtml += `<div class="trip-time-row" style="height:${dynamicHeight}px;">`;
 
       // グリッドセル（背景線用）
       dates.forEach(date => {
@@ -9232,18 +9319,21 @@ const TravelPlan = {
         if (isToday) classes += ' today';
         if (daySetting === 'WORKDAY') classes += ' is-workday';
         if (daySetting === 'HOLIDAY') classes += ' is-holiday';
-        rightHtml += `<div class="${classes}" style="width:${cellWidth}px;" data-person-id="${person.personId}" data-date="${date}"></div>`;
+        rightHtml += `<div class="${classes}" style="width:${cellWidth}px; height:${dynamicHeight}px;" data-person-id="${person.personId}" data-date="${date}"></div>`;
       });
 
       // バーレイヤ
       rightHtml += '<div class="trip-bar-layer">';
-      personTrips.forEach(trip => {
+      layoutTrips.forEach(trip => {
         const startOffset = Utils.getDaysBetween(dates[0], trip.start);
         const duration = Utils.getDaysBetween(trip.start, trip.end) + 1;
         if (startOffset + duration < 0 || startOffset >= dates.length) return;
         const xStart = getXForDate(trip.start);
         const barWidth = duration * cellWidth;
-        rightHtml += this.renderEmbeddedTripBar(trip, xStart, barWidth);
+        // lane位置からtopを計算
+        const lane = trip.lane || 0;
+        const topInRow = BASE_TOP + lane * (LANE_HEIGHT + LANE_GAP);
+        rightHtml += this.renderEmbeddedTripBar(trip, xStart, barWidth, topInRow, LANE_HEIGHT);
       });
       rightHtml += '</div>';
 
@@ -9272,8 +9362,13 @@ const TravelPlan = {
 
   /**
    * 埋め込み用トリップバーをレンダリング（ExcelGanttと同じ両矢印スタイル）
+   * @param {Object} trip - トリップデータ
+   * @param {number} xStart - X座標開始位置
+   * @param {number} width - バーの幅
+   * @param {number} topInRow - 行内でのY座標（lane位置）
+   * @param {number} laneHeight - 1レーンの高さ
    */
-  renderEmbeddedTripBar(trip, xStart, width) {
+  renderEmbeddedTripBar(trip, xStart, width, topInRow, laneHeight) {
     const isLocked = trip.isLocked === true;
     // ラベル生成
     let label = '';
@@ -9301,7 +9396,7 @@ const TravelPlan = {
 
     // 両矢印スタイルHTML（ExcelGanttと同じ構造）
     const lineClass = shape === 'dash' ? 'bar-line bar-line--dash' : 'bar-line';
-    const baseStyle = `left:${xStart}px; width:${width}px; color:${color};`;
+    const baseStyle = `left:${xStart}px; width:${width}px; top:${topInRow}px; height:${laneHeight}px; color:${color};`;
 
     return `
       <div class="excel-bar excel-bar--arrow embedded-trip-bar"

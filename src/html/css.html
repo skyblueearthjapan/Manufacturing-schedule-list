@@ -4937,11 +4937,12 @@
     overflow: visible;
   }
 
-  /* 埋め込み出張計画のバー（excel-bar両矢印スタイル） */
+  /* 埋め込み出張計画のバー（excel-bar両矢印スタイル）- lane対応でtop/heightはinline指定 */
   .embedded-trip-bar {
-    top: 50%;
-    transform: translateY(-50%);
+    height: auto !important;  /* 親の height:0 を上書き、inlineで指定 */
     pointer-events: auto;
+    display: flex;
+    align-items: center;      /* 線とラベルを縦中央に配置 */
   }
 
   /* ====== 横スクロール同期 ====== */
