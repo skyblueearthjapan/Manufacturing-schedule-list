@@ -9383,7 +9383,7 @@ const TravelPlan = {
     // lane計算用の定数（左右ペインで共有するため先に定義）
     const LANE_HEIGHT = 14;  // 1レーンあたりの高さ
     const LANE_GAP = 2;      // レーン間のギャップ
-    const BASE_TOP = 4;      // 行上端からのオフセット
+    const MIN_PADDING = 8;   // 最小上下パディング合計
 
     // 各作業者の行データを事前計算（lane割り当て + 行高さ計算）
     const rowDataList = workerRows.map(row => {
@@ -9394,10 +9394,14 @@ const TravelPlan = {
       // 最大lane数を取得
       const maxLane = layoutTrips.reduce((max, t) => Math.max(max, t.lane || 0), 0);
       const laneCount = maxLane + 1;
-      // 行高さを動的計算（最低rowHeight、lane数に応じて拡大）
-      const dynamicHeight = Math.max(rowHeight, BASE_TOP * 2 + laneCount * (LANE_HEIGHT + LANE_GAP));
+      // 全バーが占める高さ
+      const totalBarsHeight = laneCount * LANE_HEIGHT + (laneCount - 1) * LANE_GAP;
+      // 行高さを動的計算（最低rowHeight、バーが収まるように拡大）
+      const dynamicHeight = Math.max(rowHeight, totalBarsHeight + MIN_PADDING);
+      // バーを中央に配置するためのbaseTop計算
+      const baseTop = Math.floor((dynamicHeight - totalBarsHeight) / 2);
       const personColor = Utils.normalizeColor(person['作業者色(colorHex)']) || '#6b7280';
-      return { person, layoutTrips, dynamicHeight, laneCount, personColor };
+      return { person, layoutTrips, dynamicHeight, laneCount, personColor, baseTop };
     });
 
     // ===== 左ペイン（固定：作業者名 + 左端に色帯）=====
@@ -9449,7 +9453,7 @@ const TravelPlan = {
 
     // グリッドボディ（部署ヘッダー廃止、作業者行のみ）
     rightHtml += `<div class="trip-time-body" style="width:${totalWidth}px;">`;
-    rowDataList.forEach(({ person, layoutTrips, dynamicHeight }) => {
+    rowDataList.forEach(({ person, layoutTrips, dynamicHeight, baseTop }) => {
       rightHtml += `<div class="trip-time-row" style="height:${dynamicHeight}px;">`;
 
       // グリッドセル（背景線用）
@@ -9482,9 +9486,9 @@ const TravelPlan = {
         const xStart = visibleStartOffset * cellWidth;
         const barWidth = visibleDuration * cellWidth;
 
-        // lane位置からtopを計算
+        // lane位置からtopを計算（中央配置）
         const lane = trip.lane || 0;
-        const topInRow = BASE_TOP + lane * (LANE_HEIGHT + LANE_GAP);
+        const topInRow = baseTop + lane * (LANE_HEIGHT + LANE_GAP);
         rightHtml += this.renderEmbeddedTripBar(trip, xStart, barWidth, topInRow, LANE_HEIGHT);
       });
       rightHtml += '</div>';
