@@ -8822,14 +8822,8 @@ const TravelPlan = {
 
     workerRows.forEach(row => {
       if (row.type === 'deptHeader') {
-        // 部署ヘッダー行（色は設定から取得）
-        const deptColor = getDeptHeaderColor(row.dept);
-        html += `
-          <div class="travel-dept-header" style="background: ${deptColor.background};">
-            <div class="travel-dept-name" style="color: ${deptColor.text};">${Utils.escapeHtml(row.dept)}</div>
-            <div class="travel-dept-grid" style="width: ${totalWidth}px; background: ${deptColor.background};"></div>
-          </div>
-        `;
+        // 部署ヘッダー行は廃止（左端の縦色帯で部署識別するため）
+        return;
       } else {
         // 作業者行
         const person = row.person;
@@ -9012,64 +9006,51 @@ const TravelPlan = {
   },
 
   /**
-   * レイアウト計算済みの予定をレンダリング
+   * レイアウト計算済みの予定をレンダリング（両矢印スタイル）
+   * ExcelGantt / 埋め込み出張計画と同じ構造
    * @param {Object} trip - レイアウト情報付き予定（_xStart, _width）
    * @returns {string} HTML
    */
   renderTripBarWithLayout(trip) {
     const isLocked = trip.isLocked === true;
-    const lockIcon = isLocked ? '<span class="travel-lock-icon">🔒</span>' : '';
 
-    // Phase C: 開始日バッジ（月/日）- parseLocalDateでUTC問題を回避
-    const startDate = Utils.parseLocalDate(trip.start);
-    const startBadge = `${startDate.getMonth() + 1}/${startDate.getDate()}`;
+    // ラベル生成
+    let label = '';
+    let shape = 'arrow';  // デフォルト: 実線矢印
+    let color = '#6b7280';  // デフォルト色
 
     if (trip.kind === 'move') {
-      // 移動バー
-      const destination = trip['行先'] || '';
-      return `
-        <div class="travel-move-bar ${isLocked ? 'locked' : ''}"
-             style="left: ${trip._xStart}px; width: ${trip._width}px;"
-             data-trip-id="${trip.tripId}"
-             title="移動: ${destination}">
-          ${lockIcon}
-          <span class="bar-icon">🚗</span>
-          <span>移動</span>
-        </div>
-      `;
+      label = '移動';
+      shape = 'dash';  // 移動は破線
+      color = '#9ca3af';
     } else if (trip.kind === 'site') {
-      // 現場バー（3行表示 + 開始日バッジ）
       const description = trip['用件'] || '';
       const lines = description.split('\n');
-      const line1 = lines[0] || '';
-      const line2 = lines[1] || '';
-      const line3 = lines[2] || trip['行先'] || '';
-
-      return `
-        <div class="travel-site-bar ${isLocked ? 'locked' : ''}"
-             style="left: ${trip._xStart}px; width: ${trip._width}px;"
-             data-trip-id="${trip.tripId}"
-             title="${Utils.escapeHtml(description)}">
-          ${lockIcon}
-          <span class="travel-date-badge">${startBadge}</span>
-          <div class="bar-line1">${Utils.escapeHtml(line1)}</div>
-          <div class="bar-line2">${Utils.escapeHtml(line2)}</div>
-          <div class="bar-line3">${Utils.escapeHtml(line3)}</div>
-        </div>
-      `;
+      // 1行目を使用（工番+顧客名など）
+      label = lines[0] || trip['行先'] || '';
+      color = '#3b82f6';  // 現場は青
     } else {
-      // その他（既存trip形式）
-      const destination = trip['行先'] || '';
-      const purpose = trip['用件'] || '';
-      return `
-        <div class="travel-move-bar"
-             style="left: ${trip._xStart}px; width: ${trip._width}px; background: linear-gradient(135deg, #a78bfa, #8b5cf6); color: white; border-color: #7c3aed;"
-             data-trip-id="${trip.tripId}"
-             title="${destination} - ${purpose}">
-          <span>${Utils.escapeHtml(destination || purpose)}</span>
-        </div>
-      `;
+      label = trip['行先'] || trip['用件'] || '';
+      color = '#8b5cf6';  // その他は紫
     }
+
+    // ロックアイコン
+    const lockPrefix = isLocked ? '🔒 ' : '';
+    const safeLabel = Utils.escapeHtml(lockPrefix + label);
+
+    // 両矢印スタイルHTML（ExcelGanttと同じ構造）
+    const lineClass = shape === 'dash' ? 'bar-line bar-line--dash' : 'bar-line';
+    const baseStyle = `left:${trip._xStart}px; width:${trip._width}px; color:${color};`;
+
+    return `
+      <div class="excel-bar excel-bar--arrow travel-trip-bar"
+           style="${baseStyle}"
+           data-trip-id="${trip.tripId}"
+           title="${safeLabel}">
+        <div class="${lineClass}"></div>
+        <div class="bar-label">${safeLabel}</div>
+      </div>
+    `;
   },
 
   lockTrip(tripId) {
