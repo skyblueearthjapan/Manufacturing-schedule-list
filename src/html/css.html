@@ -4761,47 +4761,186 @@
     pointer-events: none;
   }
 
-  /* ====== 埋め込み出張セクション ====== */
+  /* ====== 埋め込み出張セクション（2ペイン構造）====== */
   .excel-trip-section {
     grid-row: 4;
     grid-column: 1 / 3;
   }
 
-  /* 埋め込み出張計画のバー（excel-bar両矢印スタイル） */
-  .embedded-trip-bar {
-    top: 18px;  /* 行中央に配置（36px行高の中央） */
+  /* 2ペインラッパ */
+  .trip-wrap {
+    display: grid;
+    grid-template-columns: var(--excel-left-w) 1fr;
+    border-top: 1px solid #808080;
+    background: #fff;
   }
 
-  /* 埋め込み出張計画グリッドでのoverflow許可 */
-  .embedded-trip-person-grid {
-    overflow: visible;
+  /* ===== 左ペイン（固定：作業者名）===== */
+  .trip-left {
+    background: #fff;
+    border-right: 2px solid #808080;
+    overflow: hidden;
   }
 
-  .embedded-trip-person-row {
-    overflow: visible;
+  .trip-left-head {
+    height: 32px;
+    display: flex;
+    align-items: center;
+    padding: 0 8px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #c2410c;
+    background: #fff7ed;
+    border-bottom: 1px solid #808080;
   }
 
-  /* 行高さを少し縮小（28px列幅に合わせてコンパクトに） */
-  .embedded-trip-person-row,
-  .embedded-trip-grid-cell {
-    min-height: 36px;
-    height: 36px;
+  .trip-left-row {
+    border-bottom: 1px solid #e5e7eb;
+    padding: 2px 8px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    font-size: 10px;
+    line-height: 1.2;
+    background: #fff;
+    box-sizing: border-box;
   }
 
-  /* 日付ヘッダーセルもコンパクトに（28px幅対応） */
-  .embedded-trip-date-cell {
-    font-size: 8px;
-    padding: 1px 0;
+  .trip-left-row--dept {
+    font-weight: 600;
+    font-size: 11px;
+    flex-direction: row;
+    align-items: center;
   }
-  .embedded-trip-date-cell .month {
-    font-size: 7px;
-    height: 10px;
+
+  .trip-left-row--person {
+    /* 個人行 */
   }
-  .embedded-trip-date-cell .day {
+
+  .trip-left-dept {
+    color: #6b7280;
     font-size: 9px;
   }
-  .embedded-trip-date-cell .dow {
-    font-size: 7px;
+
+  .trip-left-name {
+    font-weight: 600;
+    color: #374151;
+  }
+
+  /* ===== 右ペイン（横スクロール：日付グリッド）===== */
+  .trip-right {
+    overflow: hidden;
+  }
+
+  .trip-right-scroll {
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-gutter: stable;
+  }
+
+  /* 日付ヘッダー */
+  .trip-time-head {
+    display: flex;
+    height: 32px;
+    border-bottom: 1px solid #808080;
+    background: #f8fafc;
+  }
+
+  .trip-day {
+    flex-shrink: 0;
+    text-align: center;
+    font-size: 9px;
+    line-height: 1.1;
+    padding: 2px 0;
+    border-right: 1px solid #e5e7eb;
+    box-sizing: border-box;
+  }
+
+  .trip-day-month {
+    color: #6b7280;
+  }
+
+  .trip-day-dow {
+    font-size: 8px;
+    color: #9ca3af;
+  }
+
+  .trip-day.weekend {
+    background: #fef9c3;
+  }
+
+  .trip-day.today {
+    background: #dbeafe;
+  }
+
+  .trip-day.is-workday {
+    background: #f0fdf4 !important;
+  }
+
+  .trip-day.is-holiday {
+    background: #fef2f2 !important;
+  }
+
+  /* グリッドボディ */
+  .trip-time-body {
+    position: relative;
+  }
+
+  .trip-time-row {
+    display: flex;
+    position: relative;
+    border-bottom: 1px solid #e5e7eb;
+    box-sizing: border-box;
+  }
+
+  .trip-time-row--dept {
+    /* 部署ヘッダー行 */
+  }
+
+  .trip-time-row--person {
+    /* 作業者行 */
+  }
+
+  .trip-grid-cell {
+    flex-shrink: 0;
+    border-right: 1px solid #f3f4f6;
+    box-sizing: border-box;
+    cursor: pointer;
+  }
+
+  .trip-grid-cell:hover {
+    background: rgba(0, 0, 0, 0.03);
+  }
+
+  .trip-grid-cell.weekend {
+    background: #fffbeb;
+  }
+
+  .trip-grid-cell.today {
+    background: #eff6ff;
+  }
+
+  .trip-grid-cell.is-workday {
+    background: #f0fdf4 !important;
+  }
+
+  .trip-grid-cell.is-holiday {
+    background: #fef2f2 !important;
+  }
+
+  /* バーレイヤ */
+  .trip-bar-layer {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: visible;
+  }
+
+  /* 埋め込み出張計画のバー（excel-bar両矢印スタイル） */
+  .embedded-trip-bar {
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: auto;
   }
 
   /* ====== 横スクロール同期 ====== */
