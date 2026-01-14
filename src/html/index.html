@@ -36,22 +36,22 @@
             <span class="text-primary">生産工程表</span>
           </h1>
           <nav class="flex space-x-1" id="nav-tabs">
-            <button id="nav-master" class="nav-tab active" data-view="master">
+            <button type="button" id="nav-master" class="nav-tab active" data-view="master" onclick="App.switchView('master')">
               大工程表
             </button>
-            <button id="nav-weekly" class="nav-tab" data-view="weekly">
+            <button type="button" id="nav-weekly" class="nav-tab" data-view="weekly" onclick="App.switchView('weekly')">
               今週の予定
             </button>
-            <button id="nav-travel" class="nav-tab" data-view="travel">
+            <button type="button" id="nav-travel" class="nav-tab" data-view="travel" onclick="App.switchView('travel')">
               出張計画
             </button>
-            <button id="nav-resource" class="nav-tab" data-view="resource">
+            <button type="button" id="nav-resource" class="nav-tab" data-view="resource" onclick="App.switchView('resource')">
               作業者割振表
             </button>
-            <button id="nav-calendar" class="nav-tab" data-view="calendar">
+            <button type="button" id="nav-calendar" class="nav-tab" data-view="calendar" onclick="App.switchView('calendar')">
               TSC予定
             </button>
-            <button id="nav-electrical" class="nav-tab" data-view="electrical">
+            <button type="button" id="nav-electrical" class="nav-tab" data-view="electrical" onclick="App.switchView('electrical')">
               電気予定
             </button>
           </nav>
