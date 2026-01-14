@@ -2521,7 +2521,12 @@ const Gantt = {
   toggleTripSection() {
     const section = document.getElementById('gantt-trip-section');
     if (section) {
+      const wasCollapsed = section.classList.contains('collapsed');
       section.classList.toggle('collapsed');
+      // 展開時は少し待ってから再描画（CSSトランジション完了後）
+      if (wasCollapsed) {
+        setTimeout(() => this.renderTrips(), 350);
+      }
     }
   },
 
@@ -6326,7 +6331,11 @@ const ExcelGantt = {
   toggleTripSection() {
     const section = document.getElementById('gantt-trip-section');
     if (section) {
+      const wasCollapsed = section.classList.contains('collapsed');
       section.classList.toggle('collapsed');
+      if (wasCollapsed) {
+        setTimeout(() => Gantt.renderTrips(), 350);
+      }
     }
   },
 
@@ -7733,7 +7742,11 @@ const PersonGanttOverlay = {
   toggleTripSection() {
     const section = document.getElementById('person-gantt-trip-section');
     if (section) {
+      const wasCollapsed = section.classList.contains('collapsed');
       section.classList.toggle('collapsed');
+      if (wasCollapsed) {
+        setTimeout(() => this.renderTrips(), 350);
+      }
     }
   },
 
@@ -9818,6 +9831,47 @@ const TravelPlan = {
         tripScroll.scrollLeft = excelTimeBody.scrollLeft;
       }, { passive: true });
     }
+  },
+
+  /**
+   * 埋め込み出張計画のResizeObserverを設定
+   * コンテナのサイズが変わった時（表示/非表示切替、パネル開閉など）に再描画
+   */
+  setupEmbeddedResizeObservers() {
+    // 監視対象のコンテナIDとそれに対応する再描画関数
+    const containers = [
+      { id: 'gantt-trip-container', render: () => Gantt.renderTrips() },
+      { id: 'calendar-trip-container', render: () => CalendarView.renderTrips() },
+      { id: 'electrical-trip-container', render: () => ElectricalView.renderTrips() },
+      { id: 'person-gantt-trip-container', render: () => PersonGanttOverlay.renderTrips() }
+    ];
+
+    containers.forEach(({ id, render }) => {
+      const container = document.getElementById(id);
+      if (!container) return;
+
+      let lastWidth = 0;
+      const ro = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          const width = entry.contentRect.width;
+          // 幅が50px未満の場合はまだ表示されていないので無視
+          if (width < 50) continue;
+          // 幅が変わった場合のみ再描画
+          if (Math.abs(width - lastWidth) > 5) {
+            lastWidth = width;
+            // requestAnimationFrameで描画をバッチ処理
+            requestAnimationFrame(() => {
+              try {
+                render();
+              } catch (e) {
+                console.warn(`[TravelPlan] ResizeObserver render failed for ${id}:`, e);
+              }
+            });
+          }
+        }
+      });
+      ro.observe(container);
+    });
   }
 };
 
@@ -9889,7 +9943,11 @@ const CalendarView = {
   toggleTripSection() {
     const section = document.getElementById('calendar-trip-section');
     if (section) {
+      const wasCollapsed = section.classList.contains('collapsed');
       section.classList.toggle('collapsed');
+      if (wasCollapsed) {
+        setTimeout(() => this.renderTrips(), 350);
+      }
     }
   },
 
@@ -10088,7 +10146,11 @@ const ElectricalView = {
   toggleTripSection() {
     const section = document.getElementById('electrical-trip-section');
     if (section) {
+      const wasCollapsed = section.classList.contains('collapsed');
       section.classList.toggle('collapsed');
+      if (wasCollapsed) {
+        setTimeout(() => this.renderTrips(), 350);
+      }
     }
   },
 
@@ -10672,6 +10734,9 @@ const App = {
     TravelPlan.init();
     CalendarView.init();
     ElectricalView.init();
+
+    // 埋め込み出張計画のResizeObserverを設定（表示切替時の再描画用）
+    TravelPlan.setupEmbeddedResizeObservers();
 
     this.setupEventListeners();
 

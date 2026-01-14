@@ -25,6 +25,51 @@
   }
 
   /* ========================================
+     大工程表（MasterView）レイアウト
+     - 3行グリッド: UI切替バー / メインコンテンツ / 埋め込み出張計画
+     - 出張計画は下部に固定（パネル開閉で押し出されない）
+     ======================================== */
+  #view-master {
+    display: grid !important;
+    grid-template-rows: auto 1fr auto;
+    min-height: 0;
+  }
+
+  /* UI切替バー（1行目） */
+  #view-master > .flex.items-center.justify-between {
+    grid-row: 1;
+    flex-shrink: 0;
+  }
+
+  /* クラシックモード（2行目） */
+  #gantt-classic-container {
+    grid-row: 2;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  /* Excelモード（2行目） */
+  #gantt-excel-container {
+    grid-row: 2;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  /* 埋め込み出張計画セクション（3行目・下部固定） */
+  #gantt-trip-section {
+    grid-row: 3;
+    flex-shrink: 0;
+    max-height: 300px;  /* 最大高さを制限 */
+    overflow: hidden;
+  }
+
+  /* 出張計画が展開時のコンテンツ領域 */
+  #gantt-trip-section .embedded-trip-content {
+    max-height: 250px;
+    overflow-y: auto;
+  }
+
+  /* ========================================
      ナビゲーション（色分け枠ボタン）
      ======================================== */
   .nav-tab {
