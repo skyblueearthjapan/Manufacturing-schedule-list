@@ -9417,8 +9417,8 @@ const TravelPlan = {
 
     container.innerHTML = html;
 
-    // クリックイベント設定
-    this.setupEmbeddedClickHandlers(containerId, visibleTrips);
+    // ドラッグ/リサイズイベント設定（cellWidthを渡す）
+    this.setupEmbeddedDragHandlers(containerId, visibleTrips, cellWidth);
 
     // スクロール同期
     this.setupEmbeddedScrollSync(containerId);
@@ -9458,7 +9458,7 @@ const TravelPlan = {
     const lockPrefix = isLocked ? '🔒 ' : '';
     const safeLabel = Utils.escapeHtml(lockPrefix + label);
 
-    // 両矢印スタイルHTML（ExcelGanttと同じ構造）
+    // 両矢印スタイルHTML（ExcelGanttと同じ構造 + リサイズハンドル）
     const lineClass = shape === 'dash' ? 'bar-line bar-line--dash' : 'bar-line';
     const baseStyle = `left:${xStart}px; width:${width}px; top:${topInRow}px; height:${laneHeight}px; color:${color};`;
 
@@ -9468,41 +9468,308 @@ const TravelPlan = {
            data-trip-id="${trip.tripId}"
            title="${safeLabel}">
         <div class="${lineClass}"></div>
+        <div class="bar-handle bar-handle--left" data-handle="left"></div>
+        <div class="bar-handle bar-handle--right" data-handle="right"></div>
         <div class="bar-label">${safeLabel}</div>
       </div>
     `;
   },
 
   /**
-   * 埋め込み用クリックハンドラー設定
+   * 埋め込み用ドラッグ/リサイズハンドラー設定（大本の出張計画表と同じ機能）
+   * @param {string} containerId - コンテナID
+   * @param {Object[]} trips - 表示中の予定配列
+   * @param {number} cellWidth - セル幅（日付計算用）
    */
-  setupEmbeddedClickHandlers(containerId, trips) {
+  setupEmbeddedDragHandlers(containerId, trips, cellWidth) {
     const container = document.getElementById(containerId);
     if (!container) return;
 
-    // 予定バークリック
+    // ===== 予定バーのドラッグ/リサイズ =====
     const tripBars = container.querySelectorAll('[data-trip-id]');
     tripBars.forEach(bar => {
-      bar.style.cursor = 'pointer';
-      bar.addEventListener('click', (e) => {
+      bar.style.cursor = 'grab';
+
+      // ポインターダウン：ドラッグ開始
+      bar.addEventListener('pointerdown', (e) => {
+        if (e.button !== 0) return;
         e.stopPropagation();
-        const tripId = e.currentTarget.dataset.tripId;
+        e.preventDefault();
+
+        const tripId = bar.dataset.tripId;
         const trip = trips.find(t => t.tripId === tripId);
-        if (trip) {
-          TripModal.open(trip);
+        if (!trip) return;
+
+        // ハンドルクリックか判定（リサイズ or 移動）
+        const handle = e.target.closest('.bar-handle');
+        let mode = 'move';
+        if (handle) {
+          mode = handle.dataset.handle === 'left' ? 'resize-left' : 'resize-right';
+        }
+
+        // ドラッグ状態を初期化
+        this._embeddedDragState = {
+          containerId,
+          tripId,
+          mode,
+          barEl: bar,
+          startX: e.clientX,
+          origStartDate: trip.start,
+          origEndDate: trip.end,
+          dayW: cellWidth,
+          origLeft: parseFloat(bar.style.left) || 0,
+          origWidth: parseFloat(bar.style.width) || 0,
+          hasMoved: false,
+          lastDeltaDays: 0
+        };
+
+        bar.classList.add('dragging');
+        bar.setPointerCapture(e.pointerId);
+      });
+
+      // ポインタームーブ：プレビュー更新
+      bar.addEventListener('pointermove', (e) => {
+        if (!this._embeddedDragState || this._embeddedDragState.barEl !== bar) return;
+
+        const { startX, dayW, mode, origLeft, origWidth, origStartDate, origEndDate } = this._embeddedDragState;
+        const dx = e.clientX - startX;
+
+        if (Math.abs(dx) > 3) {
+          this._embeddedDragState.hasMoved = true;
+        }
+
+        const deltaDays = Math.round(dx / dayW);
+        if (deltaDays === this._embeddedDragState.lastDeltaDays) return;
+        this._embeddedDragState.lastDeltaDays = deltaDays;
+
+        // 日付計算（モード別）
+        let newStart = origStartDate;
+        let newEnd = origEndDate;
+
+        if (mode === 'move') {
+          // 平行移動
+          newStart = Utils.addDays(origStartDate, deltaDays);
+          newEnd = Utils.addDays(origEndDate, deltaDays);
+        } else if (mode === 'resize-left') {
+          // 左リサイズ（開始日のみ変更）
+          newStart = Utils.addDays(origStartDate, deltaDays);
+          if (newStart > origEndDate) newStart = origEndDate;  // 最小1日
+        } else if (mode === 'resize-right') {
+          // 右リサイズ（終了日のみ変更）
+          newEnd = Utils.addDays(origEndDate, deltaDays);
+          if (newEnd < origStartDate) newEnd = origStartDate;  // 最小1日
+        }
+
+        this._embeddedDragState.newStart = newStart;
+        this._embeddedDragState.newEnd = newEnd;
+
+        // DOMプレビュー更新
+        const deltaLeft = deltaDays * dayW;
+        if (mode === 'move') {
+          bar.style.left = `${origLeft + deltaLeft}px`;
+        } else if (mode === 'resize-left') {
+          const clampedDelta = Math.min(deltaLeft, origWidth - dayW);
+          bar.style.left = `${origLeft + clampedDelta}px`;
+          bar.style.width = `${origWidth - clampedDelta}px`;
+        } else if (mode === 'resize-right') {
+          const newWidth = Math.max(dayW, origWidth + deltaLeft);
+          bar.style.width = `${newWidth}px`;
+        }
+      });
+
+      // ポインターアップ：確定
+      bar.addEventListener('pointerup', (e) => {
+        if (!this._embeddedDragState || this._embeddedDragState.barEl !== bar) return;
+
+        bar.classList.remove('dragging');
+        bar.releasePointerCapture(e.pointerId);
+
+        const { tripId, mode, hasMoved, newStart, newEnd, origStartDate, origEndDate, containerId: cId } = this._embeddedDragState;
+
+        if (hasMoved && newStart && (newStart !== origStartDate || newEnd !== origEndDate)) {
+          // データ更新
+          ChangeBuffer.add('trip', 'update', tripId, {
+            start: newStart,
+            end: newEnd
+          }, 'travel');
+
+          // Store更新
+          const trip = Store.state.trips.find(t => t.tripId === tripId);
+          if (trip) {
+            trip.start = newStart;
+            trip.end = newEnd;
+          }
+
+          const actionLabel = mode === 'move' ? '移動' : '期間変更';
+          Utils.showToast(`予定を${actionLabel}しました（保存待ち）`, 'info');
+
+          // 該当の埋め込み表示を再描画（親ビューの再描画をトリガー）
+          this.refreshEmbeddedView(cId);
+        } else if (!hasMoved) {
+          // クリック（移動なし）→ モーダルを開く（ハンドルクリックは除外）
+          if (!e.target.closest('.bar-handle')) {
+            const trip = trips.find(t => t.tripId === tripId);
+            if (trip) {
+              TripModal.open(trip);
+            }
+          }
+        }
+
+        this._embeddedDragState = null;
+      });
+
+      // ポインターキャンセル
+      bar.addEventListener('pointercancel', (e) => {
+        if (this._embeddedDragState && this._embeddedDragState.barEl === bar) {
+          bar.classList.remove('dragging');
+          // 元の位置・サイズに戻す
+          bar.style.left = `${this._embeddedDragState.origLeft}px`;
+          bar.style.width = `${this._embeddedDragState.origWidth}px`;
+          this._embeddedDragState = null;
         }
       });
     });
 
-    // グリッドセルのクリック（新規作成）
+    // ===== グリッドセルのクリック/ドラッグ選択（新規作成） =====
+    this.setupEmbeddedCellSelectionHandlers(containerId);
+  },
+
+  /**
+   * 埋め込み用セル選択ハンドラー（ドラッグで範囲選択 → 新規作成モーダル）
+   * @param {string} containerId - コンテナID
+   */
+  setupEmbeddedCellSelectionHandlers(containerId) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
     const cells = container.querySelectorAll('.trip-grid-cell[data-person-id][data-date]');
+
     cells.forEach(cell => {
-      cell.addEventListener('click', (e) => {
+      // mousedown: 選択開始
+      cell.addEventListener('mousedown', (e) => {
+        if (e.button !== 0) return;  // 左クリックのみ
+        e.preventDefault();
+
         const personId = cell.dataset.personId;
         const date = cell.dataset.date;
-        TripModal.openNew(personId, date, date);
+
+        this._embeddedSelecting = true;
+        this._embeddedSelectContainerId = containerId;
+        this._embeddedSelectPersonId = personId;
+        this._embeddedSelectStartDate = date;
+        this._embeddedSelectEndDate = date;
+
+        this.updateEmbeddedSelectionHighlight(containerId);
+      });
+
+      // mousemove: 選択範囲拡張
+      cell.addEventListener('mousemove', (e) => {
+        if (!this._embeddedSelecting || this._embeddedSelectContainerId !== containerId) return;
+
+        const personId = cell.dataset.personId;
+        const date = cell.dataset.date;
+
+        // 同一personIdの行内のみ選択可能
+        if (personId === this._embeddedSelectPersonId) {
+          this._embeddedSelectEndDate = date;
+          this.updateEmbeddedSelectionHighlight(containerId);
+        }
+      });
+
+      // mouseup: 選択確定 → モーダル表示
+      cell.addEventListener('mouseup', (e) => {
+        if (!this._embeddedSelecting || this._embeddedSelectContainerId !== containerId) return;
+
+        const personId = this._embeddedSelectPersonId;
+        let startDate = this._embeddedSelectStartDate;
+        let endDate = this._embeddedSelectEndDate;
+
+        // 日付の順序を正規化
+        if (startDate > endDate) {
+          [startDate, endDate] = [endDate, startDate];
+        }
+
+        this._embeddedSelecting = false;
+        this.clearEmbeddedSelectionHighlight(containerId);
+
+        // 新規作成モーダルを開く
+        TripModal.openNew(personId, startDate, endDate);
       });
     });
+
+    // mouseleave: コンテナ外に出たら選択解除
+    container.addEventListener('mouseleave', () => {
+      if (this._embeddedSelecting && this._embeddedSelectContainerId === containerId) {
+        this._embeddedSelecting = false;
+        this.clearEmbeddedSelectionHighlight(containerId);
+      }
+    });
+  },
+
+  /**
+   * 埋め込み用選択範囲ハイライト更新
+   * @param {string} containerId - コンテナID
+   */
+  updateEmbeddedSelectionHighlight(containerId) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    const startDate = this._embeddedSelectStartDate;
+    const endDate = this._embeddedSelectEndDate;
+    const personId = this._embeddedSelectPersonId;
+
+    // 正規化
+    const minDate = startDate < endDate ? startDate : endDate;
+    const maxDate = startDate > endDate ? startDate : endDate;
+
+    // すべてのセルをリセット
+    const cells = container.querySelectorAll('.trip-grid-cell[data-person-id][data-date]');
+    cells.forEach(cell => {
+      const cellPersonId = cell.dataset.personId;
+      const cellDate = cell.dataset.date;
+
+      if (cellPersonId === personId && cellDate >= minDate && cellDate <= maxDate) {
+        cell.classList.add('selecting');
+      } else {
+        cell.classList.remove('selecting');
+      }
+    });
+  },
+
+  /**
+   * 埋め込み用選択範囲ハイライトをクリア
+   * @param {string} containerId - コンテナID
+   */
+  clearEmbeddedSelectionHighlight(containerId) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    const cells = container.querySelectorAll('.trip-grid-cell.selecting');
+    cells.forEach(cell => cell.classList.remove('selecting'));
+  },
+
+  /**
+   * 埋め込み出張計画表の再描画をトリガー
+   * @param {string} containerId - コンテナID
+   */
+  refreshEmbeddedView(containerId) {
+    // コンテナIDに応じて適切な再描画メソッドを呼ぶ
+    if (containerId === 'gantt-trip-container') {
+      // 大工程表下
+      Gantt.updateTripSection();
+    } else if (containerId === 'person-gantt-trip-container') {
+      // 担当者別大工程表下
+      PersonGanttOverlay.render();
+    } else if (containerId === 'calendar-trip-container') {
+      // TSC予定下
+      CalendarView.renderTrips();
+    } else if (containerId === 'electrical-trip-container') {
+      // 電気予定下
+      ElectricalView.renderTrips();
+    } else {
+      // フォールバック：全体を再描画
+      this.render();
+    }
   },
 
   /**
