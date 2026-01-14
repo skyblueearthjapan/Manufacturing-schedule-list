@@ -8846,17 +8846,109 @@ const TravelPlan = {
     this.setupTripClickHandlers(trips);
   },
 
+  // ドラッグ状態
+  _tripDragState: null,
+
   setupTripClickHandlers(trips) {
-    // 既存の予定バークリック
-    const tripBars = document.querySelectorAll('[data-trip-id]');
+    // 既存の予定バーにポインターイベントを追加
+    const tripBars = document.querySelectorAll('.travel-trip-bar[data-trip-id]');
     tripBars.forEach(bar => {
-      bar.style.cursor = 'pointer';
-      bar.addEventListener('click', (e) => {
-        e.stopPropagation();  // グリッドセルへの伝播を止める
-        const tripId = e.currentTarget.dataset.tripId;
+      bar.style.cursor = 'grab';
+
+      // ポインターダウン：ドラッグ開始
+      bar.addEventListener('pointerdown', (e) => {
+        if (e.button !== 0) return;
+        e.stopPropagation();
+        e.preventDefault();
+
+        const tripId = bar.dataset.tripId;
         const trip = trips.find(t => t.tripId === tripId);
-        if (trip) {
-          TripModal.open(trip);
+        if (!trip) return;
+
+        // ドラッグ状態を初期化
+        this._tripDragState = {
+          tripId,
+          barEl: bar,
+          startX: e.clientX,
+          origStartDate: trip.start,
+          origEndDate: trip.end,
+          dayW: this.config.cellWidth,
+          origLeft: parseFloat(bar.style.left) || 0,
+          hasMoved: false,
+          lastDeltaDays: 0
+        };
+
+        bar.classList.add('dragging');
+        bar.setPointerCapture(e.pointerId);
+      });
+
+      // ポインタームーブ：プレビュー更新
+      bar.addEventListener('pointermove', (e) => {
+        if (!this._tripDragState || this._tripDragState.barEl !== bar) return;
+
+        const dx = e.clientX - this._tripDragState.startX;
+        if (Math.abs(dx) > 3) {
+          this._tripDragState.hasMoved = true;
+        }
+
+        const deltaDays = Math.round(dx / this._tripDragState.dayW);
+        if (deltaDays === this._tripDragState.lastDeltaDays) return;
+        this._tripDragState.lastDeltaDays = deltaDays;
+
+        // 新しい日付を計算
+        const newStart = Utils.addDays(this._tripDragState.origStartDate, deltaDays);
+        const newEnd = Utils.addDays(this._tripDragState.origEndDate, deltaDays);
+        this._tripDragState.newStart = newStart;
+        this._tripDragState.newEnd = newEnd;
+
+        // DOMプレビュー更新
+        const newLeft = this._tripDragState.origLeft + (deltaDays * this._tripDragState.dayW);
+        bar.style.left = `${newLeft}px`;
+      });
+
+      // ポインターアップ：確定
+      bar.addEventListener('pointerup', (e) => {
+        if (!this._tripDragState || this._tripDragState.barEl !== bar) return;
+
+        bar.classList.remove('dragging');
+        bar.releasePointerCapture(e.pointerId);
+
+        const { tripId, hasMoved, newStart, newEnd, origStartDate, origEndDate } = this._tripDragState;
+
+        if (hasMoved && newStart && (newStart !== origStartDate || newEnd !== origEndDate)) {
+          // データ更新
+          ChangeBuffer.add('trip', 'update', tripId, {
+            start: newStart,
+            end: newEnd
+          }, 'travel');
+
+          // Store更新
+          const trip = Store.state.trips.find(t => t.tripId === tripId);
+          if (trip) {
+            trip.start = newStart;
+            trip.end = newEnd;
+          }
+
+          Utils.showToast('予定を移動しました（保存待ち）', 'info');
+          this.render();  // 再描画
+        } else if (!hasMoved) {
+          // クリック（移動なし）→ モーダルを開く
+          const trip = trips.find(t => t.tripId === tripId);
+          if (trip) {
+            TripModal.open(trip);
+          }
+        }
+
+        this._tripDragState = null;
+      });
+
+      // ポインターキャンセル
+      bar.addEventListener('pointercancel', (e) => {
+        if (this._tripDragState && this._tripDragState.barEl === bar) {
+          bar.classList.remove('dragging');
+          // 元の位置に戻す
+          bar.style.left = `${this._tripDragState.origLeft}px`;
+          this._tripDragState = null;
         }
       });
     });
