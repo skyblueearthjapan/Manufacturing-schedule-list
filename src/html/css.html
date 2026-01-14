@@ -4620,130 +4620,113 @@
     overflow: visible;
   }
 
-  /* ====== バー共通スタイル ====== */
+  /* ====== バー共通スタイル（両矢印・極細線）====== */
   .excel-bar {
     position: absolute;
-    height: 10px;              /* 細いバー */
+    height: 0;                 /* 極細線：高さは.bar-lineで制御 */
     pointer-events: auto;
-    cursor: pointer;
-    transition: filter 0.15s;
-    box-sizing: border-box;
-    overflow: visible;         /* ラベルはみ出しOK */
+    cursor: grab;
+    overflow: visible;         /* ラベル・矢尻のはみ出しOK */
+    z-index: 3;
   }
 
   .excel-bar:hover {
-    filter: brightness(1.1);
-  }
-
-  /* ラベル：バーの上に配置、はみ出しOK */
-  .excel-bar .bar-label {
-    position: absolute;
-    left: 0;
-    top: -13px;               /* バーの上に逃がす */
-    font-size: 10px;
-    line-height: 1.2;
-    white-space: nowrap;      /* 横にはみ出しOK */
-    overflow: visible;        /* はみ出しを許可 */
-    color: #333;
-    text-shadow:
-      0 0 2px #fff,
-      0 0 2px #fff,
-      0 0 3px #fff;           /* 背景に埋もれにくく */
-    pointer-events: none;
-    font-weight: 500;
-  }
-
-  /* ====== 矩形バー（rect）====== */
-  .excel-bar--rect {
-    border-radius: 2px;
-  }
-
-  .excel-bar--rect .bar-body {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-    height: 100%;
-    border-radius: 2px;
-  }
-
-  /* ====== 矢印バー（arrow）====== */
-  .excel-bar--arrow {
-    background: transparent !important;
-    overflow: visible;
-  }
-
-  .excel-bar--arrow .bar-body {
-    position: absolute;
-    left: 0;
-    top: 0;
-    height: 10px;
-    width: calc(100% - 6px);  /* 矢尻分だけ短く */
-    border-radius: 2px 0 0 2px;
-  }
-
-  .excel-bar--arrow .bar-arrow {
-    position: absolute;
-    right: 0;
-    top: 0;
-    width: 0;
-    height: 0;
-    border-top: 5px solid transparent;
-    border-bottom: 5px solid transparent;
-    border-left-width: 6px;
-    border-left-style: solid;
-    /* border-left-color はinlineで指定 */
-  }
-
-  /* ====== 破線バー（dash）====== */
-  .excel-bar--dash {
-    background: transparent;
-    border: 2px dashed;
-    border-radius: 3px;
-    height: 10px;
-  }
-
-  .excel-bar--dash .bar-label {
-    font-weight: 600;
-  }
-
-  /* ====== バードラッグ用ハンドル ====== */
-  .excel-bar {
-    cursor: grab;
+    filter: brightness(1.15);
   }
 
   .excel-bar.dragging {
     cursor: grabbing;
-    opacity: 0.9;
+    opacity: 0.85;
     z-index: 100;
   }
 
+  /* ====== 極細ライン（中央の線）====== */
+  .excel-bar .bar-line {
+    position: absolute;
+    left: 8px;                 /* 左矢尻の分だけオフセット */
+    top: 0;
+    height: 2px;               /* 極細：1〜2px */
+    width: calc(100% - 16px);  /* 左右矢尻分を引く */
+    background: currentColor;
+  }
+
+  /* 破線バー用 */
+  .excel-bar .bar-line--dash {
+    background: repeating-linear-gradient(
+      90deg,
+      currentColor 0px,
+      currentColor 4px,
+      transparent 4px,
+      transparent 8px
+    );
+    height: 2px;
+  }
+
+  /* ====== 両端矢尻（左右）====== */
+  .excel-bar .bar-line::before,
+  .excel-bar .bar-line::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    width: 0;
+    height: 0;
+    transform: translateY(-50%);
+    border-top: 4px solid transparent;
+    border-bottom: 4px solid transparent;
+  }
+
+  /* 左矢尻（◀） */
+  .excel-bar .bar-line::before {
+    left: -8px;
+    border-right: 6px solid currentColor;
+  }
+
+  /* 右矢尻（▶） */
+  .excel-bar .bar-line::after {
+    right: -8px;
+    border-left: 6px solid currentColor;
+  }
+
+  /* ====== ラベル：線の上、はみ出しOK ====== */
+  .excel-bar .bar-label {
+    position: absolute;
+    left: 8px;
+    top: -12px;                /* 線の上に配置 */
+    font-size: 10px;
+    line-height: 1;
+    white-space: nowrap;       /* 横にはみ出しOK */
+    overflow: visible;
+    color: currentColor;       /* バーと同じ色 */
+    pointer-events: none;
+    font-weight: 500;
+    text-shadow:
+      0 0 2px #fff,
+      0 0 2px #fff,
+      1px 1px 1px #fff;        /* 背景に埋もれにくく */
+  }
+
+  /* ====== バードラッグ用ハンドル（透明）====== */
   .bar-handle {
     position: absolute;
-    top: 0;
-    width: 8px;
-    height: 100%;
+    top: -8px;
+    width: 14px;
+    height: 18px;
     background: transparent;
     z-index: 5;
-    opacity: 0;
-    transition: opacity 0.15s, background 0.15s;
+    cursor: ew-resize;
+    /* デバッグ用: background: rgba(255,0,0,0.2); */
   }
 
   .bar-handle--left {
-    left: 0;
-    cursor: ew-resize;
-    border-radius: 3px 0 0 3px;
+    left: -4px;
   }
 
   .bar-handle--right {
-    right: 0;
-    cursor: ew-resize;
-    border-radius: 0 3px 3px 0;
+    right: -4px;
   }
 
   .excel-bar:hover .bar-handle {
-    opacity: 1;
-    background: rgba(0, 0, 0, 0.15);
+    background: rgba(0, 0, 0, 0.1);
   }
 
   .excel-bar.dragging .bar-handle {

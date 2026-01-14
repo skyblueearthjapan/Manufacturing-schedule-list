@@ -5434,15 +5434,9 @@ const ExcelGantt = {
     rowHeight: 44,            // 1案件の高さ
     headerHeight: 50,         // 日付ヘッダ高さ
     leftPaneWidth: 520,       // 左ペイン幅
-    barHeight: 10,            // バーの高さ（CSS制御）
-    barTopOffset: 16,         // ラベル用スペース確保（上に-13pxで配置）
-    barGap: 14,               // バー間ギャップ（次レーンまで）
   },
 
-  // レーンごとのY位置を固定（見た目の段を作る）
-  LANE_Y: [16, 30],           // lane0=16px, lane1=30px
-
-  // バー種類別スタイル定義
+  // バー種類別スタイル定義（両矢印スタイルに統一）
   // shape: "arrow" | "rect" | "dash"
   // lane: 同一行内で上下に並べる段（0,1,2...）
   BAR_STYLE: {
@@ -5977,50 +5971,24 @@ const ExcelGantt = {
     grid.innerHTML = html;
   },
 
-  // バーHTML生成（shape別テンプレート）
-  // 構造: .excel-bar > .bar-body + .bar-arrow(矢印のみ) + .bar-label(上に配置)
+  // バーHTML生成（両矢印スタイルに統一）
+  // 構造: .excel-bar > .bar-line(極細線+両端矢尻) + .bar-handle×2 + .bar-label(上)
   buildBarHtml({ left, width, topInRow, color, label, shape, scheduleId, jobId }) {
     const safeLabel = Utils.escapeHtml(label || '');
-    // heightはCSSで制御（10px）
-    const baseStyle = `left:${left}px; top:${topInRow}px; width:${width}px;`;
-    const handles = `
-      <div class="bar-handle bar-handle--left" data-handle="left"></div>
-      <div class="bar-handle bar-handle--right" data-handle="right"></div>`;
+    // colorを親要素に持たせてcurrentColorで統一管理
+    const baseStyle = `left:${left}px; top:${topInRow}px; width:${width}px; color:${color};`;
 
-    if (shape === 'arrow') {
-      // 矢印付きバー（出荷など）
-      // 構造: bar-body(本体) + bar-arrow(三角) + bar-label(上)
-      return `
-        <div class="excel-bar excel-bar--arrow"
-             style="${baseStyle}"
-             data-schedule-id="${scheduleId}"
-             data-job-id="${jobId}">
-          ${handles}
-          <div class="bar-body" style="background:${color};"></div>
-          <div class="bar-arrow" style="border-left-color:${color};"></div>
-          <div class="bar-label">${safeLabel}</div>
-        </div>`;
-    }
-    if (shape === 'dash') {
-      // 破線バー（準備など）
-      return `
-        <div class="excel-bar excel-bar--dash"
-             style="${baseStyle} border-color:${color};"
-             data-schedule-id="${scheduleId}"
-             data-job-id="${jobId}">
-          ${handles}
-          <div class="bar-label" style="color:${color};">${safeLabel}</div>
-        </div>`;
-    }
-    // rect（矩形バー、デフォルト）
-    // 構造: bar-body(本体) + bar-label(上)
+    // 破線バーの場合は少しスタイルを変える
+    const lineClass = shape === 'dash' ? 'bar-line bar-line--dash' : 'bar-line';
+
     return `
-      <div class="excel-bar excel-bar--rect"
+      <div class="excel-bar excel-bar--arrow"
            style="${baseStyle}"
            data-schedule-id="${scheduleId}"
            data-job-id="${jobId}">
-        ${handles}
-        <div class="bar-body" style="background:${color};"></div>
+        <div class="${lineClass}"></div>
+        <div class="bar-handle bar-handle--left" data-handle="left"></div>
+        <div class="bar-handle bar-handle--right" data-handle="right"></div>
         <div class="bar-label">${safeLabel}</div>
       </div>`;
   },
@@ -6040,12 +6008,62 @@ const ExcelGantt = {
     return this.BAR_STYLE['_default'];
   },
 
+  /**
+   * 重なり自動段組み（subLane割り当て）
+   * 同じlane内で重なるスケジュールを縦にずらす
+   * @param {Array} schedules - スケジュール配列（lane情報付き）
+   * @returns {Array} - subLane情報を追加したスケジュール配列
+   */
+  assignSubLanes(schedules) {
+    if (!schedules || schedules.length === 0) return [];
+
+    // laneごとに分類
+    const byLane = new Map();
+    for (const sch of schedules) {
+      const lane = sch._lane ?? 0;
+      if (!byLane.has(lane)) byLane.set(lane, []);
+      byLane.get(lane).push(sch);
+    }
+
+    // 各lane内でsubLaneを割り当て
+    for (const [lane, list] of byLane) {
+      // 開始日順にソート
+      list.sort((a, b) => a.start.localeCompare(b.start));
+
+      // subLaneごとの最終終了日を管理
+      const ends = []; // ends[subLane] = lastEndDate
+
+      for (const sch of list) {
+        const startDate = sch.start;
+        const endDate = sch.end;
+
+        let placed = false;
+        for (let i = 0; i < ends.length; i++) {
+          // このsubLaneが空いている（前のスケジュールの終了日 < 今の開始日）
+          if (ends[i] < startDate) {
+            sch._subLane = i;
+            ends[i] = endDate;
+            placed = true;
+            break;
+          }
+        }
+        if (!placed) {
+          // 新しいsubLaneを作成
+          sch._subLane = ends.length;
+          ends.push(endDate);
+        }
+      }
+    }
+
+    return schedules;
+  },
+
   // バー描画
   renderBars(jobs) {
     const colW = this.config.colWidth;
-    const barH = this.config.barHeight;
-    const barGap = this.config.barGap;
-    const topOffset = this.config.barTopOffset;
+    const laneH = 16;   // lane間の高さ
+    const subH = 14;    // 同lane内の段高さ
+    const topPadding = 14; // 行の上余白（ラベル用スペース）
 
     jobs.forEach((job) => {
       // 各行の.bar-layerを取得
@@ -6055,6 +6073,20 @@ const ExcelGantt = {
       if (!layer) return;
 
       const schedules = Store.getSchedulesByJobId(job.jobId);
+
+      // 各スケジュールにlane情報を付与
+      schedules.forEach(sch => {
+        const process = Store.getProcessById(sch.processId);
+        const processName = process?.['工程名'] || '';
+        const style = this.getBarStyle(processName);
+        sch._lane = style.lane ?? 0;
+        sch._shape = style.shape ?? 'rect';
+        sch._processName = processName;
+        sch._color = process?.['工程色'] || '#4A90E2';
+      });
+
+      // 重なり自動段組み（subLane割り当て）
+      this.assignSubLanes(schedules);
 
       let html = '';
       schedules.forEach(sch => {
@@ -6072,22 +6104,16 @@ const ExcelGantt = {
         const left = visStart * colW;
         const width = (visEnd - visStart + 1) * colW;
 
-        // 工程情報取得
-        const process = Store.getProcessById(sch.processId);
-        const processName = process?.['工程名'] || '';
-        const color = process?.['工程色'] || '#4A90E2';
-        const label = sch.label || processName;
+        const label = sch.label || sch._processName;
 
-        // BAR_STYLEからshapeとlaneを取得
-        const style = this.getBarStyle(processName);
-        const lane = style.lane || 0;
-        const shape = style.shape || 'rect';
-
-        // Y位置（LANE_Y配列から取得、見た目の段を固定）
-        const topInRow = this.LANE_Y[lane] ?? this.LANE_Y[0];
+        // Y位置（lane + subLane から計算）
+        const topInRow = topPadding + (sch._lane * laneH) + ((sch._subLane ?? 0) * subH);
 
         html += this.buildBarHtml({
-          left, width, topInRow, color, label, shape,
+          left, width, topInRow,
+          color: sch._color,
+          label,
+          shape: sch._shape,
           scheduleId: sch.scheduleId,
           jobId: job.jobId
         });
