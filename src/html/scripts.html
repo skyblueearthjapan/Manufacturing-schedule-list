@@ -9,6 +9,11 @@
 console.log('[DEBUG] scripts.html loaded - combined JS file');
 
 // ========================================
+// スクロール同期ガードフラグ（再帰ループ防止）
+// ========================================
+let _scrollSyncing = false;
+
+// ========================================
 // Config - グローバル設定
 // ========================================
 
@@ -5768,6 +5773,10 @@ const ExcelGantt = {
     if (timeBody && leftRows) {
       // 右ボディスクロール → 左追従 + ヘッダ追従 + 埋め込み出張追従
       timeBody.addEventListener('scroll', () => {
+        // ガードフラグで再帰ループ防止
+        if (_scrollSyncing) return;
+        _scrollSyncing = true;
+
         leftRows.scrollTop = timeBody.scrollTop;
         if (timeHeader) {
           timeHeader.scrollLeft = timeBody.scrollLeft;
@@ -5779,25 +5788,36 @@ const ExcelGantt = {
         const tripScroll = getTripScroll();
         if (tripScroll) tripScroll.scrollLeft = timeBody.scrollLeft;
         this.updateTodayLine();
+
+        // 次フレームでガード解除
+        requestAnimationFrame(() => { _scrollSyncing = false; });
       }, { passive: true });
     }
 
     if (leftRows && timeBody) {
       // 左スクロール → 右追従
       leftRows.addEventListener('scroll', () => {
+        if (_scrollSyncing) return;
+        _scrollSyncing = true;
         timeBody.scrollTop = leftRows.scrollTop;
+        requestAnimationFrame(() => { _scrollSyncing = false; });
       }, { passive: true });
     }
 
     if (bottomScrollbar && timeBody && timeHeader) {
       // 下部スクロールバー → 本体追従 + 埋め込み出張追従
       bottomScrollbar.addEventListener('scroll', () => {
+        if (_scrollSyncing) return;
+        _scrollSyncing = true;
+
         timeBody.scrollLeft = bottomScrollbar.scrollLeft;
         timeHeader.scrollLeft = bottomScrollbar.scrollLeft;
         // 埋め込み出張にも横スクロール同期
         const tripScroll = getTripScroll();
         if (tripScroll) tripScroll.scrollLeft = bottomScrollbar.scrollLeft;
         this.updateTodayLine();
+
+        requestAnimationFrame(() => { _scrollSyncing = false; });
       }, { passive: true });
     }
   },
@@ -9809,6 +9829,8 @@ const TravelPlan = {
   /**
    * 埋め込み用スクロール同期設定（ExcelGanttの横スクロールと連動）
    * 2ペイン構造：右側のみ横スクロール
+   * 注意：ExcelGantt → 出張計画への同期はExcelGantt.setupScrollSync()で行うため、
+   *       ここでは出張計画 → ExcelGantt方向のみ設定（重複防止）
    */
   setupEmbeddedScrollSync(containerId) {
     const tripScroll = document.getElementById(`${containerId}-scroll`);
@@ -9818,19 +9840,22 @@ const TravelPlan = {
 
     if (!tripScroll) return;
 
-    // 出張計画スクロール → ExcelGanttに同期
+    // 出張計画スクロール → ExcelGanttに同期（ガード付き）
     tripScroll.addEventListener('scroll', () => {
+      // ガードフラグで再帰ループ防止
+      if (_scrollSyncing) return;
+      _scrollSyncing = true;
+
       if (excelTimeBody) excelTimeBody.scrollLeft = tripScroll.scrollLeft;
       if (excelTimeHeader) excelTimeHeader.scrollLeft = tripScroll.scrollLeft;
       if (excelBottomScrollbar) excelBottomScrollbar.scrollLeft = tripScroll.scrollLeft;
+
+      // 次フレームでガード解除
+      requestAnimationFrame(() => { _scrollSyncing = false; });
     }, { passive: true });
 
-    // ExcelGantt → 出張計画への同期
-    if (excelTimeBody) {
-      excelTimeBody.addEventListener('scroll', () => {
-        tripScroll.scrollLeft = excelTimeBody.scrollLeft;
-      }, { passive: true });
-    }
+    // ExcelGantt → 出張計画への同期は ExcelGantt.setupScrollSync() で実装済み
+    // 重複登録すると無限ループの原因になるため、ここでは登録しない
   },
 
   /**
@@ -10904,6 +10929,7 @@ const App = {
   },
 
   async switchView(view) {
+    console.log(`[App] switchView called: view=${view}`);
     // タブ切替前に未保存があれば自動保存
     if (ChangeBuffer.isDirty) {
       const result = await ChangeBuffer.flushIfDirty({ reason: 'tab_switch' });
