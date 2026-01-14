@@ -10973,71 +10973,31 @@ const App = {
   },
 
   async switchView(view) {
-    // === 強化デバッグログ開始 ===
-    console.group(`[App] switchView: ${view}`);
-    console.trace('call stack');
-
-    // iframe/コンテキスト確認用
-    console.log('location.href=', location.href);
-    console.log('document.activeElement=', document.activeElement);
-
-    // view-container の存在確認
-    const debugContainers = document.querySelectorAll('.view-container');
-    console.log('view-containers count=', debugContainers.length);
-    if (debugContainers.length > 0) {
-      console.log('view-container IDs=', Array.from(debugContainers).map(c => c.id));
-    }
-
-    const debugTargetId = `view-${view}`;
-    const debugTarget = document.getElementById(debugTargetId);
-    console.log('targetId=', debugTargetId, 'exists=', !!debugTarget);
-
-    // nav-tab の確認
-    const debugNavTabs = document.querySelectorAll('.nav-tab');
-    console.log('nav-tabs count=', debugNavTabs.length);
-    // === 強化デバッグログ終了 ===
-
     // タブ切替前に未保存があれば自動保存
     if (ChangeBuffer.isDirty) {
-      console.log('[App] switchView: ChangeBuffer is dirty, flushing...');
       const result = await ChangeBuffer.flushIfDirty({ reason: 'tab_switch' });
       if (!result.ok && result.shouldBlock) {
         // 保存失敗時は遷移をキャンセル
-        console.warn('[App] switchView BLOCKED due to save failure', result);
-        console.groupEnd();
+        console.log('[App] switchView blocked due to save failure');
         return;
       }
-      console.log('[App] switchView: flush completed, proceeding...');
     }
 
-    console.log('[App] switchView: updating Store.currentView');
     Store.setState({ currentView: view });
 
-    console.log('[App] switchView: updating nav-tabs');
     document.querySelectorAll('.nav-tab').forEach(tab => {
       tab.classList.toggle('active', tab.dataset.view === view);
     });
 
-    console.log('[App] switchView: hiding all view-containers');
-    const allContainers = document.querySelectorAll('.view-container');
-    console.log(`[App] switchView: found ${allContainers.length} view-containers`);
-    allContainers.forEach(container => {
-      // hiddenクラスが効かない場合があるため、style.displayを直接操作
+    document.querySelectorAll('.view-container').forEach(container => {
       container.classList.add('hidden');
-      container.style.display = 'none';
     });
 
     const viewContainer = document.getElementById(`view-${view}`);
-    console.log(`[App] switchView: target container view-${view} exists: ${!!viewContainer}`);
     if (viewContainer) {
       viewContainer.classList.remove('hidden');
-      viewContainer.style.display = '';  // インラインスタイルを解除してCSSに任せる
-      console.log(`[App] switchView: view-${view} is now visible (display=${viewContainer.style.display || 'default'}, classList=${viewContainer.className})`);
-    } else {
-      console.error(`[App] switchView: ERROR - view-${view} not found in DOM!`);
     }
 
-    console.log(`[App] switchView: calling renderer for '${view}'`);
     switch (view) {
       case 'master':
         Gantt.render();
@@ -11059,11 +11019,7 @@ const App = {
         // 電気カレンダー + 出張予定（APIから取得）
         ElectricalView.render();
         break;
-      default:
-        console.warn(`[App] switchView: unknown view '${view}', no renderer called`);
     }
-    console.log(`[App] switchView: completed for '${view}'`);
-    console.groupEnd();
   }
 };
 

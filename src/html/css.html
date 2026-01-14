@@ -37,9 +37,14 @@
      - 出張計画は下部に固定（パネル開閉で押し出されない）
      ======================================== */
   #view-master {
-    display: grid !important;
+    display: grid;
     grid-template-rows: auto 1fr auto;
     min-height: 0;
+  }
+
+  /* hiddenクラスが付いている場合は確実に非表示 */
+  #view-master.hidden {
+    display: none !important;
   }
 
   /* UI切替バー（1行目） */
