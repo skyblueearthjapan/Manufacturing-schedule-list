@@ -10970,29 +10970,41 @@ const App = {
     console.log(`[App] switchView called: view=${view}`);
     // タブ切替前に未保存があれば自動保存
     if (ChangeBuffer.isDirty) {
+      console.log('[App] switchView: ChangeBuffer is dirty, flushing...');
       const result = await ChangeBuffer.flushIfDirty({ reason: 'tab_switch' });
       if (!result.ok && result.shouldBlock) {
         // 保存失敗時は遷移をキャンセル
         console.log('[App] switchView blocked due to save failure');
         return;
       }
+      console.log('[App] switchView: flush completed, proceeding...');
     }
 
+    console.log('[App] switchView: updating Store.currentView');
     Store.setState({ currentView: view });
 
+    console.log('[App] switchView: updating nav-tabs');
     document.querySelectorAll('.nav-tab').forEach(tab => {
       tab.classList.toggle('active', tab.dataset.view === view);
     });
 
-    document.querySelectorAll('.view-container').forEach(container => {
+    console.log('[App] switchView: hiding all view-containers');
+    const allContainers = document.querySelectorAll('.view-container');
+    console.log(`[App] switchView: found ${allContainers.length} view-containers`);
+    allContainers.forEach(container => {
       container.classList.add('hidden');
     });
 
     const viewContainer = document.getElementById(`view-${view}`);
+    console.log(`[App] switchView: target container view-${view} exists: ${!!viewContainer}`);
     if (viewContainer) {
       viewContainer.classList.remove('hidden');
+      console.log(`[App] switchView: view-${view} is now visible (hidden=${viewContainer.classList.contains('hidden')})`);
+    } else {
+      console.error(`[App] switchView: ERROR - view-${view} not found in DOM!`);
     }
 
+    console.log(`[App] switchView: calling renderer for '${view}'`);
     switch (view) {
       case 'master':
         Gantt.render();
@@ -11014,7 +11026,10 @@ const App = {
         // 電気カレンダー + 出張予定（APIから取得）
         ElectricalView.render();
         break;
+      default:
+        console.warn(`[App] switchView: unknown view '${view}', no renderer called`);
     }
+    console.log(`[App] switchView: completed for '${view}'`);
   }
 };
 

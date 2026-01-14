@@ -5025,8 +5025,13 @@
   }
 
   .embedded-trip-bar .bar-label {
+    position: relative;    /* absoluteからrelativeに変更（親のoverflow:hiddenでクリップされないように） */
+    top: auto;             /* top:-12px を無効化 */
+    left: auto;            /* left:8px を無効化 */
     line-height: 14px;
     white-space: nowrap;
+    margin-left: 8px;      /* バーの横に配置 */
+    z-index: 2;            /* バーの線より前面に */
   }
 
   /* ====== 横スクロール同期 ====== */
