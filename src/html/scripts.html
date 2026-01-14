@@ -5431,13 +5431,16 @@ console.log('[DEBUG] JobDetail defined');
 const ExcelGantt = {
   config: {
     colWidth: 28,             // 1日あたりの列幅
-    rowHeight: 44,            // 1案件(2行)の高さ
+    rowHeight: 44,            // 1案件の高さ
     headerHeight: 50,         // 日付ヘッダ高さ
     leftPaneWidth: 520,       // 左ペイン幅
-    barHeight: 16,            // バーの高さ
-    barTopOffset: 3,          // 行内上部余白
-    barGap: 2,                // バー間ギャップ
+    barHeight: 10,            // バーの高さ（CSS制御）
+    barTopOffset: 16,         // ラベル用スペース確保（上に-13pxで配置）
+    barGap: 14,               // バー間ギャップ（次レーンまで）
   },
+
+  // レーンごとのY位置を固定（見た目の段を作る）
+  LANE_Y: [16, 30],           // lane0=16px, lane1=30px
 
   // バー種類別スタイル定義
   // shape: "arrow" | "rect" | "dash"
@@ -5975,16 +5978,18 @@ const ExcelGantt = {
   },
 
   // バーHTML生成（shape別テンプレート）
+  // 構造: .excel-bar > .bar-body + .bar-arrow(矢印のみ) + .bar-label(上に配置)
   buildBarHtml({ left, width, topInRow, color, label, shape, scheduleId, jobId }) {
     const safeLabel = Utils.escapeHtml(label || '');
-    const h = this.config.barHeight;
-    const baseStyle = `left:${left}px; top:${topInRow}px; width:${width}px; height:${h}px;`;
+    // heightはCSSで制御（10px）
+    const baseStyle = `left:${left}px; top:${topInRow}px; width:${width}px;`;
     const handles = `
       <div class="bar-handle bar-handle--left" data-handle="left"></div>
       <div class="bar-handle bar-handle--right" data-handle="right"></div>`;
 
     if (shape === 'arrow') {
       // 矢印付きバー（出荷など）
+      // 構造: bar-body(本体) + bar-arrow(三角) + bar-label(上)
       return `
         <div class="excel-bar excel-bar--arrow"
              style="${baseStyle}"
@@ -5993,7 +5998,7 @@ const ExcelGantt = {
           ${handles}
           <div class="bar-body" style="background:${color};"></div>
           <div class="bar-arrow" style="border-left-color:${color};"></div>
-          <span class="bar-label">${safeLabel}</span>
+          <div class="bar-label">${safeLabel}</div>
         </div>`;
     }
     if (shape === 'dash') {
@@ -6004,17 +6009,19 @@ const ExcelGantt = {
              data-schedule-id="${scheduleId}"
              data-job-id="${jobId}">
           ${handles}
-          <span class="bar-label" style="color:${color};">${safeLabel}</span>
+          <div class="bar-label" style="color:${color};">${safeLabel}</div>
         </div>`;
     }
     // rect（矩形バー、デフォルト）
+    // 構造: bar-body(本体) + bar-label(上)
     return `
       <div class="excel-bar excel-bar--rect"
-           style="${baseStyle} background:${color};"
+           style="${baseStyle}"
            data-schedule-id="${scheduleId}"
            data-job-id="${jobId}">
         ${handles}
-        <span class="bar-label">${safeLabel}</span>
+        <div class="bar-body" style="background:${color};"></div>
+        <div class="bar-label">${safeLabel}</div>
       </div>`;
   },
 
@@ -6076,8 +6083,8 @@ const ExcelGantt = {
         const lane = style.lane || 0;
         const shape = style.shape || 'rect';
 
-        // Y位置（lane基準）
-        const topInRow = topOffset + (lane * (barH + barGap));
+        // Y位置（LANE_Y配列から取得、見た目の段を固定）
+        const topInRow = this.LANE_Y[lane] ?? this.LANE_Y[0];
 
         html += this.buildBarHtml({
           left, width, topInRow, color, label, shape,
