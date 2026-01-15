@@ -9637,7 +9637,9 @@ const TravelPlan = {
         //   lane 1 → top = 26px（2件目は12pxずらす）
         //   lane 2 → top = 38px（3件目以降も同様、行高36pxを超えたらoverflow:visibleで対応）
         const lane = trip.lane || 0;
-        const topInRow = BAR_TOP_BASE + (lane * LANE_PITCH);
+        // 2本目以降は少し下げる（1本目との微調整）
+        const extraLaneOffset = (lane >= 1) ? 2 : 0;
+        const topInRow = BAR_TOP_BASE + (lane * LANE_PITCH) + extraLaneOffset;
         rightHtml += this.renderEmbeddedTripBar(trip, xStart, barWidth, topInRow, BAR_HEIGHT);
       });
       rightHtml += '</div>';
