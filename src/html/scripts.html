@@ -5287,7 +5287,7 @@ const JobDetail = {
     if (!this.dragState.isDragging) return;
 
     if (this.dragState.type === 'selection') {
-      // === 空セルの範囲選択終了 → モーダルを開く ===
+      // === 空セルの範囲選択終了 → 直接スケジュール作成 ===
       const { startProcessId, startDate, endDate } = this.dragState;
       const jobId = this.currentJobId;
 
@@ -5302,10 +5302,32 @@ const JobDetail = {
       // 状態リセット
       this.resetDragState();
 
-      // モーダルを開く（工程を事前選択）
-      Modal.openNewWithProcess(jobId, startProcessId, rangeStart, rangeEnd);
+      // 直接スケジュールを作成（モーダルを開かない）
+      const tempId = 'temp_' + Utils.generateId();
+      const payload = {
+        jobId: jobId,
+        processId: startProcessId,
+        start: rangeStart,
+        end: rangeEnd,
+        label: '',
+        status: '',
+        memo: ''
+      };
+      const newSchedule = {
+        scheduleId: tempId,
+        ...payload,
+        updatedAt: new Date().toISOString()
+      };
 
-      console.log(`[JobDetail] Selection complete: processId=${startProcessId}, ${rangeStart}〜${rangeEnd}`);
+      // Storeに追加して即時表示
+      Store.addSchedule(newSchedule);
+      ChangeBuffer.add('schedule', 'upsert', tempId, payload, 'jobDetail');
+
+      // 再描画（新しいバーを表示）
+      this.render();
+
+      Utils.showToast('スケジュール作成（保存待ち）', 'info');
+      console.log(`[JobDetail] Schedule created directly: processId=${startProcessId}, ${rangeStart}〜${rangeEnd}`);
     } else if (this.dragState.type === 'bar') {
       // === 既存バーのドラッグ終了 ===
       const { scheduleId, barEl, hasMoved, newStart, newEnd, origStartDate, origEndDate, mode } = this.dragState;
