@@ -5882,4 +5882,92 @@
   .excel-grid-row .excel-grid-cell:nth-child(7n) {
     border-right: 1px solid #9e9e9e; /* 週区切り */
   }
+
+  /* ====== 工程デフォルト並び順設定 ====== */
+  .job-process-name-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .process-order-settings-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    color: #6b7280;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .process-order-settings-btn:hover {
+    background: rgba(0, 0, 0, 0.1);
+    color: #374151;
+  }
+
+  .process-order-settings-btn svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .process-order-list {
+    max-height: 60vh;
+    overflow-y: auto;
+  }
+
+  .process-order-item {
+    display: flex;
+    align-items: center;
+    padding: 10px 16px;
+    border-bottom: 1px solid #e5e7eb;
+    background: white;
+    cursor: grab;
+    transition: background 0.15s;
+    user-select: none;
+  }
+
+  .process-order-item:hover {
+    background: #f9fafb;
+  }
+
+  .process-order-item.dragging {
+    background: #eff6ff;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    cursor: grabbing;
+  }
+
+  .process-order-item.drag-over {
+    border-top: 2px solid #3b82f6;
+  }
+
+  .process-order-drag-handle {
+    color: #9ca3af;
+    margin-right: 12px;
+    display: flex;
+    align-items: center;
+  }
+
+  .process-order-color {
+    width: 16px;
+    height: 16px;
+    border-radius: 3px;
+    margin-right: 10px;
+    flex-shrink: 0;
+  }
+
+  .process-order-name {
+    flex: 1;
+    font-size: 14px;
+    color: #374151;
+  }
+
+  .process-order-index {
+    font-size: 11px;
+    color: #9ca3af;
+    min-width: 24px;
+    text-align: right;
+  }
 </style>

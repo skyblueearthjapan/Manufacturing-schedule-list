@@ -11902,6 +11902,203 @@ const App = {
   }
 };
 
+// ProcessOrderSettings - 工程デフォルト並び順設定
+const ProcessOrderSettings = {
+  modal: null,
+  listEl: null,
+  orderedProcesses: [],
+  draggedItem: null,
+  originalOrder: [],
+
+  open() {
+    this.modal = document.getElementById('process-order-settings-modal');
+    this.listEl = document.getElementById('process-order-list');
+
+    if (!this.modal || !this.listEl) {
+      console.error('ProcessOrderSettings: モーダル要素が見つかりません');
+      return;
+    }
+
+    // 現在の工程マスタをコピー（表示順でソート済み）
+    const state = Store.getState();
+    this.orderedProcesses = [...state.processes]
+      .filter(p => p['有効(isActive)'] !== false)
+      .sort((a, b) => (a['表示順(order)'] || 0) - (b['表示順(order)'] || 0));
+
+    // 元の順序を保存
+    this.originalOrder = this.orderedProcesses.map(p => p.processId);
+
+    this.render();
+    this.modal.classList.remove('hidden');
+  },
+
+  close() {
+    if (this.modal) {
+      this.modal.classList.add('hidden');
+    }
+  },
+
+  render() {
+    if (!this.listEl) return;
+
+    const html = this.orderedProcesses.map((process, idx) => {
+      const color = process['工程色(colorHex)'] || '#e5e7eb';
+      const name = process['工程名'] || process.processId;
+      const isWeekly = process['重要（isWeekly）'] === true || process['重要（isWeekly）'] === 'TRUE';
+
+      return `
+        <div class="process-order-item"
+             data-process-id="${process.processId}"
+             draggable="true">
+          <span class="process-order-drag-handle">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+              <circle cx="9" cy="6" r="1.5"/>
+              <circle cx="15" cy="6" r="1.5"/>
+              <circle cx="9" cy="12" r="1.5"/>
+              <circle cx="15" cy="12" r="1.5"/>
+              <circle cx="9" cy="18" r="1.5"/>
+              <circle cx="15" cy="18" r="1.5"/>
+            </svg>
+          </span>
+          <span class="process-order-color" style="background: ${color}"></span>
+          <span class="process-order-name">${isWeekly ? '★' : ''}${Utils.escapeHtml(name)}</span>
+          <span class="process-order-index">${idx + 1}</span>
+        </div>
+      `;
+    }).join('');
+
+    this.listEl.innerHTML = html;
+    this.setupDragEvents();
+  },
+
+  setupDragEvents() {
+    const items = this.listEl.querySelectorAll('.process-order-item');
+
+    items.forEach(item => {
+      item.addEventListener('dragstart', (e) => this.onDragStart(e));
+      item.addEventListener('dragend', (e) => this.onDragEnd(e));
+      item.addEventListener('dragover', (e) => this.onDragOver(e));
+      item.addEventListener('dragleave', (e) => this.onDragLeave(e));
+      item.addEventListener('drop', (e) => this.onDrop(e));
+    });
+  },
+
+  onDragStart(e) {
+    this.draggedItem = e.target.closest('.process-order-item');
+    if (this.draggedItem) {
+      this.draggedItem.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', this.draggedItem.dataset.processId);
+    }
+  },
+
+  onDragEnd(e) {
+    if (this.draggedItem) {
+      this.draggedItem.classList.remove('dragging');
+      this.draggedItem = null;
+    }
+    // すべてのdrag-overクラスを削除
+    this.listEl.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+  },
+
+  onDragOver(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+
+    const target = e.target.closest('.process-order-item');
+    if (target && target !== this.draggedItem) {
+      // 他の要素からdrag-overを削除
+      this.listEl.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+      target.classList.add('drag-over');
+    }
+  },
+
+  onDragLeave(e) {
+    const target = e.target.closest('.process-order-item');
+    if (target) {
+      target.classList.remove('drag-over');
+    }
+  },
+
+  onDrop(e) {
+    e.preventDefault();
+
+    const target = e.target.closest('.process-order-item');
+    if (!target || !this.draggedItem || target === this.draggedItem) return;
+
+    const draggedId = this.draggedItem.dataset.processId;
+    const targetId = target.dataset.processId;
+
+    // orderedProcesses配列を並び替え
+    const draggedIdx = this.orderedProcesses.findIndex(p => p.processId === draggedId);
+    const targetIdx = this.orderedProcesses.findIndex(p => p.processId === targetId);
+
+    if (draggedIdx === -1 || targetIdx === -1) return;
+
+    // 配列から削除して挿入
+    const [removed] = this.orderedProcesses.splice(draggedIdx, 1);
+    this.orderedProcesses.splice(targetIdx, 0, removed);
+
+    // 再描画
+    this.render();
+  },
+
+  async save() {
+    const newOrder = this.orderedProcesses.map(p => p.processId);
+
+    // 変更がなければ閉じる
+    if (JSON.stringify(newOrder) === JSON.stringify(this.originalOrder)) {
+      this.close();
+      return;
+    }
+
+    // 保存中表示
+    const saveBtn = this.modal.querySelector('.btn-primary');
+    const originalText = saveBtn.textContent;
+    saveBtn.textContent = '保存中...';
+    saveBtn.disabled = true;
+
+    try {
+      // バックエンドAPIを呼び出し
+      const result = await new Promise((resolve, reject) => {
+        google.script.run
+          .withSuccessHandler(resolve)
+          .withFailureHandler(reject)
+          .api_updateProcessDefaultOrder(newOrder);
+      });
+
+      if (result.success) {
+        // ローカルストアを更新
+        const state = Store.getState();
+        const updatedProcesses = state.processes.map(p => {
+          const newIdx = newOrder.indexOf(p.processId);
+          if (newIdx !== -1) {
+            return { ...p, '表示順(order)': (newIdx + 1) * 10 };
+          }
+          return p;
+        });
+        Store.setState({ processes: updatedProcesses });
+
+        Toast.show('デフォルト並び順を保存しました', 'success');
+        this.close();
+
+        // 現在の画面を再描画
+        if (typeof JobDetail !== 'undefined' && JobDetail.currentJobId) {
+          JobDetail.render();
+        }
+      } else {
+        throw new Error(result.error || '保存に失敗しました');
+      }
+    } catch (error) {
+      console.error('ProcessOrderSettings.save error:', error);
+      Toast.show('保存に失敗しました: ' + error.message, 'error');
+    } finally {
+      saveBtn.textContent = originalText;
+      saveBtn.disabled = false;
+    }
+  }
+};
+
 console.log('[DEBUG] App defined');
 
 // DOMContentLoaded で初期化

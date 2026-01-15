@@ -2073,6 +2073,57 @@ function api_saveBatch(payload) {
   return { ok: true, results };
 }
 
+/**
+ * 工程のデフォルト並び順を更新
+ * ProcessMasterの表示順(order)を一括更新
+ * @param {string[]} orderedProcessIds - 新しい順序のprocessId配列
+ * @returns {Object} - { success: boolean, error?: string }
+ */
+function api_updateProcessDefaultOrder(orderedProcessIds) {
+  try {
+    if (!Array.isArray(orderedProcessIds) || orderedProcessIds.length === 0) {
+      return { success: false, error: '無効なデータです' };
+    }
+
+    const sheet = getSheet(CONFIG.SHEETS.PROCESS_MASTER);
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+
+    const processIdCol = headers.indexOf('processId');
+    const orderCol = headers.indexOf('表示順(order)');
+
+    if (processIdCol === -1 || orderCol === -1) {
+      return { success: false, error: 'シートの構造が不正です' };
+    }
+
+    // processId -> 新しいorder値のマップを作成
+    const orderMap = {};
+    orderedProcessIds.forEach((processId, idx) => {
+      orderMap[processId] = (idx + 1) * 10;
+    });
+
+    // シートを更新
+    let updated = 0;
+    for (let i = 1; i < data.length; i++) {
+      const processId = data[i][processIdCol];
+      if (orderMap.hasOwnProperty(processId)) {
+        const newOrder = orderMap[processId];
+        if (data[i][orderCol] !== newOrder) {
+          sheet.getRange(i + 1, orderCol + 1).setValue(newOrder);
+          updated++;
+        }
+      }
+    }
+
+    console.log(`ProcessMaster: ${updated}件の表示順を更新しました`);
+    return { success: true, updated: updated };
+
+  } catch (error) {
+    console.error('api_updateProcessDefaultOrder error:', error);
+    return { success: false, error: error.message };
+  }
+}
+
 // ============================================
 // 工番別工程レイアウト（JobProcessLayout）
 // ============================================
