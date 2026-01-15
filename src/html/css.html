@@ -3863,9 +3863,9 @@
     color: currentColor;
     font-weight: 600;
     white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: calc(100% - 8px);
+    /* バーの幅を超えても全文表示 */
+    overflow: visible;
+    z-index: 5;
   }
 
   /* 今日ライン */
