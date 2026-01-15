@@ -6238,7 +6238,7 @@ const ExcelGantt = {
         sch._lane = style.lane ?? 0;
         sch._shape = style.shape ?? 'rect';
         sch._processName = processName;
-        sch._color = process?.['工程色'] || '#4A90E2';
+        sch._color = process?.['工程色(colorHex)'] || '#4A90E2';
       });
 
       // 重なり自動段組み（subLane割り当て）
