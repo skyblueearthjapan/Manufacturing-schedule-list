@@ -1806,10 +1806,17 @@ function syncExternalJobMaster() {
   try {
     // 外部スプレッドシートを開く
     const externalSs = SpreadsheetApp.openById(CONFIG.EXTERNAL_MASTER_SPREADSHEET_ID);
+
+    // デバッグ: 実際のシート名一覧を出力
+    const allSheets = externalSs.getSheets();
+    const sheetNames = allSheets.map(s => s.getName());
+    Logger.log('外部スプレッドシートのシート一覧: ' + JSON.stringify(sheetNames));
+    Logger.log('検索対象シート名: "' + CONFIG.EXTERNAL_MASTER_SHEET_NAME + '"');
+
     const externalSheet = externalSs.getSheetByName(CONFIG.EXTERNAL_MASTER_SHEET_NAME);
 
     if (!externalSheet) {
-      throw new Error(`外部シート "${CONFIG.EXTERNAL_MASTER_SHEET_NAME}" が見つかりません`);
+      throw new Error(`外部シート "${CONFIG.EXTERNAL_MASTER_SHEET_NAME}" が見つかりません。存在するシート: ${sheetNames.join(', ')}`);
     }
 
     // 外部データを取得
