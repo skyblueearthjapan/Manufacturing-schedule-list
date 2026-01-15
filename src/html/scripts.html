@@ -8016,7 +8016,8 @@ const PersonGanttOverlay = {
     const colW = this.config.colWidth;
     const laneH = 16;
     const subH = 14;
-    const topPadding = 18; // バーを少し下げる（+4px）
+    const topPadding = 14;
+    const subLaneOffset = 4; // 材料手配+4px、加工+8px（subLane×4px）
 
     jobs.forEach((job) => {
       const row = document.querySelector(`.pg-grid-row[data-job-id="${job.jobId}"]`);
@@ -8056,7 +8057,8 @@ const PersonGanttOverlay = {
         const width = (visEnd - visStart + 1) * colW;
 
         const label = sch.label || sch._processName;
-        const topInRow = topPadding + (sch._lane * laneH) + ((sch._subLane ?? 0) * subH);
+        const subLane = sch._subLane ?? 0;
+        const topInRow = topPadding + (sch._lane * laneH) + (subLane * subH) + (subLane * subLaneOffset);
 
         html += this.buildBarHtml({
           left, width, topInRow,
