@@ -5987,14 +5987,15 @@ const ExcelGantt = {
     let html = '';
     jobs.forEach((job, idx) => {
       const jobNo = job['工番'] || '';
-      const customer = job['顧客名'] || '';
       const product = job['設備/製品名'] || '';
       const qty = job['台数'] || '1式';
       const dest = job['納入先'] || '';
       const shipDate = this.formatShortDate(job['出荷予定日']);
       const drawDatePlan = this.formatShortDate(job['出図予定日']);
-      const drawDateActual = this.formatShortDate(job['出図実績日']);
-      const statusText = job['重要メモ'] || '';
+
+      // 変更後日付を取得
+      const changedShipDate = this.formatShortDate(job['出荷予定日変更後']);
+      const changedDrawDate = this.formatShortDate(job['出図予定日変更後']);
 
       // 担当者
       const mainPerson = job.mainPersonId ? Store.getPersonById(job.mainPersonId) : null;
@@ -6005,18 +6006,24 @@ const ExcelGantt = {
       const hasOrderPdf = pdfInfo?.order?.fileId ? true : false;
       const hasInstructionPdf = pdfInfo?.instruction?.fileId ? true : false;
 
-      // 強調行（重要メモありの場合）
-      const highlightClass = statusText ? ' highlight-row' : '';
-
       // No列の表示（連番）
       const rowNum = idx + 1;
 
       html += `
-        <div class="xl-row${highlightClass}" data-job-id="${job.jobId}" onclick="ExcelGantt.onJobClick('${job.jobId}')">
-          <!-- No列（上段：番号、下段：空） -->
+        <div class="xl-row" data-job-id="${job.jobId}" onclick="ExcelGantt.onJobClick('${job.jobId}')">
+          <!-- No列（上段：番号、下段：PDF[受][指]） -->
           <div class="xl-no">
             <div class="no-top">${rowNum}</div>
-            <div class="no-bottom"></div>
+            <div class="no-bottom xl-pdf-buttons">
+              <button type="button"
+                class="btn-order${hasOrderPdf ? ' active' : ''}"
+                onclick="event.stopPropagation(); Gantt.openJobPdf('${Utils.escapeHtml(jobNo)}', 'order');"
+                title="受注表PDF" ${hasOrderPdf ? '' : 'disabled'}>受</button>
+              <button type="button"
+                class="btn-inst${hasInstructionPdf ? ' active' : ''}"
+                onclick="event.stopPropagation(); Gantt.openJobPdf('${Utils.escapeHtml(jobNo)}', 'instruction');"
+                title="指示書PDF" ${hasInstructionPdf ? '' : 'disabled'}>指</button>
+            </div>
           </div>
 
           <!-- メイン列（2行） -->
@@ -6024,39 +6031,49 @@ const ExcelGantt = {
             <div class="xl-main-line1">
               <span class="job-link" onclick="event.stopPropagation(); JobModal.openEdit(Store.getJobById('${job.jobId}'));">${Utils.escapeHtml(jobNo)}</span>
               <span class="unit">${Utils.escapeHtml(qty)}</span>
-              <span class="title">${Utils.escapeHtml(customer)}</span>
-              <span style="color:#666;">/ ${Utils.escapeHtml(product)}</span>
+              <span class="product-name">${Utils.escapeHtml(product)}</span>
+              ${mainName ? `<span class="person-name">担当:${Utils.escapeHtml(mainName)}</span>` : ''}
               <div class="xl-actions">
                 <button type="button"
                   onclick="event.stopPropagation(); JobModal.openEdit(Store.getJobById('${job.jobId}'));"
                   title="工番を編集">✎</button>
-                <button type="button"
-                  class="btn-order${hasOrderPdf ? ' active' : ''}"
-                  onclick="event.stopPropagation(); Gantt.openJobPdf('${Utils.escapeHtml(jobNo)}', 'order');"
-                  title="受注表PDF" ${hasOrderPdf ? '' : 'disabled'}>受</button>
-                <button type="button"
-                  class="btn-inst${hasInstructionPdf ? ' active' : ''}"
-                  onclick="event.stopPropagation(); Gantt.openJobPdf('${Utils.escapeHtml(jobNo)}', 'instruction');"
-                  title="指示書PDF" ${hasInstructionPdf ? '' : 'disabled'}>指</button>
               </div>
             </div>
             <div class="xl-main-line2">
-              ${statusText ? `<span style="color:#c62828;font-weight:600;">${Utils.escapeHtml(statusText)}</span>` : ''}
               ${dest ? `<span class="dest">納:${Utils.escapeHtml(dest)}</span>` : ''}
-              ${mainName ? `<span style="color:#666;">担当:${Utils.escapeHtml(mainName)}</span>` : ''}
             </div>
           </div>
 
-          <!-- 出荷予定日列（上段：日付、下段：空） -->
+          <!-- 出荷予定日列（上段：日付+変更後、下段：日付入力欄） -->
           <div class="xl-ship">
-            <div class="ship-top">${shipDate || '-'}</div>
-            <div class="ship-bottom"></div>
+            <div class="ship-top">
+              <span class="${changedShipDate ? 'strikethrough' : ''}">${shipDate || '-'}</span>
+              ${changedShipDate ? `<span class="changed-date">→${changedShipDate}</span>` : ''}
+            </div>
+            <div class="ship-bottom">
+              <input type="date"
+                class="xl-date-input"
+                value="${job['出荷予定日変更後'] || ''}"
+                onclick="event.stopPropagation();"
+                onchange="ExcelGantt.updateJobChangedDate('${job.jobId}', 'ship', this.value)"
+                title="出荷予定日の変更">
+            </div>
           </div>
 
-          <!-- 出図日列（上段：日付、下段：空） -->
+          <!-- 出図日列（上段：日付+変更後、下段：日付入力欄） -->
           <div class="xl-draw">
-            <div class="draw-top">${drawDatePlan || '-'}</div>
-            <div class="draw-bottom"></div>
+            <div class="draw-top">
+              <span class="${changedDrawDate ? 'strikethrough' : ''}">${drawDatePlan || '-'}</span>
+              ${changedDrawDate ? `<span class="changed-date">→${changedDrawDate}</span>` : ''}
+            </div>
+            <div class="draw-bottom">
+              <input type="date"
+                class="xl-date-input"
+                value="${job['出図予定日変更後'] || ''}"
+                onclick="event.stopPropagation();"
+                onchange="ExcelGantt.updateJobChangedDate('${job.jobId}', 'draw', this.value)"
+                title="出図予定日の変更">
+            </div>
           </div>
         </div>
       `;
@@ -6335,6 +6352,31 @@ const ExcelGantt = {
     const job = Store.getJobById(jobId);
     if (job) {
       JobDetail.open(job);
+    }
+  },
+
+  /**
+   * 工番の変更後日付を更新
+   * @param {string} jobId - 対象のjobId
+   * @param {string} dateType - 'draw' | 'ship'
+   * @param {string} newDate - 新しい日付（YYYY-MM-DD形式）
+   */
+  async updateJobChangedDate(jobId, dateType, newDate) {
+    const job = Store.getJobById(jobId);
+    if (!job) {
+      Utils.showToast('工番が見つかりません', 'error');
+      return;
+    }
+
+    const fieldName = dateType === 'draw' ? '出図予定日変更後' : '出荷予定日変更後';
+
+    try {
+      await Store.updateJob(jobId, { [fieldName]: newDate }, job.updatedAt);
+      Utils.showToast('日付を更新しました', 'success');
+      this.render();
+    } catch (error) {
+      console.error('Failed to update changed date:', error);
+      Utils.showToast('日付の更新に失敗しました', 'error');
     }
   },
 

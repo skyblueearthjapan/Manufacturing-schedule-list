@@ -4608,6 +4608,9 @@
     justify-content: center;
     color: #d32f2f;
   }
+  .xl-ship .ship-bottom {
+    justify-content: center;
+  }
 
   /* 出図日列 */
   .xl-draw {
@@ -4619,6 +4622,79 @@
   .xl-draw .draw-top {
     justify-content: center;
     color: #1565c0;
+  }
+  .xl-draw .draw-bottom {
+    justify-content: center;
+  }
+
+  /* Excel風ビュー：日付入力欄 */
+  .xl-date-input {
+    font-size: 9px;
+    padding: 1px 2px;
+    border: 1px solid #ccc;
+    border-radius: 2px;
+    width: 70px;
+    background: #fff;
+    cursor: pointer;
+  }
+  .xl-date-input:focus {
+    outline: none;
+    border-color: #1976d2;
+    box-shadow: 0 0 0 1px rgba(25, 118, 210, 0.2);
+  }
+
+  /* Excel風ビュー：変更後日付 */
+  .xl-ship .changed-date,
+  .xl-draw .changed-date {
+    color: #c62828;
+    font-weight: 700;
+    margin-left: 2px;
+  }
+
+  /* Excel風ビュー：NO下段のPDFボタン */
+  .xl-pdf-buttons {
+    display: flex;
+    justify-content: center;
+    gap: 2px;
+  }
+  .xl-pdf-buttons button {
+    font-size: 9px;
+    padding: 1px 4px;
+    border: 1px solid #ccc;
+    border-radius: 2px;
+    background: #f5f5f5;
+    cursor: pointer;
+  }
+  .xl-pdf-buttons button.active {
+    background: #e3f2fd;
+    border-color: #1976d2;
+    color: #1565c0;
+  }
+  .xl-pdf-buttons button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+  .xl-pdf-buttons .btn-order.active {
+    background: #e8f5e9;
+    border-color: #4caf50;
+    color: #2e7d32;
+  }
+  .xl-pdf-buttons .btn-inst.active {
+    background: #fff3e0;
+    border-color: #ff9800;
+    color: #e65100;
+  }
+
+  /* Excel風ビュー：担当者名・製品名 */
+  .xl-main-line1 .product-name {
+    color: #666;
+    margin-left: 4px;
+  }
+  .xl-main-line1 .person-name {
+    color: #1565c0;
+    font-weight: 500;
+    margin-left: auto;
+    padding-right: 8px;
   }
 
   /* ヘッダ行（左ペイン用） */
