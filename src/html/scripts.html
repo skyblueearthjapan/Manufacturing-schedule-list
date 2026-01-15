@@ -6044,7 +6044,7 @@ const ExcelGantt = {
               </div>
             </div>
             <div class="xl-main-line2">
-              <span class="job-link" onclick="event.stopPropagation(); JobModal.openEdit(Store.getJobById('${job.jobId}'));">${Utils.escapeHtml(jobNo)}</span>
+              <span class="job-link" onclick="event.stopPropagation(); JobDetail.open('${job.jobId}');" title="工番別工程表を開く">${Utils.escapeHtml(jobNo)}</span>
               <span class="unit">${Utils.escapeHtml(qty)}</span>
               ${dest ? `<span class="dest">${Utils.escapeHtml(dest)}</span>` : ''}
               ${destAddress ? `<span class="dest-address">${Utils.escapeHtml(destAddress)}</span>` : ''}
