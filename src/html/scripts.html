@@ -4572,7 +4572,7 @@ const JobDetail = {
     const job = this.currentJob;
     if (!job) return;
 
-    document.getElementById('job-detail-customer').textContent = job['顧客名'] || '-';
+    document.getElementById('job-detail-customer').textContent = job['納入先'] || '-';
     document.getElementById('job-detail-product').textContent = job['設備/製品名'] || '-';
     document.getElementById('job-detail-jobno').textContent = job['工番'] || '-';
     document.getElementById('job-detail-ship-date').textContent = job['出荷予定日'] || '-';
@@ -5274,7 +5274,7 @@ const JobDetail = {
       jobId: this.currentJobId,
       job: {
         jobNo: job['工番'] || '',
-        customer: job['顧客名'] || '',
+        customer: job['納入先'] || '',
         product: job['設備/製品名'] || ''
       },
       theme: this.config.exportTheme,  // 'color' or 'mono_navy'
