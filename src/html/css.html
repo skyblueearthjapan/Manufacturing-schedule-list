@@ -1844,6 +1844,74 @@
     display: none;  /* 矢印スタイルではラベル非表示 */
   }
 
+  /* ====== 工番別工程表：バードラッグ用ハンドル ====== */
+  .job-bar-handle {
+    position: absolute;
+    top: -10px;
+    width: 16px;
+    height: 24px;
+    background: transparent;
+    z-index: 5;
+    cursor: ew-resize;
+  }
+
+  .job-bar-handle--left {
+    left: -8px;
+  }
+
+  .job-bar-handle--right {
+    right: -8px;
+  }
+
+  .job-bar:hover .job-bar-handle {
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 2px;
+  }
+
+  .job-bar.dragging {
+    opacity: 0.7;
+    z-index: 100;
+  }
+
+  .job-bar.dragging .job-bar-handle {
+    opacity: 0;
+  }
+
+  /* セル範囲選択時のプレビューバー */
+  .job-bar-preview {
+    position: absolute;
+    height: 4px;
+    top: 14px;
+    background-color: #3B82F6;
+    color: #3B82F6;
+    opacity: 0.6;
+    pointer-events: none;
+    z-index: 50;
+    border-radius: 0;
+  }
+
+  .job-bar-preview::before {
+    content: '◀';
+    position: absolute;
+    left: -8px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 12px;
+    color: inherit;
+    line-height: 1;
+  }
+
+  .job-bar-preview::after {
+    content: '▶';
+    position: absolute;
+    right: -8px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 12px;
+    color: inherit;
+    line-height: 1;
+  }
+
   .job-milestone {
     position: absolute;
     top: 6px;
