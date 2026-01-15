@@ -1812,7 +1812,7 @@
     transition: opacity 0.15s ease;
   }
 
-  /* 矢印の先端（▶） */
+  /* 矢印の終点（▶） */
   .job-bar::after {
     content: '▶';
     position: absolute;
@@ -1824,17 +1824,16 @@
     line-height: 1;
   }
 
-  /* 矢印の開始点（●） */
+  /* 矢印の始点（◀） */
   .job-bar::before {
-    content: '';
+    content: '◀';
     position: absolute;
-    left: -3px;
+    left: -8px;
     top: 50%;
     transform: translateY(-50%);
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background-color: inherit;
+    font-size: 12px;
+    color: inherit;
+    line-height: 1;
   }
 
   .job-bar:hover {
