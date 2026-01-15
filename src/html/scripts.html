@@ -4911,10 +4911,10 @@ const JobDetail = {
       const width = (effectiveEnd - effectiveStart + 1) * this.config.weeklyCellWidth - 2;
 
       // scheduleId を data属性に保持（クリック編集用）
+      // 矢印スタイル用に color も設定
       return `
-        <div class="job-bar" data-schedule-id="${schedule.scheduleId}" style="left: ${left}px; width: ${width}px; background-color: ${color};"
+        <div class="job-bar" data-schedule-id="${schedule.scheduleId}" style="left: ${left}px; width: ${width}px; background-color: ${color}; color: ${color};"
              title="${personName}${schedule.label ? ' - ' + schedule.label : ''}">
-          ${schedule.label ? `<span class="job-bar-label">${Utils.escapeHtml(schedule.label)}</span>` : ''}
         </div>
       `;
     } else {
@@ -4930,10 +4930,10 @@ const JobDetail = {
       const width = Math.min(duration, dates.length - Math.max(0, startOffset)) * this.config.cellWidth - 2;
 
       // scheduleId を data属性に保持（クリック編集用）
+      // 矢印スタイル用に color も設定
       return `
-        <div class="job-bar" data-schedule-id="${schedule.scheduleId}" style="left: ${left}px; width: ${width}px; background-color: ${color};"
+        <div class="job-bar" data-schedule-id="${schedule.scheduleId}" style="left: ${left}px; width: ${width}px; background-color: ${color}; color: ${color};"
              title="${personName}${schedule.label ? ' - ' + schedule.label : ''}">
-          ${schedule.label ? `<span class="job-bar-label">${Utils.escapeHtml(schedule.label)}</span>` : ''}
         </div>
       `;
     }
