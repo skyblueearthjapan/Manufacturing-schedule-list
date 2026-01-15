@@ -5954,6 +5954,7 @@ const ExcelGantt = {
       if (isWeekend) cls += ' weekend';
       if (isToday) cls += ' today';
       if (daySetting === 'HOLIDAY') cls += ' holiday';
+      if (daySetting === 'WORKDAY') cls += ' workday';
 
       // 月初めの場合に月を表示
       const showMonth = i === 0 || day === 1;
