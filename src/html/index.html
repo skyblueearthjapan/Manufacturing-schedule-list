@@ -174,7 +174,8 @@
     <div id="view-master" class="view-container flex flex-col">
       <!-- UI切替バー -->
       <div class="flex items-center justify-between px-3 py-1 bg-gray-50 border-b border-gray-200">
-        <div class="flex items-center space-x-2">
+        <!-- UI切替ボタン（旧UI無効化のため非表示） -->
+        <div class="hidden flex items-center space-x-2">
           <span class="text-xs text-gray-500">表示モード:</span>
           <div class="inline-flex rounded-md shadow-sm" role="group">
             <button type="button" id="ui-mode-classic" onclick="GanttUIMode.setMode('classic')"

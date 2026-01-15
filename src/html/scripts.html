@@ -7122,14 +7122,11 @@ console.log('[DEBUG] ExcelGantt defined');
 // ========================================
 
 const GanttUIMode = {
-  currentMode: 'classic', // 'classic' or 'excel'
+  currentMode: 'excel', // 'classic' or 'excel' - デフォルトをexcelに変更（旧UI無効化）
 
   init() {
-    // ローカルストレージから前回のモードを復元
-    const savedMode = localStorage.getItem('ganttUIMode');
-    if (savedMode === 'excel') {
-      this.setMode('excel', false);
-    }
+    // 旧UI無効化: 常にexcelモードを使用（ローカルストレージの設定を無視）
+    this.setMode('excel', false);
     console.log('[GanttUIMode] Initialized, mode:', this.currentMode);
   },
 
