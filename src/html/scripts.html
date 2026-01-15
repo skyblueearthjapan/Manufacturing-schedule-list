@@ -9347,7 +9347,7 @@ const TravelPlan = {
 
     // 部署の色を取得（移動以外で使用）
     const person = Store.getPersonById(trip.personId);
-    const dept = person?.['部署'] || '';
+    const dept = person?.['部署/区分'] || '';
     const deptColor = getDeptHeaderColor(dept);
 
     if (trip.kind === 'move') {
@@ -9689,7 +9689,7 @@ const TravelPlan = {
 
     // 部署の色を取得（移動以外で使用）
     const person = Store.getPersonById(trip.personId);
-    const dept = person?.['部署'] || '';
+    const dept = person?.['部署/区分'] || '';
     const deptColor = getDeptHeaderColor(dept);
 
     if (trip.kind === 'move') {
