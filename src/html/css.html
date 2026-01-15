@@ -5087,7 +5087,7 @@
     gap: 2px;
   }
 
-  /* Excel風ビュー：小さい日付入力（カレンダーアイコン） */
+  /* Excel風ビュー：小さい日付入力（カレンダーアイコン）- 左端固定 */
   .xl-date-input-small {
     width: 20px;
     height: 16px;
@@ -5097,6 +5097,8 @@
     background: #fff;
     cursor: pointer;
     flex-shrink: 0;
+    order: -1;  /* 常に左端に配置 */
+    margin-right: 4px;
   }
   .xl-date-input-small:hover {
     border-color: #1976d2;
