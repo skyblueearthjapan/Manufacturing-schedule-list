@@ -6217,7 +6217,6 @@ const ExcelGantt = {
           <!-- 出荷予定日列（上段：予定、下段：変更） -->
           <div class="xl-ship">
             <div class="ship-top xl-date-cell">
-              <span class="date-edit-icon">✎</span>
               <input type="date" class="xl-date-input-small"
                 value="${job['出荷予定日'] || ''}"
                 onclick="event.stopPropagation(); this.showPicker && this.showPicker();"
@@ -6227,7 +6226,6 @@ const ExcelGantt = {
               <span class="date-value ${changedShipDate ? 'strikethrough' : ''}">${shipDate || '-'}</span>
             </div>
             <div class="ship-bottom xl-date-cell">
-              <span class="date-edit-icon">✎</span>
               <input type="date" class="xl-date-input-small"
                 value="${job['出荷予定日変更後'] || ''}"
                 onclick="event.stopPropagation(); this.showPicker && this.showPicker();"
@@ -6241,7 +6239,6 @@ const ExcelGantt = {
           <!-- 出図日列（上段：希望、下段：実績） -->
           <div class="xl-draw">
             <div class="draw-top xl-date-cell">
-              <span class="date-edit-icon">✎</span>
               <input type="date" class="xl-date-input-small"
                 value="${job['出図予定日'] || ''}"
                 onclick="event.stopPropagation(); this.showPicker && this.showPicker();"
@@ -6251,7 +6248,6 @@ const ExcelGantt = {
               <span class="date-value ${changedDrawDate ? 'strikethrough' : ''}">${drawDatePlan || '-'}</span>
             </div>
             <div class="draw-bottom xl-date-cell">
-              <span class="date-edit-icon">✎</span>
               <input type="date" class="xl-date-input-small"
                 value="${job['出図予定日変更後'] || ''}"
                 onclick="event.stopPropagation(); this.showPicker && this.showPicker();"
