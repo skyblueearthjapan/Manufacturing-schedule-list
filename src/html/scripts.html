@@ -6506,7 +6506,8 @@ const ExcelGantt = {
       const wasCollapsed = section.classList.contains('collapsed');
       section.classList.toggle('collapsed');
       if (wasCollapsed) {
-        setTimeout(() => Gantt.renderTrips(), 350);
+        // CSSトランジション完了後に再描画
+        setTimeout(() => this.renderTrips(), 350);
       }
     }
   },
