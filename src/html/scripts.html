@@ -9200,11 +9200,11 @@ const TravelPlan = {
     const lockPrefix = isLocked ? '🔒 ' : '';
     const safeLabel = Utils.escapeHtml(lockPrefix + label);
 
-    // レーン位置からtopを計算（埋め込み出張予定と同じロジック）
+    // レーン位置からtopを計算（工程表Excel風と統一）
     const lane = trip.lane || 0;
-    const BASE_TOP = 4;   // 1件目のバー基準位置（行上端から4px）
-    const LANE_GAP = 10;  // lane間隔（バーが見分けられる最小間隔）
-    const topInRow = BASE_TOP + (lane * LANE_GAP);
+    const BAR_TOP_BASE = 14;   // 1件目のバー基準位置（行上端から14px）
+    const LANE_PITCH = 12;     // lane間隔（被り回避ズラし、工程表Excel風と同じ）
+    const topInRow = BAR_TOP_BASE + (lane * LANE_PITCH);
 
     // 両矢印スタイルHTML（ExcelGanttと同じ構造 + リサイズハンドル）
     const lineClass = shape === 'dash' ? 'bar-line bar-line--dash' : 'bar-line';
@@ -9240,64 +9240,34 @@ const TravelPlan = {
 
   /**
    * 作業者ごとの予定にlaneを割り当て（重なり回避）
-   * 新しい予定ほど lane 0（下）、重なったら古い予定を上へ押し上げ
+   * 工程表Excel風と同じロジック：開始日順でレーン割り当て
    * @param {Object[]} personTrips - その人の予定配列
    * @returns {Object[]} lane情報付きの予定配列
    */
   assignLanesForPerson(personTrips) {
     if (!personTrips || personTrips.length === 0) return [];
 
-    // 開始日が遅い順（新しい順）でソート → 新しい予定がlane 0を優先的に取得
-    const items = personTrips.slice().sort((a, b) => b.start.localeCompare(a.start));
+    // 開始日順でソート（工程表Excel風と同じ）
+    const items = personTrips.slice().sort((a, b) => a.start.localeCompare(b.start));
 
-    // lanes配列：各laneに配置済みの予定を保持
-    const lanes = [];
+    // laneEnds配列：各レーンの最後のend日を保持
+    const laneEnds = [];
 
-    // 1) laneLocked=trueのものを先に配置（指定laneを尊重）
-    for (const trip of items.filter(t => t.laneLocked && Number.isFinite(t.lane))) {
-      const L = trip.lane;
-      lanes[L] = lanes[L] || [];
-      lanes[L].push(trip);
-    }
-
-    // 2) 非lockedを空きlaneに配置
-    for (const trip of items.filter(t => !(t.laneLocked && Number.isFinite(t.lane)))) {
+    for (const trip of items) {
       let placed = false;
-      for (let L = 0; L < lanes.length; L++) {
-        lanes[L] = lanes[L] || [];
-        if (!lanes[L].some(p => this.tripsOverlap(p, trip))) {
-          trip.lane = L;
-          lanes[L].push(trip);
+      // 空いているレーンを探す（endが自分のstart未満なら空いている）
+      for (let i = 0; i < laneEnds.length; i++) {
+        if (laneEnds[i] < trip.start) {
+          trip.lane = i;
+          laneEnds[i] = trip.end;
           placed = true;
           break;
         }
       }
+      // 空いているレーンがなければ新しいレーンを追加
       if (!placed) {
-        const L = lanes.length;
-        trip.lane = L;
-        lanes[L] = [trip];
-      }
-    }
-
-    // 3) locked同士の衝突解決（後勝ち）
-    for (let L = 0; L < lanes.length; L++) {
-      const laneItems = (lanes[L] || []).sort((a, b) => a.start.localeCompare(b.start));
-      for (let i = 0; i < laneItems.length; i++) {
-        for (let j = i + 1; j < laneItems.length; j++) {
-          const a = laneItems[i], b = laneItems[j];
-          if (a.laneLocked && b.laneLocked && this.tripsOverlap(a, b)) {
-            // bを空きlaneへ移動
-            for (let newL = 0; ; newL++) {
-              lanes[newL] = lanes[newL] || [];
-              if (newL !== L && !lanes[newL].some(p => this.tripsOverlap(p, b))) {
-                b.lane = newL;
-                lanes[newL].push(b);
-                break;
-              }
-              if (newL > 10) break; // 安全弁
-            }
-          }
-        }
+        trip.lane = laneEnds.length;
+        laneEnds.push(trip.end);
       }
     }
 
@@ -9390,11 +9360,11 @@ const TravelPlan = {
 
     const today = Utils.getToday();
 
-    // lane計算用の定数（設計指示に基づく - 行高36px固定、行内に収める）
-    const ROW_HEIGHT = 36;      // 行高固定（工程表ガントと統一）
-    const BAR_HEIGHT = 14;      // バー描画高さ
-    const BASE_TOP = 4;         // 1件目のバー基準位置（行上端から4px）
-    const LANE_GAP = 10;        // lane間隔（バーが見分けられる最小間隔）
+    // lane計算用の定数（設計指示に基づく - 工程表Excel風と統一）
+    const ROW_HEIGHT = 36;       // 行高固定（工程表ガントと統一）
+    const BAR_HEIGHT = 14;       // バー描画高さ
+    const BAR_TOP_BASE = 14;     // 1件目のバー基準位置（行上端から14px）
+    const LANE_PITCH = 12;       // lane間隔（被り回避ズラし、工程表Excel風と同じ）
 
     // 各作業者の行データを事前計算（lane割り当て + 行高さ計算）
     const rowDataList = workerRows.map(row => {
@@ -9493,13 +9463,13 @@ const TravelPlan = {
         const xStart = visibleStartOffset * cellWidth;
         const barWidth = visibleDuration * cellWidth;
 
-        // lane位置からtopを計算（行内に下から詰める方式）
-        // 例：BASE_TOP=4px, LANE_GAP=10px の場合
-        //   lane 0 → top = 4px（1件目は行上端から4px）
-        //   lane 1 → top = 14px（2件目は10pxずらす）
-        //   lane 2 → top = 24px（3件目以降も同様、行高36pxを超えたらoverflow:visibleで対応）
+        // lane位置からtopを計算（工程表Excel風と同じ計算方式）
+        // 例：BAR_TOP_BASE=14px, LANE_PITCH=12px の場合
+        //   lane 0 → top = 14px（1件目は行上端から14px）
+        //   lane 1 → top = 26px（2件目は12pxずらす）
+        //   lane 2 → top = 38px（3件目以降も同様、行高36pxを超えたらoverflow:visibleで対応）
         const lane = trip.lane || 0;
-        const topInRow = BASE_TOP + (lane * LANE_GAP);
+        const topInRow = BAR_TOP_BASE + (lane * LANE_PITCH);
         rightHtml += this.renderEmbeddedTripBar(trip, xStart, barWidth, topInRow, BAR_HEIGHT);
       });
       rightHtml += '</div>';

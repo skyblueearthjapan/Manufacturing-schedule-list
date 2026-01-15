@@ -2426,15 +2426,17 @@
   /* 出張計画バー（両矢印スタイル）- ExcelGanttと統一 */
   .travel-trip-bar {
     /* top/transformはJS側でinline styleにて上書き（レーン対応） */
+    position: absolute;
     pointer-events: auto;
     overflow: visible;  /* ラベルのはみ出しを許可 */
+    z-index: 210;       /* 日付ヘッダーより上に表示 */
   }
 
   .travel-trip-bar .bar-label {
     font-size: 10px;  /* ExcelGanttと統一 */
     position: absolute;
-    top: -16px;       /* バーの上に出す */
-    left: 6px;
+    top: -12px;       /* バーの上に出す（工程表と同じ） */
+    left: 0;          /* 左端揃え */
     white-space: nowrap;
     overflow: visible;
     pointer-events: none;  /* ドラッグ/クリックの邪魔をしない */
@@ -5026,28 +5028,29 @@
     outline-offset: -2px;
   }
 
-  /* バーレイヤ（重要：はみ出し許可） */
+  /* バーレイヤ（重要：日付ヘッダーより上に配置） */
   .trip-bar-layer {
     position: absolute;
     inset: 0;
     pointer-events: none;
     overflow: visible;     /* 縦横ともにはみ出しを許可（ラベル見切れ防止） */
-    z-index: 10;
+    z-index: 200;          /* 日付ヘッダー（z-index:1）より上に表示 */
   }
 
   /* 埋め込み出張計画のバー（excel-bar両矢印スタイル）- lane対応でtop/heightはinline指定 */
   .embedded-trip-bar {
+    position: absolute;
     height: auto !important;  /* 親の height:0 を上書き、inlineで指定 */
     pointer-events: auto;
     overflow: visible;        /* ラベルのはみ出しを許可 */
-    z-index: 20;              /* バーレイヤより前面に */
+    z-index: 210;             /* バーレイヤより前面に */
   }
 
   /* ラベル共通：バーの上側に配置（工程表と同じ配置） */
   .embedded-trip-bar .bar-label {
     position: absolute;
-    top: -16px;            /* バーの上に出す（設計指示通り） */
-    left: 6px;             /* 行き先ラベルは左寄せ（工程表と同じ余白） */
+    top: -12px;            /* バーの上に出す（工程表と同じ） */
+    left: 0;               /* 左端揃え */
     line-height: 14px;
     white-space: nowrap;
     overflow: visible;
