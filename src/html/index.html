@@ -200,6 +200,12 @@
           </div>
           <span id="job-search-count" class="text-xs text-gray-500 hidden"></span>
           <button type="button" class="btn btn-primary text-xs py-1 px-2" onclick="JobModal.openNew()">＋ 工番追加</button>
+          <button type="button" class="btn btn-secondary text-xs py-1 px-2" onclick="Gantt.print()" title="印刷">
+            <svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
+            </svg>
+            印刷
+          </button>
         </div>
       </div>
 
@@ -518,6 +524,12 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
               </svg>
               予定追加
+            </button>
+            <button onclick="TravelPlan.print()" class="btn btn-secondary text-sm" title="印刷">
+              <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
+              </svg>
+              印刷
             </button>
           </div>
         </div>

@@ -2666,6 +2666,133 @@ const Gantt = {
       dateFrom: displayStartDate,
       days: displayDays
     });
+  },
+
+  /**
+   * 大工程表を印刷
+   * 現在のUIモード（クラシック/Excel風）に応じて印刷対象を切り替え
+   */
+  print() {
+    const isExcelMode = GanttUIMode.currentMode === 'excel';
+    const printAreaId = isExcelMode ? 'gantt-excel-container' : 'gantt-classic-container';
+    const printArea = document.getElementById(printAreaId);
+
+    if (!printArea) {
+      Utils.showToast('印刷対象が見つかりません', 'error');
+      return;
+    }
+
+    // 表示期間を取得
+    const startDate = Store.state.displayStartDate;
+    const days = Store.state.displayDays;
+    const endDate = Utils.addDays(startDate, days - 1);
+    const startMonth = Utils.getMonth(startDate);
+    const startDay = Utils.getDay(startDate);
+    const endMonth = Utils.getMonth(endDate);
+    const endDay = Utils.getDay(endDate);
+
+    const printTitle = `大工程表_${startMonth}月${startDay}日-${endMonth}月${endDay}日`;
+
+    // 新規ウィンドウを開く
+    const win = window.open('', '_blank');
+    if (!win) {
+      Utils.showToast('ポップアップがブロックされました', 'error');
+      return;
+    }
+
+    // 元画面のスタイルを収集
+    const styles = [];
+    document.querySelectorAll('link[rel="stylesheet"]').forEach(link => {
+      styles.push(`<link rel="stylesheet" href="${link.href}">`);
+    });
+    document.querySelectorAll('style').forEach(style => {
+      styles.push(`<style>${style.innerHTML}</style>`);
+    });
+
+    // 印刷用CSS
+    const printCSS = `
+      <style>
+        @page {
+          size: A3 landscape;
+          margin: 5mm;
+        }
+        @media print {
+          * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          body {
+            margin: 0;
+            padding: 8px;
+            overflow: visible !important;
+          }
+          .print-header {
+            margin-bottom: 8px;
+            padding-bottom: 4px;
+            border-bottom: 2px solid #333;
+          }
+          .print-header h1 {
+            font-size: 16px;
+            font-weight: bold;
+            margin: 0;
+          }
+          .print-header .date-range {
+            font-size: 11px;
+            color: #666;
+          }
+          /* スクロールを解除して全体表示 */
+          .excel-gantt-wrap,
+          .excel-left-pane,
+          .excel-right-pane,
+          .excel-time-body,
+          #gantt-classic-container,
+          #gantt-v-scroll {
+            overflow: visible !important;
+            height: auto !important;
+            max-height: none !important;
+          }
+          /* 下部スクロールバーを非表示 */
+          .excel-bottom-scrollbar,
+          .gantt-bottom-scrollbar {
+            display: none !important;
+          }
+        }
+      </style>
+    `;
+
+    // クローン
+    const clone = printArea.cloneNode(true);
+    clone.classList.remove('hidden');
+
+    const rangeText = `${startMonth}/${startDay} 〜 ${endMonth}/${endDay}（${days}日間）`;
+
+    win.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>${printTitle}</title>
+        ${styles.join('\n')}
+        ${printCSS}
+      </head>
+      <body>
+        <div class="print-header">
+          <h1>大工程表</h1>
+          <div class="date-range">${rangeText}</div>
+        </div>
+        ${clone.outerHTML}
+      </body>
+      </html>
+    `);
+    win.document.close();
+
+    win.onload = () => {
+      setTimeout(() => {
+        win.focus();
+        win.print();
+        setTimeout(() => win.close(), 500);
+      }, 300);
+    };
   }
 };
 
@@ -10230,6 +10357,132 @@ const TravelPlan = {
       });
       ro.observe(container);
     });
+  },
+
+  /**
+   * 出張計画表を印刷
+   */
+  print() {
+    const printArea = document.querySelector('.travel-container');
+    if (!printArea) {
+      Utils.showToast('印刷対象が見つかりません', 'error');
+      return;
+    }
+
+    // 表示期間を取得
+    const startDateEl = document.getElementById('travel-start-date');
+    const daysEl = document.getElementById('travel-days');
+    const startDate = startDateEl?.value || Utils.getToday();
+    const days = parseInt(daysEl?.value || '90');
+    const endDate = Utils.addDays(startDate, days - 1);
+    const startMonth = Utils.getMonth(startDate);
+    const startDay = Utils.getDay(startDate);
+    const endMonth = Utils.getMonth(endDate);
+    const endDay = Utils.getDay(endDate);
+
+    const printTitle = `出張計画表_${startMonth}月${startDay}日-${endMonth}月${endDay}日`;
+
+    // 新規ウィンドウを開く
+    const win = window.open('', '_blank');
+    if (!win) {
+      Utils.showToast('ポップアップがブロックされました', 'error');
+      return;
+    }
+
+    // 元画面のスタイルを収集
+    const styles = [];
+    document.querySelectorAll('link[rel="stylesheet"]').forEach(link => {
+      styles.push(`<link rel="stylesheet" href="${link.href}">`);
+    });
+    document.querySelectorAll('style').forEach(style => {
+      styles.push(`<style>${style.innerHTML}</style>`);
+    });
+
+    // 印刷用CSS
+    const printCSS = `
+      <style>
+        @page {
+          size: A3 landscape;
+          margin: 5mm;
+        }
+        @media print {
+          * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          body {
+            margin: 0;
+            padding: 8px;
+            overflow: visible !important;
+          }
+          .print-header {
+            margin-bottom: 8px;
+            padding-bottom: 4px;
+            border-bottom: 2px solid #333;
+          }
+          .print-header h1 {
+            font-size: 16px;
+            font-weight: bold;
+            margin: 0;
+          }
+          .print-header .date-range {
+            font-size: 11px;
+            color: #666;
+          }
+          /* ヘッダーコントロールを非表示 */
+          .travel-header-controls {
+            display: none !important;
+          }
+          /* スクロールを解除して全体表示 */
+          .travel-container,
+          .travel-main,
+          .travel-scroll-area,
+          .travel-body {
+            overflow: visible !important;
+            height: auto !important;
+            max-height: none !important;
+          }
+          /* スクロールバーを非表示 */
+          .travel-bottom-scrollbar,
+          .travel-top-scrollbar {
+            display: none !important;
+          }
+        }
+      </style>
+    `;
+
+    // クローン
+    const clone = printArea.cloneNode(true);
+
+    const rangeText = `${startMonth}/${startDay} 〜 ${endMonth}/${endDay}（${days}日間）`;
+
+    win.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>${printTitle}</title>
+        ${styles.join('\n')}
+        ${printCSS}
+      </head>
+      <body>
+        <div class="print-header">
+          <h1>出張計画表</h1>
+          <div class="date-range">${rangeText}</div>
+        </div>
+        ${clone.outerHTML}
+      </body>
+      </html>
+    `);
+    win.document.close();
+
+    win.onload = () => {
+      setTimeout(() => {
+        win.focus();
+        win.print();
+        setTimeout(() => win.close(), 500);
+      }, 300);
+    };
   }
 };
 
