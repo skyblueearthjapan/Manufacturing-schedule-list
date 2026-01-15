@@ -6054,49 +6054,37 @@ const ExcelGantt = {
 
           <!-- 出荷予定日列（上段：予定、下段：変更） -->
           <div class="xl-ship">
-            <div class="ship-top">
+            <div class="ship-top xl-date-cell" onclick="event.stopPropagation(); document.getElementById('ship-top-${job.jobId}').showPicker();">
               <span class="date-label">予定:</span>
               <span class="date-value ${changedShipDate ? 'strikethrough' : ''}">${shipDate || '-'}</span>
               <input type="date" class="xl-date-hidden" id="ship-top-${job.jobId}"
                 value="${job['出荷予定日'] || ''}"
                 onchange="ExcelGantt.updateJobOriginalDate('${job.jobId}', 'ship', this.value)">
-              <button type="button" class="xl-cal-btn" onclick="event.stopPropagation(); document.getElementById('ship-top-${job.jobId}').showPicker();" title="予定日を変更">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-              </button>
             </div>
-            <div class="ship-bottom">
-              <span class="date-label">${changedShipDate ? '変更:' : ''}</span>
+            <div class="ship-bottom xl-date-cell" onclick="event.stopPropagation(); document.getElementById('ship-btm-${job.jobId}').showPicker();">
+              <span class="date-label">変更:</span>
               <span class="date-value changed">${changedShipDate || ''}</span>
               <input type="date" class="xl-date-hidden" id="ship-btm-${job.jobId}"
                 value="${job['出荷予定日変更後'] || ''}"
                 onchange="ExcelGantt.updateJobChangedDate('${job.jobId}', 'ship', this.value)">
-              <button type="button" class="xl-cal-btn" onclick="event.stopPropagation(); document.getElementById('ship-btm-${job.jobId}').showPicker();" title="変更日を入力">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-              </button>
             </div>
           </div>
 
           <!-- 出図日列（上段：希望、下段：実績） -->
           <div class="xl-draw">
-            <div class="draw-top">
+            <div class="draw-top xl-date-cell" onclick="event.stopPropagation(); document.getElementById('draw-top-${job.jobId}').showPicker();">
               <span class="date-label">希望:</span>
               <span class="date-value ${changedDrawDate ? 'strikethrough' : ''}">${drawDatePlan || '-'}</span>
               <input type="date" class="xl-date-hidden" id="draw-top-${job.jobId}"
                 value="${job['出図予定日'] || ''}"
                 onchange="ExcelGantt.updateJobOriginalDate('${job.jobId}', 'draw', this.value)">
-              <button type="button" class="xl-cal-btn" onclick="event.stopPropagation(); document.getElementById('draw-top-${job.jobId}').showPicker();" title="希望日を変更">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-              </button>
             </div>
-            <div class="draw-bottom">
-              <span class="date-label">${changedDrawDate ? '実績:' : ''}</span>
+            <div class="draw-bottom xl-date-cell" onclick="event.stopPropagation(); document.getElementById('draw-btm-${job.jobId}').showPicker();">
+              <span class="date-label">実績:</span>
               <span class="date-value changed">${changedDrawDate || ''}</span>
               <input type="date" class="xl-date-hidden" id="draw-btm-${job.jobId}"
                 value="${job['出図予定日変更後'] || ''}"
                 onchange="ExcelGantt.updateJobChangedDate('${job.jobId}', 'draw', this.value)">
-              <button type="button" class="xl-cal-btn" onclick="event.stopPropagation(); document.getElementById('draw-btm-${job.jobId}').showPicker();" title="実績日を入力">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-              </button>
             </div>
           </div>
         </div>
@@ -7756,7 +7744,7 @@ const PersonGanttOverlay = {
               <span class="date-value ${changedShipDate ? 'strikethrough' : ''}">${shipDate || '-'}</span>
             </div>
             <div class="ship-bottom">
-              <span class="date-label">${changedShipDate ? '変更:' : ''}</span>
+              <span class="date-label">変更:</span>
               <span class="date-value changed">${changedShipDate || ''}</span>
             </div>
           </div>
@@ -7768,7 +7756,7 @@ const PersonGanttOverlay = {
               <span class="date-value ${changedDrawDate ? 'strikethrough' : ''}">${drawDatePlan || '-'}</span>
             </div>
             <div class="draw-bottom">
-              <span class="date-label">${changedDrawDate ? '実績:' : ''}</span>
+              <span class="date-label">実績:</span>
               <span class="date-value changed">${changedDrawDate || ''}</span>
             </div>
           </div>

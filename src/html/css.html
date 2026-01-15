@@ -5089,7 +5089,16 @@
     pointer-events: none;
   }
 
-  /* Excel風ビュー：カレンダーアイコンボタン */
+  /* Excel風ビュー：クリック可能な日付セル */
+  .xl-date-cell {
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .xl-date-cell:hover {
+    background: #e3f2fd !important;
+  }
+
+  /* Excel風ビュー：カレンダーアイコンボタン（旧・互換用） */
   .xl-cal-btn {
     width: 18px;
     height: 18px;
