@@ -1543,6 +1543,75 @@ const Store = {
       });
     }
 
+    // Person の差分反映
+    if (results.person) {
+      let people = [...this.state.people];
+
+      // upserted: 更新または追加（tempId → realId マッピング対応）
+      if (results.person.upserted) {
+        results.person.upserted.forEach(saved => {
+          if (saved._tempId) {
+            const tempIdx = people.findIndex(p => p.personId === saved._tempId);
+            if (tempIdx >= 0) {
+              people[tempIdx] = { ...saved };
+              delete people[tempIdx]._tempId;
+              console.log(`[Store] Person tempId ${saved._tempId} → ${saved.personId}`);
+              return;
+            }
+          }
+          const idx = people.findIndex(p => p.personId === saved.personId);
+          if (idx >= 0) {
+            people[idx] = { ...people[idx], ...saved };
+          } else {
+            people.push(saved);
+          }
+        });
+      }
+
+      // deleted: 削除（論理削除）
+      if (results.person.deleted) {
+        results.person.deleted.forEach(deleted => {
+          const personId = deleted.personId || deleted;
+          const idx = people.findIndex(p => p.personId === personId);
+          if (idx >= 0) {
+            people[idx] = { ...people[idx], '有効(isActive)': false };
+          }
+        });
+      }
+
+      this.setState({ people });
+    }
+
+    // Process の差分反映
+    if (results.process) {
+      let processes = [...this.state.processes];
+
+      // upserted: 更新または追加（tempId → realId マッピング対応）
+      if (results.process.upserted) {
+        results.process.upserted.forEach(saved => {
+          if (saved._tempId) {
+            const tempIdx = processes.findIndex(p => p.processId === saved._tempId);
+            if (tempIdx >= 0) {
+              processes[tempIdx] = { ...saved };
+              delete processes[tempIdx]._tempId;
+              console.log(`[Store] Process tempId ${saved._tempId} → ${saved.processId}`);
+              return;
+            }
+          }
+          const idx = processes.findIndex(p => p.processId === saved.processId);
+          if (idx >= 0) {
+            processes[idx] = { ...processes[idx], ...saved };
+          } else {
+            processes.push(saved);
+          }
+        });
+      }
+
+      // order順でソート
+      processes.sort((a, b) => (parseInt(a['表示順(order)']) || 0) - (parseInt(b['表示順(order)']) || 0));
+      this.setState({ processes });
+    }
+
     console.log('[Store] Diff update complete');
   },
 
@@ -3511,17 +3580,31 @@ const ProcessModal = {
     saveBtn.textContent = '追加中...';
 
     try {
-      const result = await API.call('api_createProcess', payload);
-      console.log('[ProcessModal] Created:', result);
+      // temp_IDで仮登録
+      const tempId = 'temp_' + Utils.generateId();
+      const tempProcess = { processId: tempId, ...payload, '工程名': payload.processName, '表示順(order)': payload.order, '工程色': payload.colorHex };
+      Store.addProcess(tempProcess);
+      ChangeBuffer.add('process', 'upsert', tempId, payload, 'process');
 
-      // Storeに追加（order順でソート）
-      Store.addProcess(result);
+      // EntryModalのコールバックで使用するため、即座にflush
+      const flushResult = await ChangeBuffer.flush('new_process');
+      console.log('[ProcessModal] Flush result:', flushResult);
+
+      // flush後、本IDに置き換わった工程を取得
+      let savedProcess = null;
+      if (flushResult.ok && flushResult.results?.process?.upserted) {
+        savedProcess = flushResult.results.process.upserted.find(p => p._tempId === tempId);
+      }
+      // Store内で更新された工程を取得（temp_ID→本IDに置換済み）
+      if (!savedProcess) {
+        savedProcess = Store.state.processes.find(p => p['工程名'] === payload.processName);
+      }
 
       Utils.showToast('工程を追加しました', 'success');
 
       // 成功コールバック（工程Selectに自動選択など）
       if (this._onSuccess && typeof this._onSuccess === 'function') {
-        this._onSuccess(result);
+        this._onSuccess(savedProcess || tempProcess);
       }
 
       this.close();
@@ -4481,7 +4564,7 @@ const PeopleModal = {
     }
   },
 
-  async save() {
+  save() {
     const name = document.getElementById('person-name').value.trim();
     if (!name) {
       Utils.showToast('氏名を入力してください', 'error');
@@ -4503,30 +4586,21 @@ const PeopleModal = {
       '備考': document.getElementById('person-note').value.trim()
     };
 
-    try {
-      Utils.setLoading(true);
-      let result;
-      if (this.isEditMode && this.currentPerson) {
-        result = await API.updatePerson(
-          this.currentPerson.personId,
-          payload,
-          this.currentPerson.updatedAt
-        );
-        // Store を更新
-        Store.updatePersonInStore(result.personId, result);
-        Utils.showToast('担当者を更新しました', 'success');
-      } else {
-        result = await API.createPerson(payload);
-        Store.addPerson(result);
-        Utils.showToast('担当者を追加しました', 'success');
-      }
-      this.backToList();
-    } catch (error) {
-      console.error('Save person error:', error);
-      Utils.showToast(error.message || '保存に失敗しました', 'error');
-    } finally {
-      Utils.setLoading(false);
+    if (this.isEditMode && this.currentPerson) {
+      // 編集モード：既存IDで更新
+      const personId = this.currentPerson.personId;
+      payload._updatedAt = this.currentPerson.updatedAt; // 楽観的ロック用
+      Store.updatePersonInStore(personId, payload);
+      ChangeBuffer.add('person', 'upsert', personId, payload, 'people');
+      Utils.showToast('担当者を更新しました（保存待ち）', 'info');
+    } else {
+      // 新規モード：temp_IDで作成
+      const tempId = 'temp_' + Utils.generateId();
+      Store.addPerson({ personId: tempId, ...payload });
+      ChangeBuffer.add('person', 'upsert', tempId, payload, 'people');
+      Utils.showToast('担当者を追加しました（保存待ち）', 'info');
     }
+    this.backToList();
   },
 
   setupEventListeners() {

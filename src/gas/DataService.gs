@@ -1916,7 +1916,7 @@ function api_saveBatch(payload) {
   const { changes, clientRevision, user } = payload;
 
   if (!changes || !Array.isArray(changes) || changes.length === 0) {
-    return { ok: true, results: { schedule: {}, trip: {}, job: {}, topMemo: {}, jobProcessLayout: {} } };
+    return { ok: true, results: { schedule: {}, trip: {}, job: {}, topMemo: {}, jobProcessLayout: {}, person: {}, process: {} } };
   }
 
   const results = {
@@ -1924,7 +1924,9 @@ function api_saveBatch(payload) {
     trip: { upserted: [], deleted: [], locked: [], unlocked: [] },
     job: { upserted: [] },
     topMemo: { upserted: [], deleted: [] },
-    jobProcessLayout: { reordered: [] }
+    jobProcessLayout: { reordered: [] },
+    person: { upserted: [], deleted: [] },
+    process: { upserted: [] }
   };
 
   const errors = [];
@@ -2043,6 +2045,42 @@ function api_saveBatch(payload) {
               jobId: id,
               layouts: result.layouts
             });
+          }
+          break;
+
+        case 'person':
+          if (op === 'upsert') {
+            let saved;
+            if (isNewRecord(id)) {
+              // 新規作成
+              saved = createPerson(changePayload);
+              saved._tempId = id;
+            } else {
+              // 既存レコード更新
+              saved = updatePerson(id, changePayload, changePayload._updatedAt);
+            }
+            results.person.upserted.push(saved);
+          } else if (op === 'delete' && !isNewRecord(id)) {
+            // 担当者削除（論理削除：isActive = false）
+            const deleted = updatePerson(id, { '有効(isActive)': false });
+            results.person.deleted.push(deleted);
+          }
+          break;
+
+        case 'process':
+          if (op === 'upsert') {
+            let saved;
+            if (isNewRecord(id)) {
+              // 新規作成
+              saved = createProcess(changePayload);
+              saved._tempId = id;
+            } else {
+              // 工程の更新は現在サポートしていない（将来拡張用）
+              errors.push({ entityType, op, id, error: 'Process update not supported' });
+            }
+            if (saved) {
+              results.process.upserted.push(saved);
+            }
           }
           break;
 
