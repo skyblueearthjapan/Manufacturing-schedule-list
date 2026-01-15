@@ -73,7 +73,9 @@ function getAllJobs() {
     出荷予定日: formatDate(job['出荷予定日']),
     出荷実績日: formatDate(job['出荷実績日']),
     出図予定日: formatDate(job['出図予定日']),
-    出図実績日: formatDate(job['出図実績日'])
+    出図実績日: formatDate(job['出図実績日']),
+    '出荷予定日変更後': formatDate(job['出荷予定日変更後']),
+    '出図予定日変更後': formatDate(job['出図予定日変更後'])
   }));
 }
 
@@ -180,6 +182,25 @@ function updateJob(jobId, patch, expectedUpdatedAt) {
   const now = new Date();
   const currentUser = Session.getActiveUser().getEmail() || 'system';
 
+  // patchに含まれるキーで、headersに存在しないものは新しいカラムとして追加
+  const newColumns = [];
+  Object.keys(patch).forEach(key => {
+    if (!headers.includes(key)) {
+      newColumns.push(key);
+    }
+  });
+
+  // 新しいカラムをヘッダーに追加
+  if (newColumns.length > 0) {
+    const lastCol = headers.length;
+    newColumns.forEach((colName, idx) => {
+      const newColIndex = lastCol + idx + 1;
+      sheet.getRange(1, newColIndex).setValue(colName);
+      headers.push(colName); // ローカルのheadersも更新
+      console.log('[updateJob] 新しいカラムを追加:', colName, 'at column', newColIndex);
+    });
+  }
+
   headers.forEach((header, colIndex) => {
     if (patch.hasOwnProperty(header)) {
       sheet.getRange(targetRowIndex + 1, colIndex + 1).setValue(patch[header]);
@@ -204,6 +225,13 @@ function updateJob(jobId, patch, expectedUpdatedAt) {
   result.updatedAt = formatDateTime(now);
   result.出荷予定日 = formatDate(result['出荷予定日']);
   result.出図予定日 = formatDate(result['出図予定日']);
+  // 変更後日付もフォーマット
+  if (result['出荷予定日変更後']) {
+    result['出荷予定日変更後'] = formatDate(result['出荷予定日変更後']);
+  }
+  if (result['出図予定日変更後']) {
+    result['出図予定日変更後'] = formatDate(result['出図予定日変更後']);
+  }
 
   return result;
 }

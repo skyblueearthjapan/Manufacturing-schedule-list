@@ -2187,7 +2187,7 @@ const Gantt = {
                 指
               </button>
               <div class="job-info-product">${Utils.escapeHtml(job['設備/製品名'] || '-')}</div>
-              <div class="job-info-qty">台数：${job['台数'] || '-'}</div>
+              <div class="job-info-qty">台数：${(() => { const q = job['台数'] || '1'; return String(q).includes('式') ? q : q + '式'; })()}</div>
             </div>
             <div class="job-info-row3">
               <div class="job-info-draw-date">
@@ -5988,7 +5988,9 @@ const ExcelGantt = {
     jobs.forEach((job, idx) => {
       const jobNo = job['工番'] || '';
       const product = job['設備/製品名'] || '';
-      const qty = job['台数'] || '1式';
+      const qtyRaw = job['台数'] || '1';
+      // 台数を「式」形式で表示（既に「式」が含まれていなければ追加）
+      const qty = String(qtyRaw).includes('式') ? qtyRaw : qtyRaw + '式';
       const dest = job['納入先'] || '';
       const destAddressFull = job['納入先住所'] || '';
       // 住所を都道府県+市まで短縮（例：千葉県千葉市花見川区... → 千葉県千葉市）
@@ -6033,8 +6035,8 @@ const ExcelGantt = {
           <div class="xl-main">
             <div class="xl-main-line1">
               <span class="product-name">${Utils.escapeHtml(product)}</span>
-              ${mainName ? `<span class="person-name">担当:${Utils.escapeHtml(mainName)}</span>` : ''}
               <div class="xl-actions">
+                ${mainName ? `<span class="person-name">担当:${Utils.escapeHtml(mainName)}</span>` : ''}
                 <button type="button"
                   onclick="event.stopPropagation(); JobModal.openEdit(Store.getJobById('${job.jobId}'));"
                   title="工番を編集">✎</button>
