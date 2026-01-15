@@ -6052,35 +6052,51 @@ const ExcelGantt = {
             </div>
           </div>
 
-          <!-- 出荷予定日列（上段：日付+変更後、下段：日付入力欄） -->
+          <!-- 出荷予定日列（上段：予定、下段：変更） -->
           <div class="xl-ship">
             <div class="ship-top">
-              <span class="${changedShipDate ? 'strikethrough' : ''}">${shipDate || '-'}</span>
-              ${changedShipDate ? `<span class="changed-date">→${changedShipDate}</span>` : ''}
+              <span class="date-label">予定:</span>
+              <span class="date-value ${changedShipDate ? 'strikethrough' : ''}">${shipDate || '-'}</span>
+              <input type="date" class="xl-date-hidden" id="ship-top-${job.jobId}"
+                value="${job['出荷予定日'] || ''}"
+                onchange="ExcelGantt.updateJobOriginalDate('${job.jobId}', 'ship', this.value)">
+              <button type="button" class="xl-cal-btn" onclick="event.stopPropagation(); document.getElementById('ship-top-${job.jobId}').showPicker();" title="予定日を変更">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+              </button>
             </div>
             <div class="ship-bottom">
-              <input type="date"
-                class="xl-date-input"
+              <span class="date-label">${changedShipDate ? '変更:' : ''}</span>
+              <span class="date-value changed">${changedShipDate || ''}</span>
+              <input type="date" class="xl-date-hidden" id="ship-btm-${job.jobId}"
                 value="${job['出荷予定日変更後'] || ''}"
-                onclick="event.stopPropagation();"
-                onchange="ExcelGantt.updateJobChangedDate('${job.jobId}', 'ship', this.value)"
-                title="出荷予定日の変更">
+                onchange="ExcelGantt.updateJobChangedDate('${job.jobId}', 'ship', this.value)">
+              <button type="button" class="xl-cal-btn" onclick="event.stopPropagation(); document.getElementById('ship-btm-${job.jobId}').showPicker();" title="変更日を入力">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+              </button>
             </div>
           </div>
 
-          <!-- 出図日列（上段：日付+変更後、下段：日付入力欄） -->
+          <!-- 出図日列（上段：希望、下段：実績） -->
           <div class="xl-draw">
             <div class="draw-top">
-              <span class="${changedDrawDate ? 'strikethrough' : ''}">${drawDatePlan || '-'}</span>
-              ${changedDrawDate ? `<span class="changed-date">→${changedDrawDate}</span>` : ''}
+              <span class="date-label">希望:</span>
+              <span class="date-value ${changedDrawDate ? 'strikethrough' : ''}">${drawDatePlan || '-'}</span>
+              <input type="date" class="xl-date-hidden" id="draw-top-${job.jobId}"
+                value="${job['出図予定日'] || ''}"
+                onchange="ExcelGantt.updateJobOriginalDate('${job.jobId}', 'draw', this.value)">
+              <button type="button" class="xl-cal-btn" onclick="event.stopPropagation(); document.getElementById('draw-top-${job.jobId}').showPicker();" title="希望日を変更">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+              </button>
             </div>
             <div class="draw-bottom">
-              <input type="date"
-                class="xl-date-input"
+              <span class="date-label">${changedDrawDate ? '実績:' : ''}</span>
+              <span class="date-value changed">${changedDrawDate || ''}</span>
+              <input type="date" class="xl-date-hidden" id="draw-btm-${job.jobId}"
                 value="${job['出図予定日変更後'] || ''}"
-                onclick="event.stopPropagation();"
-                onchange="ExcelGantt.updateJobChangedDate('${job.jobId}', 'draw', this.value)"
-                title="出図予定日の変更">
+                onchange="ExcelGantt.updateJobChangedDate('${job.jobId}', 'draw', this.value)">
+              <button type="button" class="xl-cal-btn" onclick="event.stopPropagation(); document.getElementById('draw-btm-${job.jobId}').showPicker();" title="実績日を入力">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+              </button>
             </div>
           </div>
         </div>
@@ -6395,6 +6411,31 @@ const ExcelGantt = {
       this.render();
     } catch (error) {
       console.error('Failed to update changed date:', error);
+      Utils.showToast('日付の更新に失敗しました', 'error');
+    }
+  },
+
+  /**
+   * 工番の予定日/希望日を直接更新（上段カレンダー用）
+   * @param {string} jobId - 対象のjobId
+   * @param {string} dateType - 'draw' | 'ship'
+   * @param {string} newDate - 新しい日付（YYYY-MM-DD形式）
+   */
+  async updateJobOriginalDate(jobId, dateType, newDate) {
+    const job = Store.getJobById(jobId);
+    if (!job) {
+      Utils.showToast('工番が見つかりません', 'error');
+      return;
+    }
+
+    const fieldName = dateType === 'draw' ? '出図予定日' : '出荷予定日';
+
+    try {
+      await Store.updateJob(jobId, { [fieldName]: newDate }, job.updatedAt);
+      Utils.showToast('日付を更新しました', 'success');
+      this.render();
+    } catch (error) {
+      console.error('Failed to update original date:', error);
       Utils.showToast('日付の更新に失敗しました', 'error');
     }
   },
@@ -7711,20 +7752,24 @@ const PersonGanttOverlay = {
           <!-- 出荷予定日列 -->
           <div class="pg-ship">
             <div class="ship-top">
-              <span class="${changedShipDate ? 'strikethrough' : ''}">${shipDate || '-'}</span>
+              <span class="date-label">予定:</span>
+              <span class="date-value ${changedShipDate ? 'strikethrough' : ''}">${shipDate || '-'}</span>
             </div>
             <div class="ship-bottom">
-              ${changedShipDate ? `<span class="changed-date">→${changedShipDate}</span>` : '-'}
+              <span class="date-label">${changedShipDate ? '変更:' : ''}</span>
+              <span class="date-value changed">${changedShipDate || ''}</span>
             </div>
           </div>
 
           <!-- 出図日列 -->
           <div class="pg-draw">
             <div class="draw-top">
-              <span class="${changedDrawDate ? 'strikethrough' : ''}">${drawDatePlan || '-'}</span>
+              <span class="date-label">希望:</span>
+              <span class="date-value ${changedDrawDate ? 'strikethrough' : ''}">${drawDatePlan || '-'}</span>
             </div>
             <div class="draw-bottom">
-              ${changedDrawDate ? `<span class="changed-date">→${changedDrawDate}</span>` : '-'}
+              <span class="date-label">${changedDrawDate ? '実績:' : ''}</span>
+              <span class="date-value changed">${changedDrawDate || ''}</span>
             </div>
           </div>
         </div>
