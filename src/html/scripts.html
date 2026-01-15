@@ -6182,44 +6182,40 @@ const ExcelGantt = {
           <!-- 出荷予定日列（上段：予定、下段：変更） -->
           <div class="xl-ship">
             <div class="ship-top xl-date-cell">
+              <button type="button" class="xl-date-edit-btn" onclick="event.stopPropagation(); this.nextElementSibling.showPicker();" title="予定日を変更">✎</button>
+              <input type="date" class="xl-date-input-hidden"
+                value="${job['出荷予定日'] || ''}"
+                onchange="ExcelGantt.updateJobOriginalDate('${job.jobId}', 'ship', this.value)">
               <span class="date-label">予定:</span>
               <span class="date-value ${changedShipDate ? 'strikethrough' : ''}">${shipDate || '-'}</span>
-              <input type="date" class="xl-date-input-small"
-                value="${job['出荷予定日'] || ''}"
-                onclick="event.stopPropagation(); this.showPicker && this.showPicker();"
-                onchange="ExcelGantt.updateJobOriginalDate('${job.jobId}', 'ship', this.value)"
-                title="予定日を変更">
             </div>
             <div class="ship-bottom xl-date-cell">
+              <button type="button" class="xl-date-edit-btn" onclick="event.stopPropagation(); this.nextElementSibling.showPicker();" title="変更日を入力">✎</button>
+              <input type="date" class="xl-date-input-hidden"
+                value="${job['出荷予定日変更後'] || ''}"
+                onchange="ExcelGantt.updateJobChangedDate('${job.jobId}', 'ship', this.value)">
               <span class="date-label">変更:</span>
               <span class="date-value changed">${changedShipDate || ''}</span>
-              <input type="date" class="xl-date-input-small"
-                value="${job['出荷予定日変更後'] || ''}"
-                onclick="event.stopPropagation(); this.showPicker && this.showPicker();"
-                onchange="ExcelGantt.updateJobChangedDate('${job.jobId}', 'ship', this.value)"
-                title="変更日を入力">
             </div>
           </div>
 
           <!-- 出図日列（上段：希望、下段：実績） -->
           <div class="xl-draw">
             <div class="draw-top xl-date-cell">
+              <button type="button" class="xl-date-edit-btn" onclick="event.stopPropagation(); this.nextElementSibling.showPicker();" title="希望日を変更">✎</button>
+              <input type="date" class="xl-date-input-hidden"
+                value="${job['出図予定日'] || ''}"
+                onchange="ExcelGantt.updateJobOriginalDate('${job.jobId}', 'draw', this.value)">
               <span class="date-label">希望:</span>
               <span class="date-value ${changedDrawDate ? 'strikethrough' : ''}">${drawDatePlan || '-'}</span>
-              <input type="date" class="xl-date-input-small"
-                value="${job['出図予定日'] || ''}"
-                onclick="event.stopPropagation(); this.showPicker && this.showPicker();"
-                onchange="ExcelGantt.updateJobOriginalDate('${job.jobId}', 'draw', this.value)"
-                title="希望日を変更">
             </div>
             <div class="draw-bottom xl-date-cell">
+              <button type="button" class="xl-date-edit-btn" onclick="event.stopPropagation(); this.nextElementSibling.showPicker();" title="実績日を入力">✎</button>
+              <input type="date" class="xl-date-input-hidden"
+                value="${job['出図予定日変更後'] || ''}"
+                onchange="ExcelGantt.updateJobChangedDate('${job.jobId}', 'draw', this.value)">
               <span class="date-label">実績:</span>
               <span class="date-value changed">${changedDrawDate || ''}</span>
-              <input type="date" class="xl-date-input-small"
-                value="${job['出図予定日変更後'] || ''}"
-                onclick="event.stopPropagation(); this.showPicker && this.showPicker();"
-                onchange="ExcelGantt.updateJobChangedDate('${job.jobId}', 'draw', this.value)"
-                title="実績日を入力">
             </div>
           </div>
         </div>
