@@ -5675,7 +5675,42 @@ const ExcelGantt = {
 
   // イベントリスナー設定
   setupEventListeners() {
-    // 検索機能は既存のものを流用
+    // 左ペイン（工番情報）のイベント委譲
+    const leftRows = document.getElementById('excelLeftRows');
+    if (leftRows) {
+      // 日付編集ボタン（✎）のクリック処理 - イベント委譲で確実に動作
+      leftRows.addEventListener('click', (e) => {
+        const btn = e.target.closest('.xl-date-edit-btn');
+        if (!btn) return;
+
+        e.stopPropagation();
+
+        // 隣接するinput[type="date"]を取得
+        const input = btn.nextElementSibling;
+        if (!input || input.type !== 'date') {
+          console.warn('[ExcelGantt] Date input not found next to button');
+          return;
+        }
+
+        // showPicker()を同期で呼び出す（ユーザージェスチャー直後でないと動かない）
+        if (typeof input.showPicker === 'function') {
+          try {
+            input.showPicker();
+          } catch (err) {
+            // showPickerがサポートされていない場合はfocus+clickで代替
+            console.warn('[ExcelGantt] showPicker failed, using fallback:', err);
+            input.focus();
+            input.click();
+          }
+        } else {
+          // 古いブラウザ用のフォールバック
+          input.focus();
+          input.click();
+        }
+      }, true); // capture: true で確実にキャッチ
+
+      console.log('[ExcelGantt] Left pane event delegation set up');
+    }
   },
 
   // ドラッグイベント委譲設定

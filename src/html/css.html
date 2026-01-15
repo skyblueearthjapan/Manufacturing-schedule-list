@@ -5101,11 +5101,17 @@
     line-height: 16px;
     text-align: center;
     color: #666;
+    position: relative;
+    z-index: 50;  /* 他の要素より前面に配置してクリックを確実に受け取る */
   }
   .xl-date-edit-btn:hover {
     border-color: #1976d2;
     background: #e3f2fd;
     color: #1976d2;
+  }
+  .xl-date-edit-btn:focus {
+    outline: 2px solid #2b6cff;
+    outline-offset: 1px;
   }
 
   /* 非表示の日付入力（ピッカー用） */
