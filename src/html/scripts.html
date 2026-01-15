@@ -5990,7 +5990,9 @@ const ExcelGantt = {
       const product = job['設備/製品名'] || '';
       const qty = job['台数'] || '1式';
       const dest = job['納入先'] || '';
-      const destAddress = job['納入先住所'] || '';
+      const destAddressFull = job['納入先住所'] || '';
+      // 住所を都道府県+市まで短縮（例：千葉県千葉市花見川区... → 千葉県千葉市）
+      const destAddress = this.shortenAddress(destAddressFull);
       const shipDate = this.formatShortDate(job['出荷予定日']);
       const drawDatePlan = this.formatShortDate(job['出図予定日']);
 
@@ -6347,6 +6349,17 @@ const ExcelGantt = {
     if (!dateStr) return '';
     const d = Utils.parseLocalDate(dateStr);
     return `${d.getMonth() + 1}/${d.getDate()}`;
+  },
+
+  // 住所を都道府県+市まで短縮
+  shortenAddress(address) {
+    if (!address) return '';
+    // 都道府県+市まで抽出（例：千葉県千葉市、東京都渋谷区）
+    const match = address.match(/^(.+?[都道府県])(.+?[市区])/);
+    if (match) {
+      return match[1] + match[2];
+    }
+    return address;
   },
 
   // 工番クリック
