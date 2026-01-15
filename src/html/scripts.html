@@ -5990,6 +5990,7 @@ const ExcelGantt = {
       const product = job['設備/製品名'] || '';
       const qty = job['台数'] || '1式';
       const dest = job['納入先'] || '';
+      const destAddress = job['納入先住所'] || '';
       const shipDate = this.formatShortDate(job['出荷予定日']);
       const drawDatePlan = this.formatShortDate(job['出図予定日']);
 
@@ -6029,8 +6030,6 @@ const ExcelGantt = {
           <!-- メイン列（2行） -->
           <div class="xl-main">
             <div class="xl-main-line1">
-              <span class="job-link" onclick="event.stopPropagation(); JobModal.openEdit(Store.getJobById('${job.jobId}'));">${Utils.escapeHtml(jobNo)}</span>
-              <span class="unit">${Utils.escapeHtml(qty)}</span>
               <span class="product-name">${Utils.escapeHtml(product)}</span>
               ${mainName ? `<span class="person-name">担当:${Utils.escapeHtml(mainName)}</span>` : ''}
               <div class="xl-actions">
@@ -6040,7 +6039,10 @@ const ExcelGantt = {
               </div>
             </div>
             <div class="xl-main-line2">
-              ${dest ? `<span class="dest">納:${Utils.escapeHtml(dest)}</span>` : ''}
+              <span class="job-link" onclick="event.stopPropagation(); JobModal.openEdit(Store.getJobById('${job.jobId}'));">${Utils.escapeHtml(jobNo)}</span>
+              <span class="unit">${Utils.escapeHtml(qty)}</span>
+              ${dest ? `<span class="dest">${Utils.escapeHtml(dest)}</span>` : ''}
+              ${destAddress ? `<span class="dest-address">${Utils.escapeHtml(destAddress)}</span>` : ''}
             </div>
           </div>
 
