@@ -9231,14 +9231,15 @@ const TravelPlan = {
 
   /**
    * 作業者ごとの予定にlaneを割り当て（重なり回避）
+   * 新しい予定ほど lane 0（下）、重なったら古い予定を上へ押し上げ
    * @param {Object[]} personTrips - その人の予定配列
    * @returns {Object[]} lane情報付きの予定配列
    */
   assignLanesForPerson(personTrips) {
     if (!personTrips || personTrips.length === 0) return [];
 
-    // 開始日でソート
-    const items = personTrips.slice().sort((a, b) => a.start.localeCompare(b.start));
+    // 開始日が遅い順（新しい順）でソート → 新しい予定がlane 0を優先的に取得
+    const items = personTrips.slice().sort((a, b) => b.start.localeCompare(a.start));
 
     // lanes配列：各laneに配置済みの予定を保持
     const lanes = [];
@@ -9380,29 +9381,24 @@ const TravelPlan = {
 
     const today = Utils.getToday();
 
-    // lane計算用の定数（設計指示に基づく固定値 - 下から上へ配置）
-    const BASE_BOTTOM = 6;   // 行の底からのオフセット：6px
-    const LANE_HEIGHT = 18;  // 段の高さ（laneピッチ）：18px（14pxバー＋余白）
-    const BAR_HEIGHT = 14;   // 実際のバー描画高さ
-    const LABEL_OVERFLOW = 14; // ラベルの上方向はみ出し分（top: -2px + フォント約12px）
-    const MIN_PADDING = 8;   // 最小上下パディング合計
+    // lane計算用の定数（設計指示に基づく - 行高36px固定、30px基準で上へ押し上げ）
+    const ROW_HEIGHT = 36;      // 行高固定（工程表ガントと統一）
+    const LABEL_BASE_Y = 30;    // ラベルの基準位置（行の上から30px = 下から6px）
+    const BAR_HEIGHT = 14;      // バー描画高さ
+    const LANE_PITCH = 36;      // lane間隔（行高と同じ。重なったら1行分上へ）
 
     // 各作業者の行データを事前計算（lane割り当て + 行高さ計算）
     const rowDataList = workerRows.map(row => {
       const person = row.person;
       const personTrips = visibleTrips.filter(t => t.personId === person.personId);
-      // lane割り当て
+      // lane割り当て（新しい予定を優先的にlane 0へ）
       const layoutTrips = this.assignLanesForPerson(personTrips);
-      // 最大lane数を取得
+      // 最大lane数を取得（上方向へのはみ出し計算用）
       const maxLane = layoutTrips.reduce((max, t) => Math.max(max, t.lane || 0), 0);
       const laneCount = maxLane + 1;
-      // 全バーが占める高さ（下から上へ配置：最下段が30px位置、上へ押し上げ）
-      // 最上段のラベルはみ出し分も考慮
-      const totalBarsHeight = BASE_BOTTOM + laneCount * LANE_HEIGHT + LABEL_OVERFLOW;
-      // 行高さを動的計算（最低rowHeight、バーとラベルが収まるように拡大）
-      const dynamicHeight = Math.max(rowHeight, totalBarsHeight + MIN_PADDING);
+      // 行高は固定36px（上へのはみ出しはoverflow:visibleで対応）
+      const dynamicHeight = ROW_HEIGHT;
       const personColor = Utils.normalizeColor(person['作業者色(colorHex)']) || '#6b7280';
-      // dynamicHeightとlaneCountを返す（topInRow計算で使用）
       return { person, layoutTrips, dynamicHeight, laneCount, personColor };
     });
 
@@ -9488,12 +9484,14 @@ const TravelPlan = {
         const xStart = visibleStartOffset * cellWidth;
         const barWidth = visibleDuration * cellWidth;
 
-        // lane位置からtopを計算（下から上へ配置：最下段が rowHeight - BASE_BOTTOM 位置）
-        // 例：rowHeight=36px, BASE_BOTTOM=6px の場合
-        //   lane 0 → top = 36 - 6 = 30px（最下段）
-        //   lane 1 → top = 30 - 18 = 12px（上に押し上げ）
+        // lane位置からtopを計算（30px基準、36px刻みで上へ押し上げ）
+        // バーの下端をLABEL_BASE_Y（30px）に合わせる
+        // 例：ROW_HEIGHT=36px, LABEL_BASE_Y=30px, BAR_HEIGHT=14px の場合
+        //   lane 0 → barBottom = 30px → barTop = 30 - 14 = 16px（バー下端が30px）
+        //   lane 1 → barTop = 16 - 36 = -20px（上に押し上げ）
         const lane = trip.lane || 0;
-        const topInRow = dynamicHeight - BASE_BOTTOM - (lane * LANE_HEIGHT);
+        const barTopBase = LABEL_BASE_Y - BAR_HEIGHT;  // 16px（バーの下端が30pxになる位置）
+        const topInRow = barTopBase - (lane * LANE_PITCH);
         rightHtml += this.renderEmbeddedTripBar(trip, xStart, barWidth, topInRow, BAR_HEIGHT);
       });
       rightHtml += '</div>';

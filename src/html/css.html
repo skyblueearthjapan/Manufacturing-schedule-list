@@ -4963,15 +4963,17 @@
   /* グリッドボディ */
   .trip-time-body {
     position: relative;
+    overflow: visible;     /* ラベルのはみ出しを許可 */
   }
 
   .trip-time-row {
     display: flex;
     position: relative;
+    height: 36px;          /* 工程表ガントと同じ行高に統一 */
+    min-height: 36px;
     border-bottom: 1px solid #e5e7eb;
     box-sizing: border-box;
-    overflow-x: hidden;    /* 横方向はクリップ */
-    overflow-y: visible;   /* 縦方向はラベルのはみ出しを許可（見切れ防止） */
+    overflow: visible;     /* 上下左右はみ出し許可（ラベル見切れ防止） */
   }
 
   .trip-time-row--dept {
@@ -5016,38 +5018,39 @@
     outline-offset: -2px;
   }
 
-  /* バーレイヤ */
+  /* バーレイヤ（重要：はみ出し許可） */
   .trip-bar-layer {
     position: absolute;
     inset: 0;
     pointer-events: none;
-    overflow-x: hidden;    /* 横方向はクリップ */
-    overflow-y: visible;   /* 縦方向はラベルのはみ出しを許可（見切れ防止） */
+    overflow: visible;     /* 縦横ともにはみ出しを許可（ラベル見切れ防止） */
+    z-index: 10;
   }
 
   /* 埋め込み出張計画のバー（excel-bar両矢印スタイル）- lane対応でtop/heightはinline指定 */
   .embedded-trip-bar {
     height: auto !important;  /* 親の height:0 を上書き、inlineで指定 */
     pointer-events: auto;
-    z-index: 50;              /* ヘッダーより前面に */
+    overflow: visible;        /* ラベルのはみ出しを許可 */
+    z-index: 20;              /* バーレイヤより前面に */
   }
 
-  /* ラベル共通：バーの上側に固定（下側に落とさない） */
+  /* ラベル共通：バーの上側に配置（工程表と同じ配置） */
   .embedded-trip-bar .bar-label {
     position: absolute;
-    top: -2px;             /* バーの上側に配置 */
-    left: 8px;             /* 行き先ラベルは左寄せ */
+    top: -16px;            /* バーの上に出す（設計指示通り） */
+    left: 6px;             /* 行き先ラベルは左寄せ（工程表と同じ余白） */
     line-height: 14px;
     white-space: nowrap;
     overflow: visible;
-    pointer-events: none;
-    z-index: 9999;         /* ヘッダーより前面に */
+    pointer-events: none;  /* ドラッグ/クリックの邪魔をしない */
+    z-index: 9999;         /* 日付ヘッダーより前面に（最前面） */
   }
 
   /* 「移動」ラベル：左右端に固定して上側表示（将来用） */
   .embedded-trip-bar .bar-move-label {
     position: absolute;
-    top: -2px;
+    top: -16px;            /* バーの上に出す */
     line-height: 14px;
     white-space: nowrap;
     pointer-events: none;
