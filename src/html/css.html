@@ -604,32 +604,30 @@
   /* 横スクロールバー（ガントチャートと出張予定セクションの間に配置） */
   .gantt-bottom-scrollbar {
     flex-shrink: 0;
-    height: 20px;
-    background: #e2e8f0;
-    border-top: 2px solid #cbd5e1;
+    height: 14px;              /* 出張計画表と完全一致 */
+    background: transparent;   /* 背景を透明に */
     overflow-x: auto;
     overflow-y: hidden;
     margin-left: 360px; /* 工番情報ペインの幅 */
+    scrollbar-width: auto;     /* Firefox */
   }
 
   .gantt-scrollbar-content {
     height: 1px; /* スクロールバーを表示するための最小高さ */
   }
 
-  /* スクロールバーのスタイル */
+  /* スクロールバーのスタイル（工程表・出張計画表で統一） */
   .gantt-bottom-scrollbar::-webkit-scrollbar {
-    height: 16px;
+    height: 14px;              /* 出張計画表と完全一致 */
   }
 
   .gantt-bottom-scrollbar::-webkit-scrollbar-track {
-    background: #f1f5f9;
-    border-radius: 6px;
+    background: transparent;
   }
 
   .gantt-bottom-scrollbar::-webkit-scrollbar-thumb {
     background: #94a3b8;
-    border-radius: 6px;
-    border: 2px solid #f1f5f9;
+    border-radius: 7px;        /* 14pxの半分 */
   }
 
   .gantt-bottom-scrollbar::-webkit-scrollbar-thumb:hover {
@@ -2213,6 +2211,41 @@
   }
 
   .travel-bottom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #64748b;
+  }
+
+  /* ========================================
+     上部横スクロールバー（工程表と同じ太さに統一）
+     ======================================== */
+  .travel-top-scrollbar {
+    flex-shrink: 0;
+    height: 14px;              /* 工程表と完全一致 */
+    overflow-x: auto;
+    overflow-y: hidden;
+    background: transparent;   /* 工程表と同化 */
+    margin-left: 200px;        /* 作業者情報ペインの幅 */
+    scrollbar-width: auto;     /* Firefox */
+  }
+
+  .travel-xbar-content {
+    height: 1px;               /* スクロールバー表示用の最小高さ */
+  }
+
+  /* Webkit系（Chrome/Edge）スクロールバー */
+  .travel-top-scrollbar::-webkit-scrollbar {
+    height: 14px;              /* 工程表と完全一致 */
+  }
+
+  .travel-top-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .travel-top-scrollbar::-webkit-scrollbar-thumb {
+    background: #94a3b8;
+    border-radius: 7px;        /* 14pxの半分 */
+  }
+
+  .travel-top-scrollbar::-webkit-scrollbar-thumb:hover {
     background: #64748b;
   }
 

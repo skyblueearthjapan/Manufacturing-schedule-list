@@ -8525,16 +8525,26 @@ const TravelPlan = {
     const scrollArea = document.getElementById('travel-scroll-area');
     const scrollHeader = document.getElementById('travel-scroll-header');
     const bottomScrollbar = document.getElementById('travel-bottom-scrollbar');
+    const topScrollbar = document.getElementById('travel-xbar');
 
-    // ボディスクロール → ヘッダー＆下部スクロールバー同期
+    // ボディスクロール → ヘッダー＆上部スクロールバー同期
     if (scrollArea) {
       scrollArea.addEventListener('scroll', () => {
         if (scrollHeader) scrollHeader.scrollLeft = scrollArea.scrollLeft;
+        if (topScrollbar) topScrollbar.scrollLeft = scrollArea.scrollLeft;
         if (bottomScrollbar) bottomScrollbar.scrollLeft = scrollArea.scrollLeft;
       });
     }
 
-    // 下部スクロールバー → ボディ＆ヘッダー同期
+    // 上部スクロールバー → ボディ＆ヘッダー同期
+    if (topScrollbar) {
+      topScrollbar.addEventListener('scroll', () => {
+        if (scrollArea) scrollArea.scrollLeft = topScrollbar.scrollLeft;
+        if (scrollHeader) scrollHeader.scrollLeft = topScrollbar.scrollLeft;
+      });
+    }
+
+    // 下部スクロールバー → ボディ＆ヘッダー同期（非表示時も念のため）
     if (bottomScrollbar) {
       bottomScrollbar.addEventListener('scroll', () => {
         if (scrollArea) scrollArea.scrollLeft = bottomScrollbar.scrollLeft;
@@ -8757,12 +8767,20 @@ const TravelPlan = {
   },
 
   /**
-   * 下部横スクロールバーの幅を更新
+   * 横スクロールバーの幅を更新（上部・下部両方）
    */
   updateBottomScrollbarWidth() {
+    const totalWidth = this.getTotalGridWidth();
+
+    // 上部スクロールバー
+    const topScrollbarContent = document.getElementById('travel-xbar-content');
+    if (topScrollbarContent) {
+      topScrollbarContent.style.width = `${totalWidth}px`;
+    }
+
+    // 下部スクロールバー（非表示だが念のため）
     const scrollbarContent = document.getElementById('travel-scrollbar-content');
     if (scrollbarContent) {
-      const totalWidth = this.getTotalGridWidth();
       scrollbarContent.style.width = `${totalWidth}px`;
     }
   },
