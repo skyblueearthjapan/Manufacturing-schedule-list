@@ -6369,7 +6369,7 @@ const ExcelGantt = {
   onJobClick(jobId) {
     const job = Store.getJobById(jobId);
     if (job) {
-      JobDetail.open(job);
+      JobDetail.open(jobId);
     }
   },
 
