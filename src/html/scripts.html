@@ -9204,7 +9204,11 @@ const TravelPlan = {
     const lane = trip.lane || 0;
     const BAR_TOP_BASE = 14;   // 1件目のバー基準位置（行上端から14px）
     const LANE_PITCH = 12;     // lane間隔（被り回避ズラし、工程表Excel風と同じ）
-    const topInRow = BAR_TOP_BASE + (lane * LANE_PITCH);
+    const EXTRA_LANE_Y_TRAVEL_MASTER = 4; // 大元の出張計画表のみ: lane>=1 の追加Yオフセット
+
+    // 大元の出張計画表: lane >= 1 に追加オフセット（1本目は維持、2本目以降を少し下げる）
+    const extraLaneOffset = (lane >= 1) ? EXTRA_LANE_Y_TRAVEL_MASTER : 0;
+    const topInRow = BAR_TOP_BASE + (lane * LANE_PITCH) + extraLaneOffset;
 
     // 両矢印スタイルHTML（ExcelGanttと同じ構造 + リサイズハンドル）
     const lineClass = shape === 'dash' ? 'bar-line bar-line--dash' : 'bar-line';
