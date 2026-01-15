@@ -4905,12 +4905,13 @@
 
   /* ===== 右ペイン（横スクロール：日付グリッド）===== */
   .trip-right {
-    overflow: hidden;
+    overflow-x: hidden;
+    overflow-y: visible;  /* 縦方向はラベルのはみ出しを許可 */
   }
 
   .trip-right-scroll {
     overflow-x: auto;
-    overflow-y: hidden;
+    overflow-y: visible;  /* 縦方向はラベルのはみ出しを許可 */
     scrollbar-gutter: stable;
   }
 
@@ -4920,6 +4921,8 @@
     height: 32px;
     border-bottom: 1px solid #808080;
     background: #f8fafc;
+    position: relative;
+    z-index: 1;  /* ラベル（z-index: 9999）より後ろに表示 */
   }
 
   .trip-day {
