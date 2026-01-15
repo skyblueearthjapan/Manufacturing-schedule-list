@@ -737,7 +737,8 @@
     font-weight: 400;
   }
 
-  .job-info-status {
+  /* 担当者名（上段右端） */
+  .job-info-person {
     font-size: 10px;
     color: #475569;
     overflow: hidden;
@@ -747,45 +748,17 @@
     text-align: right;
   }
 
-  .job-info-status .label {
-    color: #94a3b8;
-  }
-
-  /* 工番情報2行目 */
+  /* 工番情報2行目（PDFボタン + 製品名 + 台数） */
   .job-info-row2 {
     display: flex;
-    justify-content: space-between;
-    gap: 8px;
-    margin-top: 2px;
-  }
-
-  .job-info-customer {
-    font-size: 10px;
-    color: #334155;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    flex: 1;
-  }
-
-  .job-info-draw-date {
-    font-size: 10px;
-    color: #475569;
-    white-space: nowrap;
-  }
-
-  /* 工番情報3行目 */
-  .job-info-row3 {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
+    align-items: center;
     gap: 8px;
     margin-top: 2px;
   }
 
   .job-info-product {
-    font-size: 13px;
-    font-weight: 700;
+    font-size: 12px;
+    font-weight: 600;
     color: #0f172a;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -799,20 +772,75 @@
     white-space: nowrap;
   }
 
+  /* 工番情報3行目（出図予定日 + 出荷予定日） */
+  .job-info-row3 {
+    display: flex;
+    align-items: baseline;
+    justify-content: flex-start;
+    gap: 16px;
+    margin-top: 2px;
+  }
+
+  .job-info-draw-date,
   .job-info-ship-date {
     font-size: 10px;
     color: #475569;
     white-space: nowrap;
   }
 
-  /* 工番情報4行目 - PDFボタン */
+  .job-info-draw-date .label,
+  .job-info-ship-date .label {
+    color: #94a3b8;
+    margin-right: 2px;
+  }
+
+  /* 取り消し線スタイル */
+  .strikethrough {
+    text-decoration: line-through;
+    color: #94a3b8;
+  }
+
+  /* 変更後日付 */
+  .changed-date {
+    color: #dc2626;
+    font-weight: 600;
+    margin-left: 4px;
+  }
+
+  /* 工番情報4行目 - 変更日付入力欄 */
   .job-info-row4 {
     display: flex;
     align-items: center;
-    gap: 8px;
-    margin-top: 4px;
-    padding-top: 4px;
-    border-top: 1px dashed #e2e8f0;
+    gap: 12px;
+    margin-top: 2px;
+  }
+
+  .job-date-input-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .job-date-input-group .label {
+    font-size: 9px;
+    color: #94a3b8;
+  }
+
+  .job-changed-draw-date,
+  .job-changed-ship-date {
+    font-size: 10px;
+    padding: 1px 4px;
+    border: 1px solid #d1d5db;
+    border-radius: 3px;
+    width: 100px;
+    background: #fff;
+  }
+
+  .job-changed-draw-date:focus,
+  .job-changed-ship-date:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
   }
 
   .job-pdf-buttons {

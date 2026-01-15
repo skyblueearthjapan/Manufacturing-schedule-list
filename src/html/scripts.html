@@ -2150,6 +2150,10 @@ const Gantt = {
           : '<span class="job-role-badge job-role-badge-sub">副担当</span>';
       }
 
+      // 変更後日付を取得
+      const changedShipDate = this.formatShortDate(job['出荷予定日変更後']);
+      const changedDrawDate = this.formatShortDate(job['出図予定日変更後']);
+
       html += `
         <div class="job-info-block${jobRoleClass}" data-job-id="${job.jobId}" style="height: ${rowHeight}px; min-height: ${rowHeight}px;" onclick="Gantt.onJobClick('${job.jobId}')">
           <div class="job-info-content">
@@ -2159,41 +2163,64 @@ const Gantt = {
                 <span class="label">[工番]</span>
                 <span>${Utils.escapeHtml(job['工番'] || '')}</span>
               </div>
-              <div class="job-info-status">
-                <span class="label">[${Utils.escapeHtml(job['状態'] || '未着手')}]</span>
-                <span>${Utils.escapeHtml(job['重要メモ'] || '')}</span>
-              </div>
+              <div class="job-info-person">${personDisplay ? Utils.escapeHtml(personDisplay) : ''}</div>
               <button type="button"
                 class="job-edit-btn ml-2 text-xs px-2 py-0.5 rounded border border-gray-300 text-gray-600 hover:bg-gray-100 hover:border-gray-400"
                 onclick="event.stopPropagation(); JobModal.openEdit(Store.getJobById('${job.jobId}'));"
                 title="工番を編集">
                 ✎
               </button>
+            </div>
+            <div class="job-info-row2">
               <button type="button"
-                class="job-pdf-btn ml-1 text-xs px-2 py-0.5 rounded border ${hasOrderPdf ? 'has-pdf' : 'no-pdf'}"
+                class="job-pdf-btn text-xs px-2 py-0.5 rounded border ${hasOrderPdf ? 'has-pdf' : 'no-pdf'}"
                 onclick="event.stopPropagation(); Gantt.openJobPdf('${Utils.escapeHtml(jobNo)}', 'order');"
                 title="受注表PDF"
                 ${hasOrderPdf ? '' : 'disabled'}>
-                受注
+                受
               </button>
               <button type="button"
                 class="job-pdf-btn ml-1 text-xs px-2 py-0.5 rounded border ${hasInstructionPdf ? 'has-pdf' : 'no-pdf'}"
                 onclick="event.stopPropagation(); Gantt.openJobPdf('${Utils.escapeHtml(jobNo)}', 'instruction');"
                 title="工番別指示書PDF"
                 ${hasInstructionPdf ? '' : 'disabled'}>
-                指示
+                指
               </button>
-            </div>
-            <div class="job-info-row2">
-              <div class="job-info-customer">顧客：${Utils.escapeHtml(job['顧客名'] || '-')}</div>
-              <div class="job-info-draw-date">出図予定：${drawDate || '-'}</div>
-            </div>
-            <div class="job-info-row3">
               <div class="job-info-product">${Utils.escapeHtml(job['設備/製品名'] || '-')}</div>
               <div class="job-info-qty">台数：${job['台数'] || '-'}</div>
-              <div class="job-info-ship-date">出荷予定：${shipDate || '-'}</div>
             </div>
-            ${personDisplay ? `<div class="job-info-row4 text-xs text-gray-500 mt-0.5">${Utils.escapeHtml(personDisplay)}</div>` : ''}
+            <div class="job-info-row3">
+              <div class="job-info-draw-date">
+                <span class="label">出図:</span>
+                <span class="${changedDrawDate ? 'strikethrough' : ''}">${drawDate || '-'}</span>
+                ${changedDrawDate ? `<span class="changed-date">→${changedDrawDate}</span>` : ''}
+              </div>
+              <div class="job-info-ship-date">
+                <span class="label">出荷:</span>
+                <span class="${changedShipDate ? 'strikethrough' : ''}">${shipDate || '-'}</span>
+                ${changedShipDate ? `<span class="changed-date">→${changedShipDate}</span>` : ''}
+              </div>
+            </div>
+            <div class="job-info-row4">
+              <div class="job-date-input-group">
+                <span class="label">出図変更:</span>
+                <input type="date"
+                  class="job-changed-draw-date text-xs"
+                  value="${job['出図予定日変更後'] || ''}"
+                  onclick="event.stopPropagation();"
+                  onchange="Gantt.updateJobChangedDate('${job.jobId}', 'draw', this.value)"
+                  title="出図予定日の変更">
+              </div>
+              <div class="job-date-input-group">
+                <span class="label">出荷変更:</span>
+                <input type="date"
+                  class="job-changed-ship-date text-xs"
+                  value="${job['出荷予定日変更後'] || ''}"
+                  onclick="event.stopPropagation();"
+                  onchange="Gantt.updateJobChangedDate('${job.jobId}', 'ship', this.value)"
+                  title="出荷予定日の変更">
+              </div>
+            </div>
           </div>
         </div>
       `;
@@ -2521,6 +2548,31 @@ const Gantt = {
     } else {
       const typeName = pdfType === 'order' ? '受注表' : '工番別指示書';
       Utils.showToast(`${typeName}PDFが登録されていません`, 'info');
+    }
+  },
+
+  /**
+   * 工番の変更後日付を更新
+   * @param {string} jobId - 対象のjobId
+   * @param {string} dateType - 'draw' | 'ship'
+   * @param {string} newDate - 新しい日付（YYYY-MM-DD形式）
+   */
+  async updateJobChangedDate(jobId, dateType, newDate) {
+    const job = Store.getJobById(jobId);
+    if (!job) {
+      Utils.showToast('工番が見つかりません', 'error');
+      return;
+    }
+
+    const fieldName = dateType === 'draw' ? '出図予定日変更後' : '出荷予定日変更後';
+
+    try {
+      await Store.updateJob(jobId, { [fieldName]: newDate }, job.updatedAt);
+      Utils.showToast('日付を更新しました', 'success');
+      this.render();
+    } catch (error) {
+      console.error('Failed to update changed date:', error);
+      Utils.showToast('日付の更新に失敗しました', 'error');
     }
   },
 
@@ -7614,6 +7666,10 @@ const PersonGanttOverlay = {
         ? '<span class="job-role-badge job-role-badge-main">主担当</span>'
         : '<span class="job-role-badge job-role-badge-sub">副担当</span>';
 
+      // 変更後日付を取得
+      const changedShipDate = this.formatShortDate(job['出荷予定日変更後']);
+      const changedDrawDate = this.formatShortDate(job['出図予定日変更後']);
+
       html += `
         <div class="job-info-block${jobRoleClass}" data-job-id="${job.jobId}" style="height: ${rowHeight}px; min-height: ${rowHeight}px;">
           <div class="job-info-content">
@@ -7625,12 +7681,19 @@ const PersonGanttOverlay = {
               </div>
             </div>
             <div class="job-info-row2">
-              <div class="job-info-customer">顧客：${Utils.escapeHtml(job['顧客名'] || '-')}</div>
-              <div class="job-info-draw-date">出図予定：${drawDate || '-'}</div>
+              <div class="job-info-product">${Utils.escapeHtml(job['設備/製品名'] || '-')}</div>
             </div>
             <div class="job-info-row3">
-              <div class="job-info-product">${Utils.escapeHtml(job['設備/製品名'] || '-')}</div>
-              <div class="job-info-ship-date">出荷予定：${shipDate || '-'}</div>
+              <div class="job-info-draw-date">
+                <span class="label">出図:</span>
+                <span class="${changedDrawDate ? 'strikethrough' : ''}">${drawDate || '-'}</span>
+                ${changedDrawDate ? `<span class="changed-date">→${changedDrawDate}</span>` : ''}
+              </div>
+              <div class="job-info-ship-date">
+                <span class="label">出荷:</span>
+                <span class="${changedShipDate ? 'strikethrough' : ''}">${shipDate || '-'}</span>
+                ${changedShipDate ? `<span class="changed-date">→${changedShipDate}</span>` : ''}
+              </div>
             </div>
           </div>
         </div>
