@@ -8016,7 +8016,7 @@ const PersonGanttOverlay = {
     const colW = this.config.colWidth;
     const laneH = 16;
     const subH = 14;
-    const topPadding = 14;
+    const topPadding = 18; // バーを少し下げる（+4px）
 
     jobs.forEach((job) => {
       const row = document.querySelector(`.pg-grid-row[data-job-id="${job.jobId}"]`);
