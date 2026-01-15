@@ -9,7 +9,7 @@ const CONFIG = {
 
   // 外部スプレッドシートID（工番マスターの参照元）
   EXTERNAL_MASTER_SPREADSHEET_ID: '1iu5HoaknlW1W1HheeYv0jqcRq-aY0SyEE2seQd2pHkQ',
-  EXTERNAL_MASTER_SHEET_NAME: 'LW／作業日報_全従業員用',
+  EXTERNAL_MASTER_SHEET_NAME: '工番マスタ',
 
   // 外部工番マスターの列定義（A〜F列、順序固定）
   EXTERNAL_JOB_MASTER_COLUMNS: {
