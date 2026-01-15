@@ -5085,6 +5085,7 @@
     display: flex;
     align-items: center;
     gap: 2px;
+    position: relative;  /* 子要素のz-index基準 */
   }
 
   /* Excel風ビュー：小さい日付入力（カレンダーアイコン）- 左端固定 */
@@ -5099,10 +5100,19 @@
     flex-shrink: 0;
     order: -1;  /* 常に左端に配置 */
     margin-right: 4px;
+    /* ネイティブ日付ピッカーを確実に表示 */
+    -webkit-appearance: auto;
+    appearance: auto;
+    position: relative;
+    z-index: 10;  /* 他要素より前面に */
   }
   .xl-date-input-small:hover {
     border-color: #1976d2;
     background: #e3f2fd;
+  }
+  .xl-date-input-small:focus {
+    outline: 2px solid #1976d2;
+    outline-offset: 1px;
   }
   .xl-date-input-small::-webkit-calendar-picker-indicator {
     width: 100%;
@@ -5110,6 +5120,8 @@
     margin: 0;
     padding: 2px;
     cursor: pointer;
+    position: relative;
+    z-index: 11;  /* クリック領域を最前面に */
   }
 
   /* Excel風ビュー：カレンダーアイコンボタン（旧・互換用） */

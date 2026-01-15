@@ -6219,6 +6219,7 @@ const ExcelGantt = {
             <div class="ship-top xl-date-cell">
               <input type="date" class="xl-date-input-small"
                 value="${job['出荷予定日'] || ''}"
+                onmousedown="event.stopPropagation();"
                 onclick="event.stopPropagation(); this.showPicker && this.showPicker();"
                 onchange="ExcelGantt.updateJobOriginalDate('${job.jobId}', 'ship', this.value)"
                 title="予定日を変更">
@@ -6228,6 +6229,7 @@ const ExcelGantt = {
             <div class="ship-bottom xl-date-cell">
               <input type="date" class="xl-date-input-small"
                 value="${job['出荷予定日変更後'] || ''}"
+                onmousedown="event.stopPropagation();"
                 onclick="event.stopPropagation(); this.showPicker && this.showPicker();"
                 onchange="ExcelGantt.updateJobChangedDate('${job.jobId}', 'ship', this.value)"
                 title="変更日を入力">
@@ -6241,6 +6243,7 @@ const ExcelGantt = {
             <div class="draw-top xl-date-cell">
               <input type="date" class="xl-date-input-small"
                 value="${job['出図予定日'] || ''}"
+                onmousedown="event.stopPropagation();"
                 onclick="event.stopPropagation(); this.showPicker && this.showPicker();"
                 onchange="ExcelGantt.updateJobOriginalDate('${job.jobId}', 'draw', this.value)"
                 title="希望日を変更">
@@ -6250,6 +6253,7 @@ const ExcelGantt = {
             <div class="draw-bottom xl-date-cell">
               <input type="date" class="xl-date-input-small"
                 value="${job['出図予定日変更後'] || ''}"
+                onmousedown="event.stopPropagation();"
                 onclick="event.stopPropagation(); this.showPicker && this.showPicker();"
                 onchange="ExcelGantt.updateJobChangedDate('${job.jobId}', 'draw', this.value)"
                 title="実績日を入力">
