@@ -5112,9 +5112,10 @@
   .xl-date-input-hidden {
     position: absolute;
     opacity: 0;
-    width: 1px;
-    height: 1px;
-    pointer-events: none;
+    width: 0;
+    height: 0;
+    overflow: hidden;
+    /* pointer-events: none; を削除 - showPicker()が動作するために必要 */
   }
 
   /* Excel風ビュー：カレンダーアイコンボタン（旧・互換用） */
