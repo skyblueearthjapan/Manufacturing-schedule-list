@@ -693,64 +693,68 @@
     </div>
   </div>
 
-  <!-- 担当者別大工程表オーバーレイ -->
-  <div id="person-gantt-overlay" class="fixed inset-0 z-50 hidden">
-    <div class="absolute inset-0 bg-black bg-opacity-50" onclick="PersonGanttOverlay.close()"></div>
-    <div class="absolute inset-4 bg-white rounded-lg shadow-2xl flex flex-col overflow-hidden">
+  <!-- 担当者別大工程表オーバーレイ（工番別工程表 - 担当者バージョン） -->
+  <div id="person-gantt-overlay" class="person-gantt-overlay hidden">
+    <div class="person-gantt-backdrop" onclick="PersonGanttOverlay.close()"></div>
+    <div class="person-gantt-modal">
       <!-- ヘッダー -->
-      <div class="bg-gray-100 px-6 py-4 border-b flex items-center justify-between">
-        <div class="flex items-center space-x-4">
-          <button onclick="PersonGanttOverlay.close()" class="flex items-center text-gray-600 hover:text-gray-800" title="戻る">
+      <div class="person-gantt-modal-header">
+        <div class="person-gantt-header-left">
+          <button onclick="PersonGanttOverlay.close()" class="person-gantt-back-btn" title="戻る">
             <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
             </svg>
             戻る
           </button>
-          <h2 id="person-gantt-title" class="text-lg font-bold text-gray-800">担当者の大工程表</h2>
+          <h2 id="person-gantt-title" class="person-gantt-modal-title">工番別工程表（担当者）</h2>
         </div>
-        <button onclick="PersonGanttOverlay.close()" class="text-gray-500 hover:text-gray-700 text-2xl font-bold" title="閉じる">&times;</button>
+        <button onclick="PersonGanttOverlay.close()" class="person-gantt-close-btn" title="閉じる">&times;</button>
       </div>
 
-      <!-- コンテンツ -->
-      <div class="flex-1 flex flex-col overflow-hidden">
-        <!-- 日付ヘッダー -->
-        <div class="person-gantt-header shrink-0">
-          <div class="person-gantt-job-header">工番情報</div>
-          <div class="person-gantt-date-scroll" id="person-gantt-header-scroll">
-            <div class="person-gantt-date-header" id="person-gantt-date-header">
-              <!-- JSで生成 -->
+      <!-- Excel風ガントチャートコンテナ -->
+      <div class="pg-excel-wrap">
+        <!-- 左ペイン（工番情報） -->
+        <div class="pg-left-pane">
+          <div class="pg-left-header">
+            <div class="pg-header-row">
+              <div class="pg-h-no">No</div>
+              <div class="pg-h-main">設備名称・工番・台数・納入先・住所</div>
+              <div class="pg-h-ship">出荷<br>予定日</div>
+              <div class="pg-h-draw">出図日<br>希望/実績</div>
             </div>
           </div>
+          <div id="pgLeftRows" class="pg-left-rows"></div>
         </div>
-        <!-- ボディ -->
-        <div class="flex-1 overflow-y-auto" id="person-gantt-body-scroll">
-          <div class="person-gantt-container">
-            <div class="person-gantt-job-pane" id="person-gantt-job-pane">
-              <!-- JSで生成 -->
-            </div>
-            <div class="person-gantt-grid-scroll" id="person-gantt-grid-scroll">
-              <div class="person-gantt-grid" id="person-gantt-grid">
-                <!-- JSで生成 -->
-              </div>
-            </div>
+        <!-- 右ペイン（タイムライン） -->
+        <div class="pg-right-pane">
+          <div id="pgTimeHeader" class="pg-time-header">
+            <div id="pgTimeHeaderCols" class="pg-header-cols"></div>
+          </div>
+          <div id="pgTimeBody" class="pg-time-body">
+            <div id="pgGrid" class="pg-grid" style="--days: 0; --rows: 0;"></div>
+            <div class="pg-today-line" id="pgTodayLine" style="display:none;"></div>
           </div>
         </div>
+        <!-- 下部スクロールバー -->
+        <div id="pgBottomScrollbar" class="pg-bottom-scrollbar">
+          <div id="pgScrollbarContent" class="pg-scrollbar-content"></div>
+        </div>
+      </div>
 
-        <!-- 埋め込み出張計画セクション（初期状態：折りたたみ） -->
-        <div class="embedded-trip-section person-gantt-trip-section collapsed" id="person-gantt-trip-section">
-          <div class="embedded-trip-toggle" onclick="PersonGanttOverlay.toggleTripSection()">
-            <div class="embedded-trip-toggle-left">
-              <svg class="embedded-trip-toggle-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M19 9l-7 7-7-7"/>
-              </svg>
-              <span class="embedded-trip-toggle-title">出張予定</span>
-              <span class="embedded-trip-toggle-count" id="person-gantt-trip-count">0件</span>
-            </div>
+      <!-- 埋め込み出張計画セクション（初期状態：折りたたみ） -->
+      <div class="embedded-trip-section person-gantt-trip-section collapsed" id="person-gantt-trip-section">
+        <div class="embedded-trip-toggle" onclick="PersonGanttOverlay.toggleTripSection()">
+          <div class="embedded-trip-toggle-left">
+            <svg class="embedded-trip-toggle-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M19 9l-7 7-7-7"/>
+            </svg>
+            <span class="embedded-trip-toggle-title">出張予定</span>
+            <span class="embedded-trip-toggle-count" id="person-gantt-trip-count">0件</span>
           </div>
-          <div class="embedded-trip-content">
-            <div class="embedded-trip-container" id="person-gantt-trip-container">
-              <!-- JSで生成 -->
-            </div>
+        </div>
+        <div class="embedded-trip-content">
+          <div class="embedded-trip-container" id="person-gantt-trip-container">
+            <!-- JSで生成 -->
           </div>
         </div>
       </div>
