@@ -5080,26 +5080,35 @@
     gap: 2px;
   }
 
-  /* Excel風ビュー：クリック可能な日付セル */
+  /* Excel風ビュー：日付セル（flexで右端にinputを配置） */
   .xl-date-cell {
-    cursor: pointer;
-    transition: background 0.15s;
-    position: relative;
-  }
-  .xl-date-cell:hover {
-    background: #e3f2fd !important;
+    display: flex;
+    align-items: center;
+    gap: 2px;
   }
 
-  /* Excel風ビュー：透明な日付入力（セル全体をカバー） */
-  .xl-date-hidden {
-    position: absolute;
-    top: 0;
-    left: 0;
+  /* Excel風ビュー：小さい日付入力 */
+  .xl-date-input-small {
+    width: 20px;
+    height: 16px;
+    margin-left: auto;
+    padding: 0;
+    border: 1px solid #ccc;
+    border-radius: 2px;
+    background: #fff;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .xl-date-input-small:hover {
+    border-color: #1976d2;
+    background: #e3f2fd;
+  }
+  .xl-date-input-small::-webkit-calendar-picker-indicator {
     width: 100%;
     height: 100%;
-    opacity: 0;
+    margin: 0;
+    padding: 2px;
     cursor: pointer;
-    z-index: 1;
   }
 
   /* Excel風ビュー：カレンダーアイコンボタン（旧・互換用） */
