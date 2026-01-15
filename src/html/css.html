@@ -5089,8 +5089,8 @@
 
   /* Excel風ビュー：小さい日付入力 */
   .xl-date-input-small {
-    width: 20px;
-    height: 16px;
+    width: 24px;
+    height: 20px;
     margin-left: auto;
     padding: 0;
     border: 1px solid #ccc;
@@ -5098,6 +5098,12 @@
     background: #fff;
     cursor: pointer;
     flex-shrink: 0;
+    position: relative;
+    z-index: 5;
+    /* 重要：ネイティブ日付ピッカーを有効にする */
+    -webkit-appearance: auto;
+    -moz-appearance: auto;
+    appearance: auto;
   }
   .xl-date-input-small:hover {
     border-color: #1976d2;
@@ -5109,6 +5115,8 @@
     margin: 0;
     padding: 2px;
     cursor: pointer;
+    position: relative;
+    z-index: 10;
   }
 
   /* Excel風ビュー：カレンダーアイコンボタン（旧・互換用） */
