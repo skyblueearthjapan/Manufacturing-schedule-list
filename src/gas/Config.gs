@@ -11,13 +11,14 @@ const CONFIG = {
   EXTERNAL_MASTER_SPREADSHEET_ID: '1iu5HoaknlW1W1HheeYv0jqcRq-aY0SyEE2seQd2pHkQ',
   EXTERNAL_MASTER_SHEET_NAME: 'LW／作業日報_全従業員用',
 
-  // 外部工番マスターの列定義（A〜E列、順序固定）
+  // 外部工番マスターの列定義（A〜F列、順序固定）
   EXTERNAL_JOB_MASTER_COLUMNS: {
-    JOB_NO: 0,      // A列: 工番
-    CUSTOMER: 1,    // B列: 受注先
-    DESTINATION: 2, // C列: 納入先
-    PRODUCT: 3,     // D列: 品名
-    QUANTITY: 4     // E列: 数量
+    JOB_NO: 0,              // A列: 工番
+    CUSTOMER: 1,            // B列: 受注先
+    DESTINATION: 2,         // C列: 納入先
+    DESTINATION_ADDRESS: 3, // D列: 納入先住所
+    PRODUCT: 4,             // E列: 品名
+    QUANTITY: 5             // F列: 数量
   },
 
   // シート名

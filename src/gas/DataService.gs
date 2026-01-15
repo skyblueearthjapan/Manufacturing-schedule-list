@@ -110,6 +110,7 @@ function createJob(payload) {
       case '設備/製品名': return payload['設備/製品名'] || '';
       case '台数': return payload['台数'] || '';
       case '納入先': return payload['納入先'] || '';
+      case '納入先住所': return payload['納入先住所'] || '';
       case '出荷予定日': return payload['出荷予定日'] || '';
       case '出荷実績日': return payload['出荷実績日'] || '';
       case '出図予定日': return payload['出図予定日'] || '';

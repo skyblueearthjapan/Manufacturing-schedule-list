@@ -3485,12 +3485,13 @@ const JobModal = {
     } else {
       let html = '';
       filtered.forEach(item => {
-        // 5項目すべてをdata属性で渡す（onclick属性のエスケープ問題を回避）
+        // 6項目すべてをdata属性で渡す（onclick属性のエスケープ問題を回避）
         const dataAttrs = `
           data-jobno="${Utils.escapeHtml(item['工番'] || '')}"
           data-customer="${Utils.escapeHtml(item['受注先'] || '')}"
           data-product="${Utils.escapeHtml(item['品名'] || '')}"
           data-destination="${Utils.escapeHtml(item['納入先'] || '')}"
+          data-destination-address="${Utils.escapeHtml(item['納入先住所'] || '')}"
           data-quantity="${Utils.escapeHtml(String(item['数量'] || ''))}"
         `;
         html += `
@@ -3517,6 +3518,7 @@ const JobModal = {
     const customer = element.dataset.customer || '';
     const product = element.dataset.product || '';
     const destination = element.dataset.destination || '';
+    const destinationAddress = element.dataset.destinationAddress || '';
     const quantity = element.dataset.quantity || '';
 
     // モーダルの各項目に自動入力
@@ -3524,11 +3526,12 @@ const JobModal = {
     document.getElementById('job-customer').value = customer;
     document.getElementById('job-product').value = product;
     document.getElementById('job-destination').value = destination;
+    document.getElementById('job-destination-address').value = destinationAddress;
     document.getElementById('job-qty').value = quantity;
 
     this.hideSearchResults();
     document.getElementById('job-master-search').value = '';
-    Utils.showToast('工番マスターから5項目を入力しました', 'info');
+    Utils.showToast('工番マスターから6項目を入力しました', 'info');
   },
 
   // 工番マスター選択（旧互換: 3項目のみ）
@@ -3585,6 +3588,7 @@ const JobModal = {
     document.getElementById('job-product').value = job['設備/製品名'] || '';
     document.getElementById('job-qty').value = job['台数'] || '';
     document.getElementById('job-destination').value = job['納入先'] || '';
+    document.getElementById('job-destination-address').value = job['納入先住所'] || '';
     document.getElementById('job-ship-date').value = job['出荷予定日'] || '';
     document.getElementById('job-draw-date').value = job['出図予定日'] || '';
     document.getElementById('job-status-text').value = job['重要メモ'] || '';
@@ -3724,6 +3728,7 @@ const JobModal = {
     const product = document.getElementById('job-product').value.trim();
     const qty = document.getElementById('job-qty').value.trim();
     const destination = document.getElementById('job-destination').value.trim();
+    const destinationAddress = document.getElementById('job-destination-address').value.trim();
     const shipDate = document.getElementById('job-ship-date').value;
     const drawDate = document.getElementById('job-draw-date').value;
     const statusText = document.getElementById('job-status-text').value.trim();
@@ -3760,6 +3765,7 @@ const JobModal = {
       '設備/製品名': product,
       '台数': qty,
       '納入先': destination,
+      '納入先住所': destinationAddress,
       '出荷予定日': shipDate,
       '出図予定日': drawDate,
       '重要メモ': statusText,
