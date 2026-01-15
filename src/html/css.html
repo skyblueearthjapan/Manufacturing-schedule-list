@@ -2178,17 +2178,16 @@
     height: 0; /* Chrome/Safari 横スクロールバー非表示 */
   }
 
-  /* 横スクロールバー（travel-mainの下部に固定表示）
-     ※ 工程表のスクロールバーと連動のため非表示 */
+  /* 横スクロールバー（ガントチャートの一番下に表示）
+     担当者が増えるたびにガントチャートの下に表示される */
   .travel-bottom-scrollbar {
-    display: none; /* 工程表のスクロールバーで統一操作 */
     flex-shrink: 0;
-    height: 20px;
-    background: #e2e8f0;
-    border-top: 2px solid #cbd5e1;
+    height: 14px;              /* 工程表と完全一致 */
+    background: transparent;   /* 工程表と同化 */
     overflow-x: auto;
     overflow-y: hidden;
-    margin-left: 200px; /* 作業者情報ペインの幅 */
+    margin-left: 200px;        /* 作業者情報ペインの幅 */
+    scrollbar-width: auto;     /* Firefox */
   }
 
   .travel-scrollbar-content {
@@ -2196,18 +2195,16 @@
   }
 
   .travel-bottom-scrollbar::-webkit-scrollbar {
-    height: 16px;
+    height: 14px;              /* 工程表と完全一致 */
   }
 
   .travel-bottom-scrollbar::-webkit-scrollbar-track {
-    background: #f1f5f9;
-    border-radius: 6px;
+    background: transparent;
   }
 
   .travel-bottom-scrollbar::-webkit-scrollbar-thumb {
     background: #94a3b8;
-    border-radius: 6px;
-    border: 2px solid #f1f5f9;
+    border-radius: 7px;        /* 14pxの半分 */
   }
 
   .travel-bottom-scrollbar::-webkit-scrollbar-thumb:hover {
@@ -2215,16 +2212,17 @@
   }
 
   /* ========================================
-     上部横スクロールバー（工程表と同じ太さに統一）
+     上部横スクロールバー（非表示 - 下部に移動）
      ======================================== */
   .travel-top-scrollbar {
+    display: none;             /* 下部スクロールバーに移動 */
     flex-shrink: 0;
-    height: 14px;              /* 工程表と完全一致 */
+    height: 14px;
     overflow-x: auto;
     overflow-y: hidden;
-    background: transparent;   /* 工程表と同化 */
-    margin-left: 200px;        /* 作業者情報ペインの幅 */
-    scrollbar-width: auto;     /* Firefox */
+    background: transparent;
+    margin-left: 200px;
+    scrollbar-width: auto;
   }
 
   .travel-xbar-content {
