@@ -2169,12 +2169,21 @@
   .travel-scroll-area {
     flex: 1;
     overflow-y: auto;
-    overflow-x: hidden;
+    overflow-x: auto; /* 横スクロール可能（工程表と連動） */
     min-height: 0; /* flex childのスクロールに必要 */
+    /* 横スクロールバーは非表示（工程表側で統一操作） */
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE/Edge */
   }
 
-  /* 横スクロールバー（travel-mainの下部に固定表示） */
+  .travel-scroll-area::-webkit-scrollbar {
+    height: 0; /* Chrome/Safari 横スクロールバー非表示 */
+  }
+
+  /* 横スクロールバー（travel-mainの下部に固定表示）
+     ※ 工程表のスクロールバーと連動のため非表示 */
   .travel-bottom-scrollbar {
+    display: none; /* 工程表のスクロールバーで統一操作 */
     flex-shrink: 0;
     height: 20px;
     background: #e2e8f0;

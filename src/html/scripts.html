@@ -5786,8 +5786,12 @@ const ExcelGantt = {
     // 2ペイン構造：右側のみスクロール
     const getTripScroll = () => document.getElementById('gantt-trip-container-scroll');
 
+    // 出張計画表（下部ビュー）のスクロール要素を取得
+    const getTravelScrollArea = () => document.getElementById('travel-scroll-area');
+    const getTravelScrollHeader = () => document.getElementById('travel-scroll-header');
+
     if (timeBody && leftRows) {
-      // 右ボディスクロール → 左追従 + ヘッダ追従 + 埋め込み出張追従
+      // 右ボディスクロール → 左追従 + ヘッダ追従 + 埋め込み出張追従 + 出張計画表追従
       timeBody.addEventListener('scroll', () => {
         // ガードフラグで再帰ループ防止
         if (_scrollSyncing) return;
@@ -5803,6 +5807,13 @@ const ExcelGantt = {
         // 埋め込み出張にも横スクロール同期
         const tripScroll = getTripScroll();
         if (tripScroll) tripScroll.scrollLeft = timeBody.scrollLeft;
+
+        // 出張計画表（下部ビュー）にも横スクロール同期
+        const travelScrollArea = getTravelScrollArea();
+        const travelScrollHeader = getTravelScrollHeader();
+        if (travelScrollArea) travelScrollArea.scrollLeft = timeBody.scrollLeft;
+        if (travelScrollHeader) travelScrollHeader.scrollLeft = timeBody.scrollLeft;
+
         this.updateTodayLine();
 
         // 次フレームでガード解除
@@ -5821,7 +5832,7 @@ const ExcelGantt = {
     }
 
     if (bottomScrollbar && timeBody && timeHeader) {
-      // 下部スクロールバー → 本体追従 + 埋め込み出張追従
+      // 下部スクロールバー → 本体追従 + 埋め込み出張追従 + 出張計画表追従
       bottomScrollbar.addEventListener('scroll', () => {
         if (_scrollSyncing) return;
         _scrollSyncing = true;
@@ -5831,6 +5842,13 @@ const ExcelGantt = {
         // 埋め込み出張にも横スクロール同期
         const tripScroll = getTripScroll();
         if (tripScroll) tripScroll.scrollLeft = bottomScrollbar.scrollLeft;
+
+        // 出張計画表（下部ビュー）にも横スクロール同期
+        const travelScrollArea = getTravelScrollArea();
+        const travelScrollHeader = getTravelScrollHeader();
+        if (travelScrollArea) travelScrollArea.scrollLeft = bottomScrollbar.scrollLeft;
+        if (travelScrollHeader) travelScrollHeader.scrollLeft = bottomScrollbar.scrollLeft;
+
         this.updateTodayLine();
 
         requestAnimationFrame(() => { _scrollSyncing = false; });
