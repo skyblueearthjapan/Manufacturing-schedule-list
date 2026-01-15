@@ -2241,6 +2241,7 @@
     border-bottom: 1px solid #e5e7eb;
     min-height: var(--tp-row-height);
     height: var(--tp-row-height);
+    overflow: visible;  /* バー/ラベルのはみ出しを許可 */
   }
 
   .travel-person-row:hover {
@@ -2424,13 +2425,20 @@
 
   /* 出張計画バー（両矢印スタイル）- ExcelGanttと統一 */
   .travel-trip-bar {
-    top: 50%;
-    transform: translateY(-50%);
+    /* top/transformはJS側でinline styleにて上書き（レーン対応） */
     pointer-events: auto;
+    overflow: visible;  /* ラベルのはみ出しを許可 */
   }
 
   .travel-trip-bar .bar-label {
     font-size: 10px;  /* ExcelGanttと統一 */
+    position: absolute;
+    top: -16px;       /* バーの上に出す */
+    left: 6px;
+    white-space: nowrap;
+    overflow: visible;
+    pointer-events: none;  /* ドラッグ/クリックの邪魔をしない */
+    z-index: 9999;         /* 日付ヘッダーより前面に（最前面） */
   }
 
   /* 空行メッセージ */

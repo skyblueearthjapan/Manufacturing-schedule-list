@@ -8861,6 +8861,8 @@ const TravelPlan = {
         const name = person['氏名'] || '';
         const personColor = Utils.normalizeColor(person['作業者色(colorHex)']) || '#6b7280';
 
+        // レーン割り当て（被り回避）- 埋め込み出張予定と同じロジック
+        this.assignLanesForPerson(personTrips);
         // レイアウト計算（押し広げ対応）
         const layoutTrips = this.calculatePersonLayout(personTrips);
 
@@ -9198,9 +9200,16 @@ const TravelPlan = {
     const lockPrefix = isLocked ? '🔒 ' : '';
     const safeLabel = Utils.escapeHtml(lockPrefix + label);
 
+    // レーン位置からtopを計算（埋め込み出張予定と同じロジック）
+    const lane = trip.lane || 0;
+    const BASE_TOP = 4;   // 1件目のバー基準位置（行上端から4px）
+    const LANE_GAP = 10;  // lane間隔（バーが見分けられる最小間隔）
+    const topInRow = BASE_TOP + (lane * LANE_GAP);
+
     // 両矢印スタイルHTML（ExcelGanttと同じ構造 + リサイズハンドル）
     const lineClass = shape === 'dash' ? 'bar-line bar-line--dash' : 'bar-line';
-    const baseStyle = `left:${trip._xStart}px; width:${trip._width}px; color:${color};`;
+    // top/transformをinlineで上書きしてCSS（top:50%）を無効化
+    const baseStyle = `left:${trip._xStart}px; width:${trip._width}px; top:${topInRow}px; transform:none; color:${color};`;
 
     return `
       <div class="excel-bar excel-bar--arrow travel-trip-bar"
@@ -9381,11 +9390,11 @@ const TravelPlan = {
 
     const today = Utils.getToday();
 
-    // lane計算用の定数（設計指示に基づく - 行高36px固定、30px基準で上へ押し上げ）
+    // lane計算用の定数（設計指示に基づく - 行高36px固定、行内に収める）
     const ROW_HEIGHT = 36;      // 行高固定（工程表ガントと統一）
-    const LABEL_BASE_Y = 30;    // ラベルの基準位置（行の上から30px = 下から6px）
     const BAR_HEIGHT = 14;      // バー描画高さ
-    const LANE_PITCH = 36;      // lane間隔（行高と同じ。重なったら1行分上へ）
+    const BASE_TOP = 4;         // 1件目のバー基準位置（行上端から4px）
+    const LANE_GAP = 10;        // lane間隔（バーが見分けられる最小間隔）
 
     // 各作業者の行データを事前計算（lane割り当て + 行高さ計算）
     const rowDataList = workerRows.map(row => {
@@ -9484,14 +9493,13 @@ const TravelPlan = {
         const xStart = visibleStartOffset * cellWidth;
         const barWidth = visibleDuration * cellWidth;
 
-        // lane位置からtopを計算（30px基準、36px刻みで上へ押し上げ）
-        // バーの下端をLABEL_BASE_Y（30px）に合わせる
-        // 例：ROW_HEIGHT=36px, LABEL_BASE_Y=30px, BAR_HEIGHT=14px の場合
-        //   lane 0 → barBottom = 30px → barTop = 30 - 14 = 16px（バー下端が30px）
-        //   lane 1 → barTop = 16 - 36 = -20px（上に押し上げ）
+        // lane位置からtopを計算（行内に下から詰める方式）
+        // 例：BASE_TOP=4px, LANE_GAP=10px の場合
+        //   lane 0 → top = 4px（1件目は行上端から4px）
+        //   lane 1 → top = 14px（2件目は10pxずらす）
+        //   lane 2 → top = 24px（3件目以降も同様、行高36pxを超えたらoverflow:visibleで対応）
         const lane = trip.lane || 0;
-        const barTopBase = LABEL_BASE_Y - BAR_HEIGHT;  // 16px（バーの下端が30pxになる位置）
-        const topInRow = barTopBase - (lane * LANE_PITCH);
+        const topInRow = BASE_TOP + (lane * LANE_GAP);
         rightHtml += this.renderEmbeddedTripBar(trip, xStart, barWidth, topInRow, BAR_HEIGHT);
       });
       rightHtml += '</div>';
