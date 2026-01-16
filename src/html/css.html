@@ -1877,6 +1877,55 @@
     opacity: 0;
   }
 
+  /* ====== 工番別工程表：削除ボタン ====== */
+  .job-bar-delete {
+    position: absolute;
+    top: -16px;
+    right: -4px;
+    width: 16px;
+    height: 16px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: #ef4444;
+    color: white;
+    font-size: 11px;
+    font-weight: bold;
+    line-height: 1;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .job-bar:hover .job-bar-delete,
+  .job-milestone:hover .job-bar-delete {
+    opacity: 1;
+  }
+
+  .job-bar-delete:hover {
+    background: #dc2626;
+    transform: scale(1.1);
+  }
+
+  .job-bar.dragging .job-bar-delete {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  /* マイルストーン用の削除ボタン位置調整 */
+  .job-milestone {
+    position: relative;
+  }
+
+  .job-milestone .job-bar-delete {
+    top: -8px;
+    right: -8px;
+  }
+
   /* セル範囲選択時のプレビューバー */
   .job-bar-preview {
     position: absolute;
@@ -5608,6 +5657,45 @@
 
   .excel-bar.dragging .bar-handle {
     opacity: 0;
+  }
+
+  /* ====== ExcelModePanel：削除ボタン ====== */
+  .excel-bar-delete {
+    position: absolute;
+    top: -14px;
+    right: 4px;
+    width: 16px;
+    height: 16px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: #ef4444;
+    color: white;
+    font-size: 11px;
+    font-weight: bold;
+    line-height: 1;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: auto;
+  }
+
+  .excel-bar:hover .excel-bar-delete {
+    opacity: 1;
+  }
+
+  .excel-bar-delete:hover {
+    background: #dc2626;
+    transform: scale(1.1);
+  }
+
+  .excel-bar.dragging .excel-bar-delete {
+    opacity: 0;
+    pointer-events: none;
   }
 
   /* ====== 下部横スクロールバー ====== */

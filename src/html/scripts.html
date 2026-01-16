@@ -4999,6 +4999,7 @@ const JobDetail = {
       // scheduleId を data属性に保持（クリック編集用）
       // 矢印スタイル用に color も設定
       // ドラッグハンドルを両端に追加
+      // 削除ボタンを追加（ホバー時に表示）
       return `
         <div class="job-bar" data-schedule-id="${schedule.scheduleId}"
              data-start="${schedule.start}" data-end="${schedule.end}"
@@ -5006,6 +5007,7 @@ const JobDetail = {
              title="${personName}${schedule.label ? ' - ' + schedule.label : ''}">
           <div class="job-bar-handle job-bar-handle--left" data-handle="left"></div>
           <div class="job-bar-handle job-bar-handle--right" data-handle="right"></div>
+          <button class="job-bar-delete" data-delete="true" title="削除">×</button>
         </div>
       `;
     } else {
@@ -5023,6 +5025,7 @@ const JobDetail = {
       // scheduleId を data属性に保持（クリック編集用）
       // 矢印スタイル用に color も設定
       // ドラッグハンドルを両端に追加
+      // 削除ボタンを追加（ホバー時に表示）
       return `
         <div class="job-bar" data-schedule-id="${schedule.scheduleId}"
              data-start="${schedule.start}" data-end="${schedule.end}"
@@ -5030,6 +5033,7 @@ const JobDetail = {
              title="${personName}${schedule.label ? ' - ' + schedule.label : ''}">
           <div class="job-bar-handle job-bar-handle--left" data-handle="left"></div>
           <div class="job-bar-handle job-bar-handle--right" data-handle="right"></div>
+          <button class="job-bar-delete" data-delete="true" title="削除">×</button>
         </div>
       `;
     }
@@ -5048,9 +5052,11 @@ const JobDetail = {
       const left = weekIdx * this.config.weeklyCellWidth + (this.config.weeklyCellWidth / 2) - 8;
 
       // scheduleId を data属性に保持（クリック編集用）
+      // 削除ボタンを追加（ホバー時に表示）
       return `
         <div class="job-milestone" data-schedule-id="${schedule.scheduleId}" style="left: ${left}px;" title="${processName}">
           ★${Utils.escapeHtml(processName)}
+          <button class="job-bar-delete" data-delete="true" title="削除">×</button>
         </div>
       `;
     } else {
@@ -5064,9 +5070,11 @@ const JobDetail = {
       const left = startOffset * this.config.cellWidth + (this.config.cellWidth / 2) - 8;
 
       // scheduleId を data属性に保持（クリック編集用）
+      // 削除ボタンを追加（ホバー時に表示）
       return `
         <div class="job-milestone" data-schedule-id="${schedule.scheduleId}" style="left: ${left}px;" title="${processName}">
           ★${Utils.escapeHtml(processName)}
+          <button class="job-bar-delete" data-delete="true" title="削除">×</button>
         </div>
       `;
     }
@@ -5176,6 +5184,23 @@ const JobDetail = {
   onPointerDown(e) {
     // 左クリック以外は無視
     if (e.button !== 0) return;
+
+    // 削除ボタンのクリック判定
+    const deleteBtn = e.target.closest('.job-bar-delete');
+    if (deleteBtn) {
+      e.preventDefault();
+      e.stopPropagation();
+
+      // 親のバーまたはマイルストーンからscheduleIdを取得
+      const parent = deleteBtn.closest('.job-bar, .job-milestone');
+      if (parent) {
+        const scheduleId = parent.dataset.scheduleId;
+        if (scheduleId) {
+          this.deleteSchedule(scheduleId);
+        }
+      }
+      return;
+    }
 
     const bar = e.target.closest('.job-bar');
     if (bar) {
@@ -5462,6 +5487,31 @@ const JobDetail = {
       hasMoved: false,
       lastDeltaDays: 0
     };
+  },
+
+  // スケジュール削除
+  deleteSchedule(scheduleId) {
+    if (!scheduleId) return;
+
+    const schedule = Store.getScheduleById(scheduleId);
+    if (!schedule) {
+      Utils.showToast('スケジュールが見つかりません', 'error');
+      return;
+    }
+
+    // 確認ダイアログ
+    if (!confirm('この工程を削除しますか？')) return;
+
+    console.log(`[JobDetail] Deleting schedule: ${scheduleId}`);
+
+    // 楽観的削除
+    Store.removeSchedule(scheduleId);
+    ChangeBuffer.add('schedule', 'delete', scheduleId, {}, 'jobDetail');
+
+    Utils.showToast('削除しました（保存待ち）', 'info');
+
+    // 再描画
+    this.render();
   },
 
   // プレビューバーを表示/更新
@@ -6108,6 +6158,22 @@ const ExcelGantt = {
     // 左クリック以外は無視
     if (e.button !== 0) return;
 
+    // 削除ボタンのクリック判定
+    const deleteBtn = e.target.closest('.excel-bar-delete');
+    if (deleteBtn) {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const bar = deleteBtn.closest('.excel-bar');
+      if (bar) {
+        const scheduleId = bar.dataset.scheduleId;
+        if (scheduleId) {
+          this.deleteSchedule(scheduleId);
+        }
+      }
+      return;
+    }
+
     const bar = e.target.closest('.excel-bar');
     if (bar) {
       // === 既存バーのドラッグ（移動・リサイズ）===
@@ -6359,6 +6425,31 @@ const ExcelGantt = {
     document.querySelectorAll('#excelGrid .selected-range').forEach(cell => {
       cell.classList.remove('selected-range');
     });
+  },
+
+  // スケジュール削除
+  deleteSchedule(scheduleId) {
+    if (!scheduleId) return;
+
+    const schedule = Store.getScheduleById(scheduleId);
+    if (!schedule) {
+      Utils.showToast('スケジュールが見つかりません', 'error');
+      return;
+    }
+
+    // 確認ダイアログ
+    if (!confirm('この工程を削除しますか？')) return;
+
+    console.log(`[ExcelGantt] Deleting schedule: ${scheduleId}`);
+
+    // 楽観的削除
+    Store.removeSchedule(scheduleId);
+    ChangeBuffer.add('schedule', 'delete', scheduleId, {}, 'excelGantt');
+
+    Utils.showToast('削除しました（保存待ち）', 'info');
+
+    // 再描画
+    this.render();
   },
 
   // スクロール同期設定
@@ -6673,7 +6764,7 @@ const ExcelGantt = {
   },
 
   // バーHTML生成（両矢印スタイルに統一）
-  // 構造: .excel-bar > .bar-line(極細線+両端矢尻) + .bar-handle×2 + .bar-label(上)
+  // 構造: .excel-bar > .bar-line(極細線+両端矢尻) + .bar-handle×2 + .bar-label(上) + 削除ボタン
   buildBarHtml({ left, width, topInRow, color, label, shape, scheduleId, jobId }) {
     const safeLabel = Utils.escapeHtml(label || '');
     // colorを親要素に持たせてcurrentColorで統一管理
@@ -6691,6 +6782,7 @@ const ExcelGantt = {
         <div class="bar-handle bar-handle--left" data-handle="left"></div>
         <div class="bar-handle bar-handle--right" data-handle="right"></div>
         <div class="bar-label">${safeLabel}</div>
+        <button class="excel-bar-delete" data-delete="true" title="削除">×</button>
       </div>`;
   },
 
