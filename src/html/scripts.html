@@ -2150,13 +2150,9 @@ const Gantt = {
       if (daySetting === 'WORKDAY') classes += ' is-workday';
       if (daySetting === 'HOLIDAY') classes += ' is-holiday';
 
-      const showMonth = month !== currentMonth;
-      currentMonth = month;
-
       html += `
         <div class="${classes}" data-date="${date}">
-          ${showMonth ? `<div class="month">${month}月</div>` : '<div class="month">&nbsp;</div>'}
-          <div class="day">${day}</div>
+          <div class="month">${month}/${day}</div>
           <div class="dow">${dow}</div>
         </div>
       `;
@@ -6575,12 +6571,9 @@ const ExcelGantt = {
       if (daySetting === 'HOLIDAY') cls += ' holiday';
       if (daySetting === 'WORKDAY') cls += ' workday';
 
-      // 月初めの場合に月を表示
-      const showMonth = i === 0 || day === 1;
-
       html += `
         <div class="${cls}" data-date="${date}">
-          <div class="md">${showMonth ? month + '/' : ''}${day}</div>
+          <div class="md">${month}/${day}</div>
           <div class="dow">${dow}</div>
         </div>
       `;
@@ -8285,12 +8278,9 @@ const PersonGanttOverlay = {
       if (isWeekend) cls += ' weekend';
       if (isToday) cls += ' today';
 
-      // 月初めの場合に月を表示
-      const showMonth = i === 0 || day === 1;
-
       html += `
         <div class="${cls}" data-date="${date}">
-          <div class="md">${showMonth ? month + '/' : ''}${day}</div>
+          <div class="md">${month}/${day}</div>
           <div class="dow">${dow}</div>
         </div>
       `;
