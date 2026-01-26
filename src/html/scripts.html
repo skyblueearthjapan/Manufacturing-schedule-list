@@ -6076,12 +6076,110 @@ const ExcelGantt = {
     this.setupEventListeners();
     this.setupScrollSync();
     this.setupDragEvents();
+    this.setupCrossHighlight();
     Store.subscribe((state) => {
       if (state.currentView === 'master') {
         this.render();
       }
     });
     console.log('[ExcelGantt] Initialized');
+  },
+
+  // クロスハイライト（行・列ハイライト）設定
+  setupCrossHighlight() {
+    const grid = document.getElementById('excelGrid');
+    const leftRows = document.getElementById('excelLeftRows');
+    const timeHeader = document.getElementById('excelTimeHeaderCols');
+    const container = document.getElementById('gantt-excel-container');
+
+    if (!grid || !container) return;
+
+    // 現在ハイライト中の要素を追跡
+    this._highlightState = {
+      jobId: null,
+      dateIndex: null
+    };
+
+    // グリッド上でのマウス移動
+    grid.addEventListener('mousemove', (e) => {
+      const cell = e.target.closest('.excel-grid-cell');
+      const row = e.target.closest('.excel-grid-row');
+
+      if (cell && row) {
+        const jobId = row.dataset.jobId;
+        const dateIndex = Array.from(row.children).filter(c => c.classList.contains('excel-grid-cell')).indexOf(cell);
+
+        if (jobId !== this._highlightState.jobId || dateIndex !== this._highlightState.dateIndex) {
+          this.updateCrossHighlight(jobId, dateIndex);
+        }
+      }
+    });
+
+    // 左ペイン上でのマウス移動（行のみハイライト）
+    if (leftRows) {
+      leftRows.addEventListener('mousemove', (e) => {
+        const row = e.target.closest('.xl-row');
+        if (row) {
+          const jobId = row.dataset.jobId;
+          if (jobId !== this._highlightState.jobId) {
+            this.updateCrossHighlight(jobId, null);
+          }
+        }
+      });
+    }
+
+    // コンテナを離れたらハイライトをクリア
+    container.addEventListener('mouseleave', () => {
+      this.clearCrossHighlight();
+    });
+
+    console.log('[ExcelGantt] Cross highlight set up');
+  },
+
+  // クロスハイライトを更新
+  updateCrossHighlight(jobId, dateIndex) {
+    // 前回のハイライトをクリア
+    this.clearCrossHighlight();
+
+    this._highlightState = { jobId, dateIndex };
+
+    // 行ハイライト（左ペイン）
+    if (jobId) {
+      const leftRow = document.querySelector(`#excelLeftRows .xl-row[data-job-id="${jobId}"]`);
+      if (leftRow) leftRow.classList.add('highlight-row');
+
+      // 行ハイライト（グリッド）
+      const gridRow = document.querySelector(`#excelGrid .excel-grid-row[data-job-id="${jobId}"]`);
+      if (gridRow) gridRow.classList.add('highlight-row');
+    }
+
+    // 列ハイライト
+    if (dateIndex !== null && dateIndex >= 0) {
+      // 日付ヘッダー
+      const headerCols = document.querySelectorAll('#excelTimeHeaderCols .excel-time-col');
+      if (headerCols[dateIndex]) {
+        headerCols[dateIndex].classList.add('highlight-col');
+      }
+
+      // 全行のその列のセル
+      const gridRows = document.querySelectorAll('#excelGrid .excel-grid-row');
+      gridRows.forEach(row => {
+        const cells = row.querySelectorAll('.excel-grid-cell');
+        if (cells[dateIndex]) {
+          cells[dateIndex].classList.add('highlight-col');
+        }
+      });
+    }
+  },
+
+  // クロスハイライトをクリア
+  clearCrossHighlight() {
+    // 行ハイライトをクリア
+    document.querySelectorAll('.highlight-row').forEach(el => el.classList.remove('highlight-row'));
+    // 列ハイライトをクリア
+    document.querySelectorAll('.highlight-col').forEach(el => el.classList.remove('highlight-col'));
+
+    this._highlightState = { jobId: null, dateIndex: null };
   },
 
   // イベントリスナー設定

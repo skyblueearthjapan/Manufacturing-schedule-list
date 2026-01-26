@@ -5529,6 +5529,46 @@
     background: #e8f5e9 !important;
   }
 
+  /* ====== クロスハイライト（行・列ハイライト） ====== */
+  .xl-row.highlight-row {
+    background: #e3f2fd !important;
+  }
+  .xl-row.highlight-row:nth-child(even) {
+    background: #e3f2fd !important;
+  }
+
+  .excel-grid-row.highlight-row {
+    background: #e3f2fd !important;
+  }
+  .excel-grid-row.highlight-row:nth-child(even) {
+    background: #e3f2fd !important;
+  }
+
+  .excel-time-col.highlight-col {
+    background: #fff3e0 !important;
+  }
+  .excel-time-col.highlight-col.weekend {
+    background: #ffe0b2 !important;
+  }
+  .excel-time-col.highlight-col.today {
+    background: #bbdefb !important;
+  }
+
+  .excel-grid-cell.highlight-col {
+    background: #fff3e0 !important;
+  }
+  .excel-grid-cell.highlight-col.weekend {
+    background: #ffe0b2 !important;
+  }
+  .excel-grid-cell.highlight-col.today {
+    background: #bbdefb !important;
+  }
+
+  /* 行と列の交差点（クロスポイント）をさらに強調 */
+  .excel-grid-row.highlight-row .excel-grid-cell.highlight-col {
+    background: #ffcc80 !important;
+  }
+
   /* ====== 右のバー用レイヤ ====== */
   .excel-bars-layer {
     position: absolute;
