@@ -1083,6 +1083,13 @@ const Store = {
       this.init();
       this.setState({ isLoading: true });
       Utils.setLoading(true);
+
+      // ★ 未保存の変更（削除・完了等）を先にサーバーへ反映
+      if (ChangeBuffer.isDirty) {
+        console.log('[Store] Flushing pending changes before reload...');
+        await ChangeBuffer.flush('pre_reload');
+      }
+
       console.log('Loading bootstrap data...');
       console.log('Calling API.getBootstrapData with:', this.state.displayStartDate, this.state.displayDays);
 
@@ -1099,14 +1106,77 @@ const Store = {
       }
 
       // TopMemoは常にデフォルト折りたたみ（isOpenDefaultは無視）
-      const topMemos = data.topMemos || [];
+      let topMemos = data.topMemos || [];
+
+      let schedules = data.schedules || [];
+      let jobs = data.jobs || [];
+      let trips = data.trips || [];
+
+      // ★ flush失敗で未保存変更が残っている場合、楽観的変更を再適用
+      // （flush成功時はisDirty=falseとなりこのブロックはスキップされる）
+      if (ChangeBuffer.isDirty) {
+        console.log('[Store] Pending changes remain after flush, re-applying optimistic changes...');
+        const pending = [...ChangeBuffer.pendingChanges]; // スナップショットを取得
+
+        for (const change of pending) {
+          if (change.entityType === 'schedule' && change.op === 'delete') {
+            schedules = schedules.filter(s => s.scheduleId !== change.id);
+          } else if (change.entityType === 'job' && change.op === 'close') {
+            const idx = jobs.findIndex(j => j.jobId === change.id);
+            if (idx >= 0) {
+              jobs[idx] = { ...jobs[idx], status: 'closed', isHidden: true };
+            }
+          } else if (change.entityType === 'job' && change.op === 'delete') {
+            jobs = jobs.filter(j => j.jobId !== change.id);
+            schedules = schedules.filter(s => s.jobId !== change.id);
+            trips = trips.filter(t => t['jobId(任意)'] !== change.id && t.jobId !== change.id);
+          } else if (change.entityType === 'trip' && change.op === 'delete') {
+            trips = trips.filter(t => t.tripId !== change.id);
+          } else if (change.entityType === 'schedule' && change.op === 'upsert') {
+            const idx = schedules.findIndex(s => s.scheduleId === change.id);
+            if (idx >= 0) {
+              schedules[idx] = { ...schedules[idx], ...change.payload };
+            } else {
+              schedules.push({ scheduleId: change.id, ...change.payload });
+            }
+          } else if (change.entityType === 'job' && change.op === 'upsert') {
+            const idx = jobs.findIndex(j => j.jobId === change.id);
+            if (idx >= 0) {
+              jobs[idx] = { ...jobs[idx], ...change.payload };
+            } else {
+              jobs.push({ jobId: change.id, ...change.payload });
+            }
+          } else if (change.entityType === 'trip' && change.op === 'upsert') {
+            const idx = trips.findIndex(t => t.tripId === change.id);
+            if (idx >= 0) {
+              trips[idx] = { ...trips[idx], ...change.payload };
+            } else {
+              trips.push({ tripId: change.id, ...change.payload });
+            }
+          } else if (change.entityType === 'job' && change.op === 'reopen') {
+            const idx = jobs.findIndex(j => j.jobId === change.id);
+            if (idx >= 0) {
+              jobs[idx] = { ...jobs[idx], status: 'active', isHidden: false };
+            }
+          } else if (change.entityType === 'topMemo' && change.op === 'upsert') {
+            const idx = topMemos.findIndex(m => m.memoId === change.id);
+            if (idx >= 0) {
+              topMemos[idx] = { ...topMemos[idx], ...change.payload };
+            } else {
+              topMemos.push({ memoId: change.id, ...change.payload });
+            }
+          } else if (change.entityType === 'topMemo' && (change.op === 'delete' || change.op === 'setActive')) {
+            topMemos = topMemos.filter(m => m.memoId !== change.id);
+          }
+        }
+      }
 
       this.setState({
-        jobs: data.jobs || [],
+        jobs: jobs,
         processes: data.processes || [],
         people: data.people || [],
-        schedules: data.schedules || [],
-        trips: data.trips || [],
+        schedules: schedules,
+        trips: trips,
         jobMaster: data.jobMaster || [],
         workerJobAssign: data.workerJobAssign || [],
         topMemos: topMemos,
@@ -1118,10 +1188,10 @@ const Store = {
 
       Utils.setLoading(false);
       console.log('Bootstrap data loaded:', {
-        jobs: data.jobs?.length || 0,
+        jobs: jobs.length,
         processes: data.processes?.length || 0,
         people: data.people?.length || 0,
-        schedules: data.schedules?.length || 0
+        schedules: schedules.length
       });
     } catch (error) {
       console.error('Failed to load bootstrap data:', error);
