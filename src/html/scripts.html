@@ -8149,27 +8149,24 @@ const WorkerJobAssignView = {
   /**
    * 主担当を設定
    */
-  async assignMainPerson(jobId, personId) {
+  assignMainPerson(jobId, personId) {
     console.log('[WorkerJobAssignView] Assigning main person:', jobId, personId);
 
-    try {
-      // Store経由で更新
-      const job = Store.getJobById(jobId);
-      if (!job) {
-        Utils.showToast('工番が見つかりません', 'error');
-        return;
-      }
-
-      // Jobsの mainPersonId を更新（subPersonIdは維持）
-      await Store.updateJob(jobId, { mainPersonId: personId }, job.updatedAt);
-      Utils.showToast('主担当を設定しました', 'success');
-
-      // 再描画
-      this.render();
-    } catch (error) {
-      console.error('[WorkerJobAssignView] Failed to assign:', error);
-      Utils.showToast('担当者の設定に失敗しました', 'error');
+    const job = Store.getJobById(jobId);
+    if (!job) {
+      Utils.showToast('工番が見つかりません', 'error');
+      return;
     }
+
+    // 楽観的UI更新
+    const patch = { mainPersonId: personId };
+    Store.updateJobInStore(jobId, patch);
+
+    // ChangeBufferに記録（api_saveBatch経由で保存）
+    ChangeBuffer.add('job', 'upsert', jobId, patch, 'resource');
+
+    Utils.showToast('主担当を設定しました（保存待ち）', 'info');
+    this.render();
   },
 
   /**
@@ -8257,7 +8254,7 @@ const WorkerJobAssignView = {
   /**
    * モーダル保存
    */
-  async saveRoleModal(jobId) {
+  saveRoleModal(jobId) {
     const mainSelect = document.getElementById('wja-role-main');
     const subSelect = document.getElementById('wja-role-sub');
 
@@ -8266,22 +8263,22 @@ const WorkerJobAssignView = {
     const mainPersonId = mainSelect.value || '';
     const subPersonId = subSelect.value || '';
 
-    try {
-      const job = Store.getJobById(jobId);
-      if (!job) {
-        Utils.showToast('工番が見つかりません', 'error');
-        return;
-      }
-
-      await Store.updateJob(jobId, { mainPersonId, subPersonId }, job.updatedAt);
-      Utils.showToast('担当者を更新しました', 'success');
-
-      this.closeRoleModal();
-      this.render();
-    } catch (error) {
-      console.error('[WorkerJobAssignView] Failed to save role:', error);
-      Utils.showToast('保存に失敗しました', 'error');
+    const job = Store.getJobById(jobId);
+    if (!job) {
+      Utils.showToast('工番が見つかりません', 'error');
+      return;
     }
+
+    // 楽観的UI更新
+    const patch = { mainPersonId, subPersonId };
+    Store.updateJobInStore(jobId, patch);
+
+    // ChangeBufferに記録（api_saveBatch経由で保存）
+    ChangeBuffer.add('job', 'upsert', jobId, patch, 'resource');
+
+    Utils.showToast('担当者を更新しました（保存待ち）', 'info');
+    this.closeRoleModal();
+    this.render();
   },
 
   /**
