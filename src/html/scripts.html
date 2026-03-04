@@ -2329,9 +2329,10 @@ const Gantt = {
               </div>
               <div class="job-info-person">${personDisplay ? Utils.escapeHtml(personDisplay) : ''}</div>
               <button type="button"
-                class="job-edit-btn ml-2 text-xs px-2 py-0.5 rounded border border-gray-300 text-gray-600 hover:bg-gray-100 hover:border-gray-400"
+                class="job-edit-btn ml-2 text-xs px-2 py-0.5 rounded border border-gray-300 text-gray-600 hover:bg-gray-100 hover:border-gray-400 edit-only-btn"
                 onclick="event.stopPropagation(); JobModal.openEdit(Store.getJobById('${job.jobId}'));"
-                title="工番を編集">
+                title="工番を編集"
+                ${EditGuard.isEditing ? '' : 'style="display:none"'}>
                 ✎
               </button>
             </div>
@@ -3142,6 +3143,7 @@ const Modal = {
   },
 
   openEdit(schedule) {
+    if (!EditGuard.check()) return;
     this.isEditMode = true;
     this.currentSchedule = schedule;
 
@@ -3945,6 +3947,7 @@ const JobModal = {
   },
 
   openEdit(job) {
+    if (!EditGuard.check()) return;
     this.isEditMode = true;
     this.currentJob = job;
     this.resetForm();
@@ -4621,6 +4624,7 @@ const PeopleModal = {
   },
 
   openEdit(personId) {
+    if (!EditGuard.check()) return;
     const person = Store.getPersonById(personId);
     if (!person) {
       Utils.showToast('担当者が見つかりません', 'error');
@@ -6868,9 +6872,9 @@ const ExcelGantt = {
               <span class="product-name">${Utils.escapeHtml(product)}</span>
               <div class="xl-actions">
                 ${mainName ? `<span class="person-name">担当:${Utils.escapeHtml(mainName)}</span>` : ''}
-                <button type="button"
+                <button type="button" class="edit-only-btn"
                   onclick="event.stopPropagation(); JobModal.openEdit(Store.getJobById('${job.jobId}'));"
-                  title="工番を編集">✎</button>
+                  title="工番を編集" ${EditGuard.isEditing ? '' : 'style="display:none"'}>✎</button>
               </div>
             </div>
             <div class="xl-main-line2">
@@ -12181,6 +12185,16 @@ const App = {
     if (btnPeopleManage) {
       btnPeopleManage.style.display = editing ? '' : 'none';
     }
+
+    // 現在のビューを再描画して動的生成ボタンを更新
+    const view = Store.state.currentView;
+    if (view === 'master') {
+      Gantt.render();
+      ExcelGantt.render();
+    } else if (view === 'resource') {
+      WorkerJobAssignView.render();
+    }
+    TopMemoPanel.render();
   },
 
   // 工番検索のセットアップ

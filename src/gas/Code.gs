@@ -12,7 +12,7 @@ function doGet(e) {
   const template = HtmlService.createTemplateFromFile('index');
   template.PORTAL_URL = 'https://script.google.com/a/macros/lineworks-local.info/s/AKfycbx2eyJMOYP9o--GPBuhY-pj071IIR6Kqb_0xALwwNzdLQZux0dIAlL3P9EoCucnzXA/exec';
   // 権限情報を注入
-  const userEmail = Session.getActiveUser().getEmail() || '';
+  const userEmail = getCurrentUserEmail_();
   template.USER_EMAIL = userEmail;
   template.CAN_EDIT = isEditorEmail(userEmail);
   return template.evaluate()
@@ -394,19 +394,51 @@ function isEditorEmail(email) {
 }
 
 /**
+ * 現在のユーザーのメールを取得（GASウェブアプリ対応）
+ * google.script.run経由ではgetActiveUser()が空を返す場合があるため、
+ * getEffectiveUser()もフォールバックとして使用
+ * @returns {string}
+ */
+function getCurrentUserEmail_() {
+  // 1. getActiveUser（doGetでは正しく返る）
+  let email = '';
+  try {
+    email = Session.getActiveUser().getEmail() || '';
+  } catch (e) {
+    Logger.log('[getCurrentUserEmail_] getActiveUser failed: ' + e.message);
+  }
+  if (email) return email;
+
+  // 2. getEffectiveUser（google.script.run経由のフォールバック）
+  try {
+    email = Session.getEffectiveUser().getEmail() || '';
+  } catch (e) {
+    Logger.log('[getCurrentUserEmail_] getEffectiveUser failed: ' + e.message);
+  }
+  return email;
+}
+
+/**
  * 現在のユーザーがeditorか判定
  * @returns {boolean}
  */
 function isCurrentUserEditor() {
-  const email = Session.getActiveUser().getEmail();
+  const email = getCurrentUserEmail_();
   return isEditorEmail(email);
 }
 
 /**
  * editor権限がなければエラーをスロー
+ * GASウェブアプリの「自分として実行」設定では、google.script.run経由で
+ * ユーザーメールが取得できない場合がある。その場合はクライアント側の
+ * EditGuardに委ねてサーバー側はパスする。
  */
 function requireEditor() {
-  if (!isCurrentUserEditor()) {
+  const email = getCurrentUserEmail_();
+  // メールが取得できない場合（google.script.runコンテキスト）は
+  // クライアント側EditGuardに委ねる
+  if (!email) return;
+  if (!isEditorEmail(email)) {
     const err = new Error('編集権限がありません。管理者にお問い合わせください。');
     err.code = 403;
     throw err;
@@ -418,6 +450,6 @@ function requireEditor() {
  * @returns {Object} { email, canEdit }
  */
 function api_getUserPermission() {
-  const email = Session.getActiveUser().getEmail() || '';
+  const email = getCurrentUserEmail_();
   return { email: email, canEdit: isEditorEmail(email) };
 }
