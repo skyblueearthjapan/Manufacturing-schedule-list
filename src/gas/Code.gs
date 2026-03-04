@@ -10,6 +10,7 @@
  */
 function doGet(e) {
   const template = HtmlService.createTemplateFromFile('index');
+  template.PORTAL_URL = 'https://script.google.com/a/macros/lineworks-local.info/s/AKfycbx2eyJMOYP9o--GPBuhY-pj071IIR6Kqb_0xALwwNzdLQZux0dIAlL3P9EoCucnzXA/exec';
   return template.evaluate()
     .setTitle('生産工程表')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
