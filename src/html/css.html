@@ -6118,4 +6118,36 @@
     min-width: 24px;
     text-align: right;
   }
+
+  /* ========================================
+     閲覧モード（edit-mode-off）スタイル
+     ======================================== */
+  body.edit-mode-off .gantt-bar .bar-handle,
+  body.edit-mode-off .excel-bar .bar-handle,
+  body.edit-mode-off .job-bar .job-bar-handle,
+  body.edit-mode-off .trip-bar .bar-handle {
+    display: none !important;
+  }
+
+  body.edit-mode-off .gantt-grid-cell,
+  body.edit-mode-off .trip-grid-cell,
+  body.edit-mode-off .travel-grid-cell {
+    cursor: default !important;
+  }
+
+  body.edit-mode-off .gantt-bar,
+  body.edit-mode-off .excel-bar,
+  body.edit-mode-off .job-bar,
+  body.edit-mode-off .trip-bar {
+    cursor: default !important;
+  }
+
+  body.edit-mode-off .excel-bar-delete,
+  body.edit-mode-off .job-bar-delete {
+    display: none !important;
+  }
+
+  body.edit-mode-off .wja-assign-btn {
+    display: none !important;
+  }
 </style>

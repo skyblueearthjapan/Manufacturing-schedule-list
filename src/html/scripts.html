@@ -498,6 +498,30 @@ const API = {
 console.log('[DEBUG] API defined');
 
 // ========================================
+// EditGuard - 編集権限ガード
+// ========================================
+
+const EditGuard = {
+  /** 編集可能かチェック。不可ならtoast表示してfalseを返す */
+  check() {
+    if (!Store.state.canEdit) {
+      Toast.show('編集権限がありません', 'error');
+      return false;
+    }
+    if (!Store.state.editMode) {
+      Toast.show('編集モードをONにしてください', 'warning');
+      return false;
+    }
+    return true;
+  },
+
+  /** 現在編集可能状態か（UI表示制御用） */
+  get isEditing() {
+    return Store.state.canEdit && Store.state.editMode;
+  }
+};
+
+// ========================================
 // ChangeBuffer - 変更バッファ（A+C+Bプラン共通基盤）
 // ========================================
 
@@ -599,6 +623,7 @@ const ChangeBuffer = {
    * @param {string} sourceView - 'master' | 'jobDetail' | 'travel' | 'weekly'
    */
   add(entityType, op, id, payload, sourceView) {
+    if (!EditGuard.check()) return;
     // 同一IDの既存変更を検索
     const existingIndex = this.pendingChanges.findIndex(
       c => c.entityType === entityType && c.id === id
@@ -1051,7 +1076,11 @@ const Store = {
     displayDays: 120,
     currentView: 'master',
     isLoading: false,
-    lastFetchedAt: null
+    lastFetchedAt: null,
+    // 権限管理
+    userEmail: '',
+    canEdit: false,
+    editMode: false
   },
 
   init() {
@@ -2531,6 +2560,8 @@ const Gantt = {
     grid.addEventListener('mousedown', (e) => {
       // 左クリック以外は無視
       if (e.button !== 0) return;
+      // 編集モードOFF時はドラッグ無効
+      if (!EditGuard.isEditing) return;
       // バー上でのドラッグは無視
       if (e.target.closest('.gantt-bar, .gantt-milestone')) return;
 
@@ -2989,6 +3020,7 @@ const DaySettingButtons = {
    * @param {string} type - 'WORKDAY' or 'HOLIDAY'
    */
   async toggle(type) {
+    if (!EditGuard.check()) return;
     const dateISO = this.currentDateISO;
     if (!dateISO) return;
 
@@ -3063,6 +3095,7 @@ const Modal = {
   },
 
   openNew(jobId, startDate, endDate) {
+    if (!EditGuard.check()) return;
     this.isEditMode = false;
     this.currentSchedule = null;
 
@@ -3241,6 +3274,7 @@ const Modal = {
   },
 
   save() {
+    if (!EditGuard.check()) return;
     // 日付設定のみ変更された場合（工程未入力）は、バリデーションせずに閉じる
     const processId = document.getElementById('entry-process').value;
     if (DaySettingButtons.hasChanged && (!processId || processId === '__new__')) {
@@ -3280,6 +3314,7 @@ const Modal = {
   },
 
   delete() {
+    if (!EditGuard.check()) return;
     if (!this.isEditMode || !this.currentSchedule) return;
     if (!confirm('この工程を削除しますか？')) return;
 
@@ -3409,8 +3444,8 @@ const TopMemoPanel = {
           <span class="top-memo-item-body">${Utils.escapeHtml(body)}</span>
         </span>
         <span class="top-memo-item-actions">
-          <button class="top-memo-item-btn edit" data-memo-id="${memo.memoId}" title="編集">✏</button>
-          <button class="top-memo-item-btn delete" data-memo-id="${memo.memoId}" title="非表示">🗑</button>
+          <button class="top-memo-item-btn edit edit-only-btn" data-memo-id="${memo.memoId}" title="編集" ${EditGuard.isEditing ? '' : 'style="display:none"'}>✏</button>
+          <button class="top-memo-item-btn delete edit-only-btn" data-memo-id="${memo.memoId}" title="非表示" ${EditGuard.isEditing ? '' : 'style="display:none"'}>🗑</button>
         </span>
       </li>
     `;
@@ -3446,6 +3481,7 @@ const TopMemoPanel = {
 
   // モーダル関連
   openEditModal(memoId) {
+    if (!EditGuard.check()) return;
     const modal = document.getElementById('modal-top-memo');
     const titleEl = document.getElementById('top-memo-modal-title');
     const idInput = document.getElementById('top-memo-edit-id');
@@ -3479,6 +3515,7 @@ const TopMemoPanel = {
    * モーダルから保存（A+C+B統合：即UI反映→ChangeBuffer経由で保存）
    */
   saveFromModal() {
+    if (!EditGuard.check()) return;
     const idInput = document.getElementById('top-memo-edit-id');
     const titleInput = document.getElementById('top-memo-edit-title');
     const bodyInput = document.getElementById('top-memo-edit-body');
@@ -3521,6 +3558,7 @@ const TopMemoPanel = {
    * メモ削除（A+C+B統合：即UI反映→ChangeBuffer経由で保存）
    */
   deleteMemo(memoId) {
+    if (!EditGuard.check()) return;
     if (!confirm('このメモを非表示にしますか？')) return;
 
     // A: 即時UI反映（楽観的削除）
@@ -3563,6 +3601,7 @@ const ProcessModal = {
   },
 
   open(onSuccess = null) {
+    if (!EditGuard.check()) return;
     this._onSuccess = onSuccess;
 
     // フォームリセット
@@ -3638,6 +3677,7 @@ const ProcessModal = {
   },
 
   async save() {
+    if (!EditGuard.check()) return;
     const payload = this.validate();
     if (!payload) return;
 
@@ -3883,6 +3923,7 @@ const JobModal = {
   },
 
   openNew() {
+    if (!EditGuard.check()) return;
     this.isEditMode = false;
     this.currentJob = null;
     this.resetForm();
@@ -3965,6 +4006,7 @@ const JobModal = {
 
   // 工番を完了（非表示）にする
   closeJob() {
+    if (!EditGuard.check()) return;
     if (!this.currentJob) return;
 
     const jobId = this.currentJob.jobId;
@@ -3985,6 +4027,7 @@ const JobModal = {
 
   // 工番の完了を解除（再開）
   reopenJob() {
+    if (!EditGuard.check()) return;
     if (!this.currentJob) return;
 
     const jobId = this.currentJob.jobId;
@@ -4001,6 +4044,7 @@ const JobModal = {
 
   // 削除確認モーダルを表示
   showDeleteConfirm() {
+    if (!EditGuard.check()) return;
     if (!this.currentJob) return;
 
     const jobNo = this.currentJob['工番'];
@@ -4019,6 +4063,7 @@ const JobModal = {
 
   // 削除を実行
   executeDelete() {
+    if (!EditGuard.check()) return;
     if (!this.currentJob) return;
 
     // 二重防御: 入力値が一致しない場合は削除しない
@@ -4104,6 +4149,7 @@ const JobModal = {
   },
 
   async save() {
+    if (!EditGuard.check()) return;
     const payload = this.validate();
     if (!payload) return;
 
@@ -5250,6 +5296,8 @@ const JobDetail = {
   onPointerDown(e) {
     // 左クリック以外は無視
     if (e.button !== 0) return;
+    // 編集モードOFF時はドラッグ無効
+    if (!EditGuard.isEditing) return;
 
     // 削除ボタンのクリック判定
     const deleteBtn = e.target.closest('.job-bar-delete');
@@ -6321,6 +6369,8 @@ const ExcelGantt = {
   onPointerDown(e) {
     // 左クリック以外は無視
     if (e.button !== 0) return;
+    // 編集モードOFF時はドラッグ無効
+    if (!EditGuard.isEditing) return;
 
     // 削除ボタンのクリック判定
     const deleteBtn = e.target.closest('.excel-bar-delete');
@@ -7930,12 +7980,12 @@ const WorkerJobAssignView = {
     const jobId = job.jobId || '';
 
     // 担当者設定ボタン（クリックでモーダルを開く、ドラッグ開始を阻止）
-    const assignBtn = `<button type="button"
-                              class="wja-assign-btn"
+    const assignBtn = EditGuard.isEditing ? `<button type="button"
+                              class="wja-assign-btn edit-only-btn"
                               data-job-id="${Utils.escapeHtml(jobId)}"
                               onmousedown="event.stopPropagation();"
                               onclick="event.stopPropagation(); WorkerJobAssignView.openRoleModal('${Utils.escapeHtml(jobId)}')"
-                              title="担当者を設定">担当設定</button>`;
+                              title="担当者を設定">担当設定</button>` : '';
 
     return `
       <div class="wja-card wja-card-draggable wja-unassigned-card"
@@ -8150,6 +8200,7 @@ const WorkerJobAssignView = {
    * 主担当を設定
    */
   assignMainPerson(jobId, personId) {
+    if (!EditGuard.check()) return;
     console.log('[WorkerJobAssignView] Assigning main person:', jobId, personId);
 
     const job = Store.getJobById(jobId);
@@ -8173,6 +8224,7 @@ const WorkerJobAssignView = {
    * 主副変更モーダルを開く
    */
   openRoleModal(jobId) {
+    if (!EditGuard.check()) return;
     const job = Store.getJobById(jobId);
     if (!job) {
       Utils.showToast('工番が見つかりません', 'error');
@@ -9292,6 +9344,7 @@ const TripModal = {
    * @param {string} endDate - 終了日
    */
   openNew(personId, startDate, endDate) {
+    if (!EditGuard.check()) return;
     this._presetPersonId = personId;
     this.open(null);
 
@@ -9403,6 +9456,7 @@ const TripModal = {
   },
 
   async save() {
+    if (!EditGuard.check()) return;
     const personId = document.getElementById('trip-person').value;
     const start = document.getElementById('trip-start').value;
     const end = document.getElementById('trip-end').value;
@@ -9455,6 +9509,7 @@ const TripModal = {
   },
 
   delete() {
+    if (!EditGuard.check()) return;
     if (!this.currentTrip) return;
 
     if (!confirm('この出張予定を削除しますか？')) return;
@@ -9469,6 +9524,7 @@ const TripModal = {
   },
 
   lock() {
+    if (!EditGuard.check()) return;
     if (!this.currentTrip) return;
 
     if (!confirm('この予定を確定しますか？確定後は編集できなくなります。')) return;
@@ -9605,6 +9661,7 @@ const TravelPlan = {
   },
 
   async generateTrips() {
+    if (!EditGuard.check()) return;
     try {
       Utils.setLoading(true);
       const rangeEnd = Utils.addDays(this.displayStartDate, this.displayDays);
@@ -9630,6 +9687,7 @@ const TravelPlan = {
    * TSCカレンダーから出張計画を同期
    */
   async syncTSCCalendar() {
+    if (!EditGuard.check()) return;
     // 確認ダイアログ
     const rangeEnd = Utils.addDays(this.displayStartDate, this.displayDays);
     const confirmed = confirm(
@@ -10002,6 +10060,7 @@ const TravelPlan = {
       // ポインターダウン：ドラッグ開始
       bar.addEventListener('pointerdown', (e) => {
         if (e.button !== 0) return;
+        if (!EditGuard.isEditing) return;
         e.stopPropagation();
         e.preventDefault();
 
@@ -10150,6 +10209,7 @@ const TravelPlan = {
       // mousedown: 選択開始
       cell.addEventListener('mousedown', (e) => {
         if (e.button !== 0) return;  // 左クリックのみ
+        if (!EditGuard.isEditing) return;  // 編集モードOFF時は無効
         e.preventDefault();
 
         const personId = cell.dataset.personId;
@@ -10657,6 +10717,7 @@ const TravelPlan = {
       // ポインターダウン：ドラッグ開始
       bar.addEventListener('pointerdown', (e) => {
         if (e.button !== 0) return;
+        if (!EditGuard.isEditing) return;
         e.stopPropagation();
         e.preventDefault();
 
@@ -10812,6 +10873,7 @@ const TravelPlan = {
       // mousedown: 選択開始
       cell.addEventListener('mousedown', (e) => {
         if (e.button !== 0) return;  // 左クリックのみ
+        if (!EditGuard.isEditing) return;  // 編集モードOFF時は無効
         e.preventDefault();
 
         const personId = cell.dataset.personId;
@@ -11972,6 +12034,14 @@ const App = {
 
     Store.init();
 
+    // 権限情報をStoreに設定
+    Store.state.userEmail = window.__USER_EMAIL__ || '';
+    Store.state.canEdit = !!window.__CAN_EDIT__;
+    Store.state.editMode = false; // デフォルトOFF
+
+    // 編集モードトグル初期化
+    this.initEditMode();
+
     // 共通基盤初期化
     ChangeBuffer.init();
     SaveBar.init();
@@ -12058,6 +12128,59 @@ const App = {
     this.setupJobSearch();
     // 担当者検索（大工程表用）
     this.setupPersonSearch();
+  },
+
+  // 編集モードトグルの初期化
+  initEditMode() {
+    const container = document.getElementById('edit-mode-toggle-container');
+    const toggle = document.getElementById('edit-mode-toggle');
+    const label = document.getElementById('edit-mode-label');
+
+    if (!container || !toggle) return;
+
+    // editor権限がある場合のみトグルを表示
+    if (Store.state.canEdit) {
+      container.classList.remove('hidden');
+      container.classList.add('flex');
+    }
+
+    toggle.addEventListener('change', (e) => {
+      Store.state.editMode = e.target.checked;
+      if (e.target.checked) {
+        label.textContent = '編集モード';
+        label.classList.remove('text-gray-500');
+        label.classList.add('text-blue-600');
+        document.body.classList.remove('edit-mode-off');
+        document.body.classList.add('edit-mode-on');
+      } else {
+        label.textContent = '閲覧モード';
+        label.classList.remove('text-blue-600');
+        label.classList.add('text-gray-500');
+        document.body.classList.remove('edit-mode-on');
+        document.body.classList.add('edit-mode-off');
+      }
+      this.applyEditModeUI();
+    });
+
+    // 初期状態: 閲覧モード
+    document.body.classList.add('edit-mode-off');
+    this.applyEditModeUI();
+  },
+
+  // 編集モードに応じたUI要素の表示/非表示
+  applyEditModeUI() {
+    const editing = EditGuard.isEditing;
+
+    // 編集ボタン群の表示切替
+    document.querySelectorAll('.edit-only-btn').forEach(el => {
+      el.style.display = editing ? '' : 'none';
+    });
+
+    // 担当者管理ボタン
+    const btnPeopleManage = document.getElementById('btn-people-manage');
+    if (btnPeopleManage) {
+      btnPeopleManage.style.display = editing ? '' : 'none';
+    }
   },
 
   // 工番検索のセットアップ
@@ -12362,6 +12485,7 @@ const ProcessOrderSettings = {
   },
 
   async save() {
+    if (!EditGuard.check()) return;
     const newOrder = this.orderedProcesses.map(p => p.processId);
 
     // 変更がなければ閉じる

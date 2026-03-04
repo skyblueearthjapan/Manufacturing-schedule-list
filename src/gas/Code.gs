@@ -11,6 +11,10 @@
 function doGet(e) {
   const template = HtmlService.createTemplateFromFile('index');
   template.PORTAL_URL = 'https://script.google.com/a/macros/lineworks-local.info/s/AKfycbx2eyJMOYP9o--GPBuhY-pj071IIR6Kqb_0xALwwNzdLQZux0dIAlL3P9EoCucnzXA/exec';
+  // 権限情報を注入
+  const userEmail = Session.getActiveUser().getEmail() || '';
+  template.USER_EMAIL = userEmail;
+  template.CAN_EDIT = isEditorEmail(userEmail);
   return template.evaluate()
     .setTitle('生産工程表')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
@@ -227,10 +231,12 @@ function api_setTopMemoActive(memoId, isActive) {
 
 // ========== PDF管理 API ==========
 function api_uploadJobPdf(jobNo, pdfType, fileName, base64Data) {
+  requireEditor();
   return sanitizeForClient(uploadJobPdf(jobNo, pdfType, fileName, base64Data));
 }
 
 function api_deleteJobPdf(jobNo, pdfType) {
+  requireEditor();
   return sanitizeForClient(deleteJobPdf(jobNo, pdfType));
 }
 
@@ -239,6 +245,7 @@ function api_getJobPdfInfo(jobNo) {
 }
 
 function api_setDaySetting(dateISO, type, memo) {
+  requireEditor();
   return sanitizeForClient(setDaySetting(dateISO, type, memo));
 }
 
@@ -270,6 +277,7 @@ function api_testCalendarConnection() {
  * @returns {Object} 同期結果
  */
 function api_syncTSCCalendarToTrips(startDate, endDate) {
+  requireEditor();
   return sanitizeForClient(syncTSCCalendarToTrips(startDate, endDate));
 }
 
@@ -343,4 +351,73 @@ function testGetBootstrapData() {
     Logger.log('✗ エラー: ' + error.message);
     throw error;
   }
+}
+
+// ========== 権限管理 ==========
+
+/**
+ * Permissionsシートからeditor権限のメール一覧を取得
+ * @returns {string[]} editorメールアドレスの配列
+ */
+function getEditorEmails() {
+  try {
+    const sheet = getSheet(CONFIG.SHEETS.PERMISSIONS);
+    const data = sheet.getDataRange().getValues();
+    if (data.length < 2) return [];
+    const headers = data[0];
+    const emailIdx = headers.indexOf('email');
+    const roleIdx = headers.indexOf('role');
+    const activeIdx = headers.indexOf('isActive');
+    if (emailIdx === -1 || roleIdx === -1) return [];
+    return data.slice(1)
+      .filter(row => {
+        const role = String(row[roleIdx]).toLowerCase();
+        const active = activeIdx === -1 ? true : row[activeIdx] === true || String(row[activeIdx]).toUpperCase() === 'TRUE';
+        return role === 'editor' && active;
+      })
+      .map(row => String(row[emailIdx]).toLowerCase().trim());
+  } catch (e) {
+    Logger.log('[getEditorEmails] error: ' + e.message);
+    return [];
+  }
+}
+
+/**
+ * 指定メールがeditorか判定
+ * @param {string} email
+ * @returns {boolean}
+ */
+function isEditorEmail(email) {
+  if (!email) return false;
+  const editors = getEditorEmails();
+  return editors.includes(email.toLowerCase().trim());
+}
+
+/**
+ * 現在のユーザーがeditorか判定
+ * @returns {boolean}
+ */
+function isCurrentUserEditor() {
+  const email = Session.getActiveUser().getEmail();
+  return isEditorEmail(email);
+}
+
+/**
+ * editor権限がなければエラーをスロー
+ */
+function requireEditor() {
+  if (!isCurrentUserEditor()) {
+    const err = new Error('編集権限がありません。管理者にお問い合わせください。');
+    err.code = 403;
+    throw err;
+  }
+}
+
+/**
+ * クライアント用: ユーザー権限情報取得API
+ * @returns {Object} { email, canEdit }
+ */
+function api_getUserPermission() {
+  const email = Session.getActiveUser().getEmail() || '';
+  return { email: email, canEdit: isEditorEmail(email) };
 }

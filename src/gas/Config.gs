@@ -33,7 +33,8 @@ const CONFIG = {
     WORKER_JOB_ASSIGN: 'WorkerJobAssign',
     TOP_MEMO: 'TopMemo',
     JOB_PROCESS_LAYOUT: 'JobProcessLayout',
-    DAY_SETTINGS: '04_DaySettings'
+    DAY_SETTINGS: '04_DaySettings',
+    PERMISSIONS: 'Permissions'
   },
 
   // デフォルト表示日数

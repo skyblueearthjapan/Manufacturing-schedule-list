@@ -63,6 +63,15 @@
 
         <!-- コントロール -->
         <div class="flex items-center space-x-3">
+          <!-- 編集モードトグル（editor権限者のみ表示） -->
+          <div id="edit-mode-toggle-container" class="hidden flex items-center space-x-2 mr-2">
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="edit-mode-toggle" class="sr-only peer">
+              <div class="w-9 h-5 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+            </label>
+            <span id="edit-mode-label" class="text-xs font-medium text-gray-500">閲覧モード</span>
+          </div>
+
           <!-- 表示期間 -->
           <div class="flex items-center space-x-2 text-sm">
             <label class="text-gray-600">表示開始:</label>
@@ -114,7 +123,7 @@
         <span id="top-memo-count" class="top-memo-count">0</span>
       </button>
       <div class="top-memo-actions">
-        <button id="top-memo-add" class="top-memo-action-btn" title="新規メモ追加">
+        <button id="top-memo-add" class="top-memo-action-btn edit-only-btn" title="新規メモ追加">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M12 5v14M5 12h14"/>
           </svg>
@@ -130,7 +139,7 @@
       <!-- 空状態 -->
       <div id="top-memo-empty" class="top-memo-empty hidden">
         <span>メモがありません</span>
-        <button id="top-memo-add-empty" class="top-memo-add-link">＋ 追加</button>
+        <button id="top-memo-add-empty" class="top-memo-add-link edit-only-btn">＋ 追加</button>
       </div>
     </div>
   </div>
@@ -1274,6 +1283,12 @@
 
   <!-- トースト通知 -->
   <div id="toast-container" class="fixed bottom-4 right-4 space-y-2" style="z-index: 10002;"></div>
+
+  <!-- サーバーサイド権限情報の注入 -->
+  <script>
+    window.__USER_EMAIL__ = '<?= USER_EMAIL ?>';
+    window.__CAN_EDIT__ = <?= CAN_EDIT ?>;
+  </script>
 
   <!-- JavaScript（統合ファイル） -->
   <?!= include('scripts'); ?>

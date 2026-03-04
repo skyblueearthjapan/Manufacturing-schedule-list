@@ -1913,6 +1913,7 @@ function searchExternalJobMaster(query, limit = 20) {
  * @returns {Object} - { ok: boolean, results: { schedule: {...}, trip: {...}, job: {...}, topMemo: {...} } }
  */
 function api_saveBatch(payload) {
+  requireEditor();
   const { changes, clientRevision, user } = payload;
 
   if (!changes || !Array.isArray(changes) || changes.length === 0) {
