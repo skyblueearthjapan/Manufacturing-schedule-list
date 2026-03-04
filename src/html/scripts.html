@@ -6944,6 +6944,14 @@ const ExcelGantt = {
     });
 
     container.innerHTML = html;
+
+    // ヘッダーpadding-rightをスクロールバー幅に同期（カラム線ズレ防止）
+    const rows = document.getElementById('excelLeftRows');
+    const header = document.querySelector('.excel-left-header');
+    if (rows && header) {
+      const sbW = rows.offsetWidth - rows.clientWidth;
+      header.style.paddingRight = sbW + 'px';
+    }
   },
 
   // グリッド背景描画
