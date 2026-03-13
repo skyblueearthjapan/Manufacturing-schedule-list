@@ -12136,6 +12136,73 @@ const App = {
       });
     });
 
+    // ========================================
+    // ResponsiveHelper - タブレット・スマホ対応
+    // PC表示（1025px以上）は一切変更しない
+    // ========================================
+    const ResponsiveHelper = {
+      isLeftPaneCollapsed: false,
+
+      init() {
+        this.applyViewportConfig();
+        window.addEventListener('resize', Utils.debounce(() => {
+          this.applyViewportConfig();
+        }, 300));
+      },
+
+      /**
+       * ビューポート幅に応じて設定を動的に切り替え
+       */
+      applyViewportConfig() {
+        const w = window.innerWidth;
+        if (w <= 767) {
+          // スマホ
+          ExcelGantt.config.leftPaneWidth = 180;
+          ExcelGantt.config.colWidth = 24;
+          ExcelGantt.config.rowHeight = 38;
+          ExcelGantt.config.headerHeight = 40;
+          if (typeof PersonGanttOverlay !== 'undefined') {
+            PersonGanttOverlay.config.leftPaneWidth = 180;
+          }
+        } else if (w <= 1024) {
+          // タブレット
+          ExcelGantt.config.leftPaneWidth = 300;
+          if (typeof PersonGanttOverlay !== 'undefined') {
+            PersonGanttOverlay.config.leftPaneWidth = 300;
+          }
+        } else {
+          // PC - デフォルト値に戻す
+          ExcelGantt.config.leftPaneWidth = 520;
+          ExcelGantt.config.colWidth = 28;
+          ExcelGantt.config.rowHeight = 44;
+          ExcelGantt.config.headerHeight = 50;
+          if (typeof PersonGanttOverlay !== 'undefined') {
+            PersonGanttOverlay.config.leftPaneWidth = 520;
+          }
+          // PCでは折りたたみを解除
+          this.isLeftPaneCollapsed = false;
+          const leftPane = document.querySelector('.excel-left-pane');
+          const wrap = document.querySelector('.excel-gantt-wrap');
+          if (leftPane) leftPane.classList.remove('collapsed');
+          if (wrap) wrap.classList.remove('left-collapsed');
+        }
+      },
+
+      /**
+       * スマホ用：左ペインの折りたたみトグル
+       */
+      toggleLeftPane() {
+        this.isLeftPaneCollapsed = !this.isLeftPaneCollapsed;
+        const leftPane = document.querySelector('.excel-left-pane');
+        const wrap = document.querySelector('.excel-gantt-wrap');
+        const btn = document.getElementById('mobileLeftToggle');
+
+        if (leftPane) leftPane.classList.toggle('collapsed', this.isLeftPaneCollapsed);
+        if (wrap) wrap.classList.toggle('left-collapsed', this.isLeftPaneCollapsed);
+        if (btn) btn.textContent = this.isLeftPaneCollapsed ? '◀工番' : '工番';
+      }
+    };
+
     window.addEventListener('resize', Utils.debounce(() => {
       Gantt.updateTodayLinePosition();
     }, 200));
@@ -12578,6 +12645,7 @@ console.log('[DEBUG] App defined');
 document.addEventListener('DOMContentLoaded', () => {
   console.log('[DEBUG] DOMContentLoaded - starting App.init()');
   App.init();
+  ResponsiveHelper.init();
 });
 
 console.log('[DEBUG] scripts.html fully loaded');

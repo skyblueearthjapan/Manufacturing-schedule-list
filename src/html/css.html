@@ -6169,4 +6169,278 @@
     pointer-events: none !important;
     opacity: 0.6;
   }
+
+  /* ========================================
+     レスポンシブ対応 - タブレット
+     PC表示（1025px以上）は一切変更しない
+     ======================================== */
+  @media screen and (max-width: 1024px) {
+    /* --- 左ペイン幅縮小 --- */
+    :root {
+      --excel-left-w: 300px;
+    }
+
+    /* No列を非表示、日付列を縮小 */
+    .xl-row,
+    .xl-header-row {
+      grid-template-columns: 0px 1fr 65px 65px;
+    }
+    .xl-row .xl-no,
+    .xl-header-row > div:first-child {
+      display: none;
+    }
+
+    /* 設備名称を省略表示 */
+    .xl-main .xl-main-line1 .product-name {
+      max-width: 120px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      display: inline-block;
+    }
+    .xl-main .xl-main-line2 {
+      font-size: 9px;
+    }
+
+    /* 日付入力欄を縮小 */
+    .xl-ship, .xl-draw {
+      font-size: 9px;
+      padding: 1px !important;
+    }
+    .xl-date-input-small {
+      font-size: 9px !important;
+      padding: 0 1px !important;
+    }
+
+    /* ヘッダー圧縮 */
+    header .max-w-full {
+      padding: 4px 8px;
+    }
+    header h1 {
+      font-size: 14px;
+    }
+
+    /* ナビタブを小さく */
+    .nav-tab {
+      padding: 4px 8px;
+      font-size: 11px;
+    }
+
+    /* コントロール欄圧縮 */
+    header .flex.items-center.space-x-3 {
+      gap: 4px;
+    }
+    header .flex.items-center.space-x-3 .flex.items-center.space-x-2.text-sm {
+      font-size: 11px;
+    }
+    header .flex.items-center.space-x-3 .flex.items-center.space-x-2.text-sm label {
+      display: none;
+    }
+    #display-start-date, #display-days {
+      font-size: 11px;
+      padding: 2px 4px;
+    }
+
+    /* 完了工番チェックボックスのラベル省略 */
+    label[title="完了した工番も表示"] span {
+      font-size: 10px;
+    }
+
+    /* ツールバー圧縮 */
+    #view-master > .flex.items-center.justify-between {
+      padding: 2px 6px;
+    }
+    #job-search-input {
+      width: 80px;
+      font-size: 10px;
+    }
+    #person-search-input {
+      width: 64px;
+      font-size: 10px;
+    }
+
+    /* main 高さ調整（ヘッダー圧縮分） */
+    main {
+      height: calc(100vh - 48px - 20px);
+    }
+
+    /* 埋め込み出張ペイン幅も追従 */
+    .embedded-trip-person-header,
+    .embedded-trip-person-info {
+      width: var(--excel-left-w);
+    }
+  }
+
+  /* ========================================
+     レスポンシブ対応 - スマートフォン
+     ======================================== */
+  @media screen and (max-width: 767px) {
+    /* --- 左ペイン: 折りたたみ式 --- */
+    :root {
+      --excel-left-w: 180px;
+      --excel-col-w: 24px;
+      --excel-row-h: 38px;
+      --excel-header-h: 40px;
+      --excel-font: 10px;
+      --excel-font-small: 9px;
+    }
+
+    /* 左ペイン折りたたみ対応 */
+    .excel-left-pane {
+      transition: width 0.3s ease, min-width 0.3s ease, opacity 0.3s ease;
+      min-width: var(--excel-left-w);
+    }
+    .excel-left-pane.collapsed {
+      min-width: 0;
+      width: 0 !important;
+      overflow: hidden;
+      opacity: 0;
+      border-right: none;
+    }
+    .excel-gantt-wrap.left-collapsed {
+      grid-template-columns: 0px 1fr;
+    }
+
+    /* No列・出荷予定日・出図日を非表示 */
+    .xl-row,
+    .xl-header-row {
+      grid-template-columns: 0px 1fr 0px 0px;
+    }
+    .xl-row .xl-no,
+    .xl-header-row > div:first-child,
+    .xl-row .xl-ship,
+    .xl-row .xl-draw,
+    .xl-header-row > div:nth-child(3),
+    .xl-header-row > div:nth-child(4) {
+      display: none;
+    }
+
+    /* 設備名称さらに省略 */
+    .xl-main .xl-main-line1 .product-name {
+      max-width: 100px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      display: inline-block;
+    }
+    .xl-main .xl-main-line1 {
+      font-size: 10px;
+    }
+    .xl-main .xl-main-line2 {
+      font-size: 8px;
+    }
+
+    /* ヘッダー大幅圧縮 */
+    header .max-w-full {
+      padding: 2px 4px;
+    }
+    header h1 {
+      font-size: 12px;
+    }
+    header .flex.items-center.justify-between {
+      flex-wrap: wrap;
+      gap: 2px;
+    }
+
+    /* ナビタブ: 横スクロール */
+    #nav-tabs {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      white-space: nowrap;
+      max-width: 60vw;
+      gap: 2px;
+    }
+    #nav-tabs::-webkit-scrollbar {
+      display: none;
+    }
+    .nav-tab {
+      padding: 3px 6px;
+      font-size: 10px;
+      flex-shrink: 0;
+    }
+
+    /* ポータルリンク非表示 */
+    .portal-link {
+      display: none;
+    }
+
+    /* コントロール: 2行目に折り返し */
+    header .flex.items-center.space-x-3 {
+      flex-wrap: wrap;
+      gap: 2px;
+    }
+    header .flex.items-center.space-x-3 .flex.items-center.space-x-2.text-sm {
+      font-size: 10px;
+    }
+    header .flex.items-center.space-x-3 .flex.items-center.space-x-2.text-sm label {
+      display: none;
+    }
+    #display-start-date {
+      font-size: 10px;
+      padding: 1px 2px;
+      width: 110px;
+    }
+    #display-days {
+      font-size: 10px;
+      padding: 1px 2px;
+    }
+
+    /* 完了工番ラベル非表示(チェックボックスのみ残す) */
+    label[title="完了した工番も表示"] span {
+      display: none;
+    }
+
+    /* ツールバーさらに圧縮 */
+    #view-master > .flex.items-center.justify-between {
+      padding: 1px 4px;
+    }
+    #job-search-input {
+      width: 60px;
+      font-size: 9px;
+    }
+    #person-search-input {
+      width: 50px;
+      font-size: 9px;
+    }
+
+    /* main 高さ調整 */
+    main {
+      height: calc(100vh - 36px - 10px);
+    }
+
+    /* 左ペインの折りたたみトグルボタン */
+    .mobile-left-toggle {
+      display: flex;
+      position: fixed;
+      left: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      z-index: 100;
+      background: #2563eb;
+      color: white;
+      border: none;
+      border-radius: 0 6px 6px 0;
+      padding: 8px 4px;
+      font-size: 14px;
+      cursor: pointer;
+      box-shadow: 2px 2px 6px rgba(0,0,0,0.3);
+      writing-mode: vertical-rl;
+      letter-spacing: 2px;
+    }
+    .mobile-left-toggle:active {
+      background: #1d4ed8;
+    }
+
+    /* 埋め込み出張ペイン */
+    .embedded-trip-person-header,
+    .embedded-trip-person-info {
+      width: var(--excel-left-w);
+    }
+  }
+
+  /* タブレット・スマホ共通：トグルボタンはPC非表示 */
+  .mobile-left-toggle {
+    display: none;
+  }
 </style>
