@@ -4502,11 +4502,12 @@
   .embedded-trip-content {
     max-height: 250px;
     overflow: hidden;
-    transition: max-height 0.3s ease-out;
+    /* transition廃止: 大量DOM要素のレイアウト再計算でガタつくため即時切替 */
   }
 
   .embedded-trip-section.collapsed .embedded-trip-content {
     max-height: 0;
+    overflow: hidden;
   }
 
   .embedded-trip-container {

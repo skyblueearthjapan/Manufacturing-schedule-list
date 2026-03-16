@@ -2762,33 +2762,12 @@ const Gantt = {
    */
   toggleTripSection() {
     const section = document.getElementById('gantt-trip-section');
-    if (section) {
-      const wasCollapsed = section.classList.contains('collapsed');
-      if (wasCollapsed) {
-        // 展開時: 先にコンテンツを非表示のまま描画してからトランジション開始
-        const container = document.getElementById('gantt-trip-container');
-        if (container) container.style.visibility = 'hidden';
-        section.classList.remove('collapsed');
-        // トランジション完了後にコンテンツを描画して一括表示
-        const onTransitionEnd = () => {
-          section.removeEventListener('transitionend', onTransitionEnd);
-          this.renderTrips();
-          if (container) {
-            requestAnimationFrame(() => {
-              container.style.visibility = '';
-            });
-          }
-        };
-        section.addEventListener('transitionend', onTransitionEnd);
-        // フォールバック（transitionendが発火しない場合）
-        setTimeout(() => {
-          section.removeEventListener('transitionend', onTransitionEnd);
-          this.renderTrips();
-          if (container) container.style.visibility = '';
-        }, 500);
-      } else {
-        section.classList.add('collapsed');
-      }
+    if (!section) return;
+    const wasCollapsed = section.classList.contains('collapsed');
+    section.classList.toggle('collapsed');
+    // 展開時: 即時描画（CSSトランジション廃止済み）
+    if (wasCollapsed) {
+      this.renderTrips();
     }
   },
 
