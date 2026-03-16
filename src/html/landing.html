@@ -183,8 +183,10 @@
       autoRedirectCancelled = true;
       if (countdownInterval) clearInterval(countdownInterval);
 
-      var baseUrl = window.location.href.split('?')[0];
-      window.location.href = baseUrl + '?mode=' + mode;
+      // GAS WebAppはiframe内で動作するため、window.locationではなく
+      // サーバーから注入された正しいURLを使用する
+      var baseUrl = '<?= BASE_URL ?>';
+      window.top.location.href = baseUrl + '?mode=' + mode;
     }
 
     // ページ読み込み後に自動判定開始

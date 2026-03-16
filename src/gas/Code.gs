@@ -13,7 +13,9 @@ function doGet(e) {
 
   // mode未指定 → ランディング（起動分岐）画面
   if (!mode) {
-    return HtmlService.createHtmlOutputFromFile('landing')
+    var landingTemplate = HtmlService.createTemplateFromFile('landing');
+    landingTemplate.BASE_URL = ScriptApp.getService().getUrl();
+    return landingTemplate.evaluate()
       .setTitle('生産工程表')
       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
       .addMetaTag('viewport', 'width=device-width, initial-scale=1');
