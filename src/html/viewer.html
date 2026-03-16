@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>生産工程表 - 簡易ビュアー</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#2563eb',
+            secondary: '#64748b',
+            accent: '#f59e0b',
+            success: '#10b981',
+            danger: '#ef4444',
+            weekend: '#fef9c3',
+            today: '#dbeafe'
+          }
+        }
+      }
+    }
+  </script>
+  <?!= include('css'); ?>
+  <?!= include('viewer-css'); ?>
+</head>
+<body class="bg-white min-h-screen flex flex-col">
+
+  <!-- ========== ヘッダー（固定） ========== -->
+  <header class="bg-primary text-white sticky top-0 z-50 shadow-md">
+    <div class="flex items-center justify-between px-3 py-2" style="min-height: 48px;">
+      <!-- 左: 戻るボタン -->
+      <button id="viewer-back-btn" type="button"
+              onclick="window.top.location.href='<?= PORTAL_URL ?>';"
+              class="flex items-center text-white text-sm font-medium px-2 py-2 rounded-lg active:bg-blue-700 transition"
+              style="min-width: 44px; min-height: 44px;">
+        <span class="mr-1">&larr;</span> 戻る
+      </button>
+
+      <!-- 中央: タイトル -->
+      <h1 class="text-base font-bold tracking-wide select-none">生産工程表</h1>
+
+      <!-- 右: 更新ボタン -->
+      <button id="viewer-refresh-btn" type="button"
+              class="flex items-center justify-center text-white text-sm font-medium px-2 py-2 rounded-lg active:bg-blue-700 transition"
+              style="min-width: 44px; min-height: 44px;">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round"
+                d="M4 4v5h5M20 20v-5h-5M4.93 9a8 8 0 0113.14 0M19.07 15a8 8 0 01-13.14 0"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- ========== タブバー（固定、ヘッダー下） ========== -->
+  <nav class="bg-white border-b border-gray-200 sticky z-40" style="top: 48px;">
+    <div id="viewer-tabs" class="flex overflow-x-auto no-scrollbar" style="-webkit-overflow-scrolling: touch;">
+      <button type="button" class="viewer-tab active" data-tab="search"
+              style="min-height: 44px; white-space: nowrap; padding: 10px 14px; font-size: 14px;">
+        &#x1F50D; 工程検索
+      </button>
+      <button type="button" class="viewer-tab" data-tab="weekly"
+              style="min-height: 44px; white-space: nowrap; padding: 10px 14px; font-size: 14px;">
+        &#x1F4C5; 今週の予定
+      </button>
+      <button type="button" class="viewer-tab" data-tab="travel"
+              style="min-height: 44px; white-space: nowrap; padding: 10px 14px; font-size: 14px;">
+        &#x2708; 出張計画
+      </button>
+      <button type="button" class="viewer-tab" data-tab="calendar"
+              style="min-height: 44px; white-space: nowrap; padding: 10px 14px; font-size: 14px;">
+        TSC予定
+      </button>
+      <button type="button" class="viewer-tab" data-tab="electrical"
+              style="min-height: 44px; white-space: nowrap; padding: 10px 14px; font-size: 14px;">
+        電気予定
+      </button>
+    </div>
+  </nav>
+
+  <!-- ========== コンテンツエリア（スクロール可能） ========== -->
+  <main class="flex-1 overflow-y-auto" id="viewer-content" style="padding-bottom: 24px;">
+
+    <!-- ===== (a) 工程スケジュール検索 ===== -->
+    <section id="tab-search" class="viewer-panel">
+      <!-- 検索バー（パネル内固定） -->
+      <div class="sticky bg-white z-30 px-3 py-3 border-b border-gray-100" style="top: 0;">
+        <div class="flex items-center gap-2">
+          <input type="search" id="viewer-search-input"
+                 class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
+                 style="min-height: 44px; font-size: 16px;"
+                 placeholder="工番・客先・製品名で検索"
+                 enterkeyhint="search"
+                 autocomplete="off">
+          <button type="button" id="viewer-search-btn"
+                  class="bg-primary text-white rounded-lg px-4 py-2 text-sm font-medium active:bg-blue-700 transition flex-shrink-0"
+                  style="min-height: 44px;">
+            検索
+          </button>
+        </div>
+      </div>
+
+      <!-- 検索結果一覧（カード形式） -->
+      <div id="viewer-search-results" class="px-3 py-2 space-y-2">
+        <!-- 検索前の案内メッセージ -->
+        <div class="text-center text-gray-400 py-12 text-sm">
+          工番・客先・製品名を入力して検索してください
+        </div>
+      </div>
+
+      <!-- 工番別工程表表示エリア（インライン） -->
+      <div id="viewer-job-detail" class="hidden">
+        <div class="sticky bg-white z-30 px-3 py-2 border-b border-gray-100" style="top: 0;">
+          <button type="button" id="viewer-back-to-search"
+                  class="flex items-center text-primary text-sm font-medium px-2 py-2 rounded-lg active:bg-blue-50 transition"
+                  style="min-height: 44px;">
+            <span class="mr-1">&larr;</span> 検索結果に戻る
+          </button>
+        </div>
+        <div id="viewer-job-detail-content" class="px-3 py-2">
+          <!-- 既存JobDetailの表示がここに挿入される -->
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== (b) 今週の予定 ===== -->
+    <section id="tab-weekly" class="viewer-panel hidden">
+      <div id="viewer-weekly-container" class="px-3 py-3">
+        <!-- WeeklyPlan.render() の出力先 -->
+        <div class="text-center text-gray-400 py-12 text-sm">読み込み中...</div>
+      </div>
+    </section>
+
+    <!-- ===== (c) 出張計画 ===== -->
+    <section id="tab-travel" class="viewer-panel hidden">
+      <div id="viewer-travel-container" class="px-3 py-3">
+        <!-- TravelPlan.renderEmbedded() の出力先 -->
+        <div class="text-center text-gray-400 py-12 text-sm">読み込み中...</div>
+      </div>
+    </section>
+
+    <!-- ===== (d) TSC予定 ===== -->
+    <section id="tab-calendar" class="viewer-panel hidden">
+      <div id="viewer-calendar-container" class="px-3 py-3">
+        <!-- CalendarEventViewer + 埋め込み出張計画 -->
+        <div class="text-center text-gray-400 py-12 text-sm">読み込み中...</div>
+      </div>
+    </section>
+
+    <!-- ===== (e) 電気予定 ===== -->
+    <section id="tab-electrical" class="viewer-panel hidden">
+      <div id="viewer-electrical-container" class="px-3 py-3">
+        <!-- CalendarEventViewer + 埋め込み出張計画 -->
+        <div class="text-center text-gray-400 py-12 text-sm">読み込み中...</div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ========== ローディングオーバーレイ ========== -->
+  <div id="viewer-loading" class="fixed inset-0 bg-white bg-opacity-80 z-[9999] flex items-center justify-center hidden">
+    <div class="flex flex-col items-center gap-3">
+      <div class="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+      <span class="text-sm text-gray-500 font-medium">読み込み中...</span>
+    </div>
+  </div>
+
+  <!-- ========== スクリプト読み込み ========== -->
+  <script>
+    // ビュアーモードフラグ（scripts.html読み込み前に設定）
+    window.__VIEWER_MODE__ = true;
+    window.__CAN_EDIT__ = false;
+    window.__USER_EMAIL__ = '<?= USER_EMAIL ?>';
+  </script>
+  <?!= include('scripts'); ?>
+  <?!= include('viewer-scripts'); ?>
+
+</body>
+</html>

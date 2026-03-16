@@ -1,0 +1,698 @@
+<style>
+  /* ========================================
+     モバイル簡易ビュアー専用CSS
+     - .viewer- プレフィックスで既存CSSと競合回避
+     - iOS Safari対応（-webkit-系プロパティ）
+     ======================================== */
+
+  /* ----------------------------------------
+     1. 全体レイアウト
+     ---------------------------------------- */
+  .viewer-app {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    height: 100dvh; /* iOS Safari: アドレスバー考慮 */
+    overflow: hidden;
+    background: #f3f4f6;
+  }
+
+  /* ----------------------------------------
+     2. ヘッダー
+     ---------------------------------------- */
+  .viewer-header {
+    height: 48px;
+    min-height: 48px;
+    background: #2563eb;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    font-size: 16px;
+    font-weight: 600;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+    z-index: 100;
+    position: relative;
+  }
+
+  .viewer-header-title {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .viewer-header-action {
+    background: none;
+    border: none;
+    color: #fff;
+    font-size: 20px;
+    padding: 4px 8px;
+    cursor: pointer;
+    opacity: 0.9;
+  }
+
+  .viewer-header-action:active {
+    opacity: 0.6;
+  }
+
+  /* ----------------------------------------
+     3. タブバー
+     ---------------------------------------- */
+  .viewer-tab-bar {
+    height: 44px;
+    min-height: 44px;
+    background: #fff;
+    display: flex;
+    overflow-x: auto;
+    overflow-y: hidden;
+    white-space: nowrap;
+    z-index: 99;
+    position: relative;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    /* スクロールバー非表示 */
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .viewer-tab-bar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .viewer-tab {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 16px;
+    height: 44px;
+    font-size: 13px;
+    color: #6b7280;
+    border: none;
+    background: none;
+    cursor: pointer;
+    white-space: nowrap;
+    position: relative;
+    transition: color 0.15s ease;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    flex-shrink: 0;
+  }
+
+  .viewer-tab.active {
+    color: #2563eb;
+    font-weight: 600;
+    border-bottom: 3px solid #2563eb;
+  }
+
+  .viewer-tab:not(.active):active {
+    color: #374151;
+    background: #f9fafb;
+  }
+
+  /* ----------------------------------------
+     4. コンテンツエリア
+     ---------------------------------------- */
+  .viewer-content {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    padding: 12px;
+    position: relative;
+  }
+
+  /* ----------------------------------------
+     5. 検索バー
+     ---------------------------------------- */
+  .viewer-search-bar {
+    position: sticky;
+    top: 0;
+    background: #fff;
+    padding: 12px;
+    margin: -12px -12px 12px -12px;
+    z-index: 10;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  .viewer-search-wrap {
+    position: relative;
+  }
+
+  .viewer-search-icon {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #9ca3af;
+    font-size: 16px;
+    pointer-events: none;
+  }
+
+  .viewer-search-input {
+    width: 100%;
+    height: 44px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    padding: 0 12px 0 40px;
+    font-size: 16px; /* 16px以上でiOS自動ズーム防止 */
+    background: #f9fafb;
+    color: #111827;
+    outline: none;
+    -webkit-appearance: none;
+    appearance: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  .viewer-search-input:focus {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+    background: #fff;
+  }
+
+  .viewer-search-input::placeholder {
+    color: #9ca3af;
+  }
+
+  .viewer-search-clear {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: #e5e7eb;
+    border: none;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    font-size: 14px;
+    color: #6b7280;
+    cursor: pointer;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    touch-action: manipulation;
+  }
+
+  .viewer-search-clear.visible {
+    display: flex;
+  }
+
+  /* ----------------------------------------
+     6. 検索結果カード
+     ---------------------------------------- */
+  .viewer-search-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .viewer-job-card {
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    padding: 12px;
+    cursor: pointer;
+    transition: transform 0.1s ease, box-shadow 0.1s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .viewer-job-card:active {
+    transform: scale(0.98);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  }
+
+  .viewer-job-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 4px;
+  }
+
+  .viewer-job-number {
+    font-weight: 600;
+    font-size: 15px;
+    color: #111827;
+  }
+
+  .viewer-job-ship-date {
+    font-size: 12px;
+    color: #6b7280;
+    text-align: right;
+    white-space: nowrap;
+    flex-shrink: 0;
+    margin-left: 8px;
+  }
+
+  .viewer-job-ship-date.overdue {
+    color: #dc2626;
+    font-weight: 600;
+  }
+
+  .viewer-job-customer {
+    font-size: 13px;
+    color: #6b7280;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .viewer-job-product {
+    font-size: 13px;
+    color: #6b7280;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .viewer-search-empty {
+    text-align: center;
+    padding: 40px 16px;
+    color: #9ca3af;
+    font-size: 14px;
+  }
+
+  .viewer-search-empty-icon {
+    font-size: 48px;
+    margin-bottom: 12px;
+    opacity: 0.5;
+  }
+
+  /* ----------------------------------------
+     7. 工番別工程表（ビュアー内）
+     ---------------------------------------- */
+  #viewer-job-detail {
+    width: 100%;
+  }
+
+  .viewer-back-button {
+    position: sticky;
+    top: 0;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    background: #fff;
+    border: none;
+    border-bottom: 1px solid #e5e7eb;
+    padding: 0 12px;
+    font-size: 14px;
+    color: #2563eb;
+    cursor: pointer;
+    z-index: 5;
+    width: 100%;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    margin: -12px -12px 12px -12px;
+    width: calc(100% + 24px);
+  }
+
+  .viewer-back-button:active {
+    background: #f3f4f6;
+  }
+
+  .viewer-back-arrow {
+    margin-right: 8px;
+    font-size: 18px;
+  }
+
+  .viewer-gantt-scroll {
+    overflow-x: auto;
+    overflow-y: visible;
+    -webkit-overflow-scrolling: touch;
+    margin: 0 -12px;
+    padding: 0 12px;
+  }
+
+  .viewer-gantt-scroll table {
+    min-width: 600px;
+  }
+
+  .viewer-gantt-scroll th,
+  .viewer-gantt-scroll td {
+    font-size: 11px;
+    padding: 2px 1px;
+    text-align: center;
+  }
+
+  .viewer-gantt-scroll .gantt-cell {
+    width: 20px;
+    min-width: 20px;
+    max-width: 20px;
+  }
+
+  /* ----------------------------------------
+     8. 今週の予定（ビュアー内）
+     ---------------------------------------- */
+  .viewer-weekly-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin: 0 -12px;
+    padding: 0 12px;
+  }
+
+  .viewer-weekly-table-wrap table {
+    font-size: 12px;
+    min-width: 500px;
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .viewer-weekly-table-wrap th,
+  .viewer-weekly-table-wrap td {
+    padding: 6px 4px;
+    border: 1px solid #e5e7eb;
+    white-space: nowrap;
+  }
+
+  .viewer-weekly-table-wrap th {
+    background: #f9fafb;
+    font-weight: 600;
+    font-size: 11px;
+    color: #374151;
+  }
+
+  .viewer-weekly-job-cell {
+    min-width: 120px;
+  }
+
+  /* ----------------------------------------
+     9. 出張計画（ビュアー内）
+     ---------------------------------------- */
+  .viewer-trip-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin: 0 -12px;
+    padding: 0 12px;
+  }
+
+  .viewer-trip-left-pane {
+    width: 120px;
+    min-width: 120px;
+    flex-shrink: 0;
+  }
+
+  .viewer-trip-wrap table {
+    font-size: 12px;
+    min-width: 400px;
+  }
+
+  /* ----------------------------------------
+     10. カレンダー表示（TSC/電気）
+     ---------------------------------------- */
+  .viewer-calendar-section {
+    margin-bottom: 16px;
+  }
+
+  .viewer-calendar-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 8px;
+    padding: 0 4px;
+  }
+
+  .viewer-calendar-month-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 1px;
+    background: #e5e7eb;
+    border: 1px solid #e5e7eb;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .viewer-calendar-day-header {
+    background: #f9fafb;
+    text-align: center;
+    font-size: 11px;
+    font-weight: 600;
+    color: #6b7280;
+    padding: 4px 2px;
+  }
+
+  .viewer-calendar-day {
+    background: #fff;
+    min-height: 60px;
+    padding: 4px;
+    font-size: 11px;
+    position: relative;
+  }
+
+  .viewer-calendar-day.today {
+    background: #eff6ff;
+  }
+
+  .viewer-calendar-day.other-month {
+    background: #f9fafb;
+    color: #d1d5db;
+  }
+
+  .viewer-calendar-day-number {
+    font-weight: 600;
+    font-size: 12px;
+    margin-bottom: 2px;
+  }
+
+  .viewer-calendar-event {
+    font-size: 11px;
+    line-height: 1.3;
+    padding: 1px 3px;
+    margin-bottom: 1px;
+    border-radius: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .viewer-calendar-event.tsc {
+    background: #dbeafe;
+    color: #1e40af;
+  }
+
+  .viewer-calendar-event.electrical {
+    background: #fef3c7;
+    color: #92400e;
+  }
+
+  .viewer-calendar-nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+
+  .viewer-calendar-nav-btn {
+    background: #fff;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 13px;
+    color: #374151;
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .viewer-calendar-nav-btn:active {
+    background: #f3f4f6;
+  }
+
+  .viewer-calendar-month-label {
+    font-size: 15px;
+    font-weight: 600;
+    color: #111827;
+  }
+
+  /* ----------------------------------------
+     11. ローディングオーバーレイ
+     ---------------------------------------- */
+  .viewer-loading {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.8);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+  }
+
+  .viewer-loading.hidden {
+    display: none;
+  }
+
+  .viewer-spinner {
+    width: 36px;
+    height: 36px;
+    border: 3px solid #e5e7eb;
+    border-top-color: #2563eb;
+    border-radius: 50%;
+    animation: viewer-spin 0.7s linear infinite;
+  }
+
+  @keyframes viewer-spin {
+    to { transform: rotate(360deg); }
+  }
+
+  .viewer-loading-text {
+    margin-top: 12px;
+    font-size: 13px;
+    color: #6b7280;
+  }
+
+  /* ----------------------------------------
+     12. タブコンテンツの表示切り替え
+     ---------------------------------------- */
+  .viewer-tab-content {
+    display: none;
+  }
+
+  .viewer-tab-content.active {
+    display: block;
+  }
+
+  /* ----------------------------------------
+     13. レスポンシブ調整
+     ---------------------------------------- */
+  @media (min-width: 768px) {
+    /* タブレット: カード2列表示 */
+    .viewer-search-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .viewer-content {
+      padding: 16px;
+    }
+
+    .viewer-gantt-scroll .gantt-cell {
+      width: 24px;
+      min-width: 24px;
+      max-width: 24px;
+    }
+
+    .viewer-calendar-day {
+      min-height: 80px;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    /* PC: カード3列表示 */
+    .viewer-search-grid {
+      grid-template-columns: 1fr 1fr 1fr;
+    }
+
+    .viewer-content {
+      padding: 20px;
+    }
+
+    .viewer-gantt-scroll .gantt-cell {
+      width: 28px;
+      min-width: 28px;
+      max-width: 28px;
+    }
+
+    .viewer-calendar-day {
+      min-height: 100px;
+    }
+
+    .viewer-calendar-event {
+      font-size: 12px;
+    }
+  }
+
+  /* ----------------------------------------
+     14. 印刷非表示
+     ---------------------------------------- */
+  @media print {
+    .viewer-header,
+    .viewer-tab-bar {
+      display: none;
+    }
+
+    .viewer-content {
+      overflow: visible;
+      padding: 0;
+    }
+
+    .viewer-loading {
+      display: none;
+    }
+  }
+
+  /* ----------------------------------------
+     15. タッチ操作最適化
+     ---------------------------------------- */
+  .viewer-job-card {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  button,
+  .viewer-tab {
+    touch-action: manipulation;
+  }
+
+  /* iOS Safariのsafe area対応 */
+  @supports (padding-bottom: env(safe-area-inset-bottom)) {
+    .viewer-app {
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+  }
+
+  /* ----------------------------------------
+     ユーティリティ
+     ---------------------------------------- */
+  .viewer-hidden {
+    display: none !important;
+  }
+
+  .viewer-text-truncate {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .viewer-section-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 8px;
+  }
+
+  .viewer-empty-state {
+    text-align: center;
+    padding: 40px 16px;
+    color: #9ca3af;
+    font-size: 14px;
+  }
+
+  .viewer-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 9999px;
+    font-size: 11px;
+    font-weight: 500;
+  }
+
+  .viewer-badge-blue {
+    background: #dbeafe;
+    color: #1e40af;
+  }
+
+  .viewer-badge-green {
+    background: #d1fae5;
+    color: #065f46;
+  }
+
+  .viewer-badge-red {
+    background: #fee2e2;
+    color: #991b1b;
+  }
+
+  .viewer-badge-gray {
+    background: #f3f4f6;
+    color: #4b5563;
+  }
+</style>

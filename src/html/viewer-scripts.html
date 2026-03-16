@@ -1,0 +1,1004 @@
+<script>
+// ==========================================
+// MobileViewer - モバイル簡易ビュアー
+// scripts.html の後に読み込まれる前提
+// Store, API, Utils, WeeklyPlan, TravelPlan,
+// CalendarView, ElectricalView, CalendarEventViewer,
+// JobDetail 等の全モジュールが利用可能
+// ==========================================
+
+console.log('[MobileViewer] viewer-scripts.html loaded');
+
+const MobileViewer = {
+  currentTab: 'search',
+  searchResults: [],
+  isShowingJobDetail: false,
+
+  // ---------- 初期化 ----------
+  async init() {
+    console.log('[MobileViewer] init() start');
+
+    try {
+      // 1. Store初期化（既存モジュール利用）
+      Store.init();
+      Store.state.canEdit = false;   // 閲覧専用を強制
+      Store.state.editMode = false;
+
+      // 2. タブイベント設定
+      this.setupTabs();
+
+      // 3. 検索イベント設定
+      this.setupSearch();
+
+      // 4. 戻るボタン設定
+      this.setupBackButton();
+
+      // 5. 更新ボタン設定
+      this.setupRefreshButton();
+
+      // 6. データ読み込み
+      await this.loadData();
+
+      // 7. 初期タブ表示
+      this.switchTab('search');
+
+      console.log('[MobileViewer] init() complete');
+    } catch (e) {
+      console.error('[MobileViewer] init error:', e);
+      this.showLoading(false);
+    }
+  },
+
+  // ---------- データ読み込み ----------
+  async loadData() {
+    this.showLoading(true);
+    try {
+      // Store.loadBootstrapData() は引数なし
+      // state.displayStartDate と state.displayDays を使用する
+      const today = Utils.getToday();
+      Store.state.displayStartDate = today;
+      Store.state.displayDays = 120;
+
+      console.log('[MobileViewer] Loading bootstrap data...');
+      await Store.loadBootstrapData();
+      console.log('[MobileViewer] Bootstrap data loaded:', {
+        jobs: Store.state.jobs.length,
+        schedules: Store.state.schedules.length,
+        processes: Store.state.processes.length,
+        people: Store.state.people.length,
+        trips: Store.state.trips.length
+      });
+    } catch (e) {
+      console.error('[MobileViewer] データ読み込みエラー:', e);
+      this.showError('データの読み込みに失敗しました。更新ボタンで再試行してください。');
+    } finally {
+      this.showLoading(false);
+    }
+  },
+
+  // ---------- タブ切り替え ----------
+  setupTabs() {
+    document.querySelectorAll('.viewer-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        this.switchTab(tab.dataset.tab);
+      });
+    });
+  },
+
+  switchTab(tabName) {
+    console.log('[MobileViewer] switchTab:', tabName);
+    this.currentTab = tabName;
+
+    // タブUIの更新
+    document.querySelectorAll('.viewer-tab').forEach(t => {
+      if (t.dataset.tab === tabName) {
+        t.classList.add('active');
+      } else {
+        t.classList.remove('active');
+      }
+    });
+
+    // パネルの表示切り替え
+    document.querySelectorAll('.viewer-panel').forEach(panel => {
+      const panelTab = panel.id.replace('tab-', '');
+      if (panelTab === tabName) {
+        panel.classList.remove('hidden');
+      } else {
+        panel.classList.add('hidden');
+      }
+    });
+
+    // タブ切り替え時にコンテンツを描画
+    this.renderTabContent(tabName);
+  },
+
+  renderTabContent(tabName) {
+    // データ未読み込みの場合はスキップ
+    if (!Store.state.jobs || Store.state.jobs.length === 0) {
+      console.log('[MobileViewer] Data not loaded yet, skipping render for:', tabName);
+      return;
+    }
+
+    switch (tabName) {
+      case 'search':
+        // 初回のみ全件表示
+        if (this.searchResults.length === 0 && !this.isShowingJobDetail) {
+          this.doSearch('');
+        }
+        break;
+      case 'weekly':
+        this.renderWeekly();
+        break;
+      case 'travel':
+        this.renderTravel();
+        break;
+      case 'calendar':
+        this.renderCalendar();
+        break;
+      case 'electrical':
+        this.renderElectrical();
+        break;
+    }
+  },
+
+  // ---------- 工程スケジュール検索 ----------
+  setupSearch() {
+    const input = document.getElementById('viewer-search-input');
+    const btn = document.getElementById('viewer-search-btn');
+
+    if (!input) {
+      console.warn('[MobileViewer] Search input not found');
+      return;
+    }
+
+    // リアルタイム検索（debounce 300ms）
+    let debounceTimer;
+    input.addEventListener('input', () => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => this.doSearch(input.value), 300);
+    });
+
+    // 検索ボタン
+    if (btn) {
+      btn.addEventListener('click', () => this.doSearch(input.value));
+    }
+
+    // Enterキー
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        this.doSearch(input.value);
+      }
+    });
+  },
+
+  doSearch(query) {
+    const q = (query || '').trim().toLowerCase();
+
+    if (!q) {
+      // 空の場合: 全工番を表示（非表示除く、最大50件）
+      this.searchResults = (Store.state.jobs || [])
+        .filter(j => !j.isHidden)
+        .slice(0, 50);
+    } else {
+      // フィルタリング: 工番、顧客名、納入先、製品名で検索
+      this.searchResults = (Store.state.jobs || [])
+        .filter(j => !j.isHidden)
+        .filter(j => {
+          const jobNo = (j['工番'] || '').toLowerCase();
+          const customer = (j['顧客名'] || '').toLowerCase();
+          const destination = (j['納入先'] || '').toLowerCase();
+          const product = (j['設備/製品名'] || '').toLowerCase();
+          return jobNo.includes(q) || customer.includes(q) ||
+                 destination.includes(q) || product.includes(q);
+        })
+        .slice(0, 50);
+    }
+
+    console.log('[MobileViewer] Search results:', this.searchResults.length, 'query:', q || '(empty)');
+    this.renderSearchResults();
+  },
+
+  renderSearchResults() {
+    const container = document.getElementById('viewer-search-results');
+    if (!container) return;
+
+    if (this.searchResults.length === 0) {
+      container.innerHTML = '<div class="text-center text-gray-400 py-12 text-sm">該当する工番が見つかりません</div>';
+      return;
+    }
+
+    const html = this.searchResults.map(job => {
+      const jobNo = Utils.escapeHtml(job['工番'] || '');
+      const customer = Utils.escapeHtml(job['顧客名'] || '');
+      const destination = Utils.escapeHtml(job['納入先'] || '');
+      const product = Utils.escapeHtml(job['設備/製品名'] || '');
+      const shipDate = job['出荷予定日'] ? Utils.formatShortDate(job['出荷予定日']) : '';
+      const drawDate = job['出図予定日'] ? Utils.formatShortDate(job['出図予定日']) : '';
+      const displayCustomer = destination || customer;
+
+      return `
+        <div class="viewer-job-card" data-job-id="${job.jobId}" onclick="MobileViewer.openJobDetail('${job.jobId}')">
+          <div class="viewer-job-card-header">
+            <span class="viewer-job-no">${jobNo}</span>
+            ${shipDate ? `<span class="viewer-ship-date">出荷: ${shipDate}</span>` : ''}
+          </div>
+          <div class="viewer-job-card-body">
+            <div class="viewer-job-customer">${displayCustomer}</div>
+            <div class="viewer-job-product">${product}</div>
+          </div>
+          ${drawDate ? `<div class="viewer-job-card-footer">出図: ${drawDate}</div>` : ''}
+        </div>
+      `;
+    }).join('');
+
+    container.innerHTML = html;
+  },
+
+  // ---------- 工番別工程表表示 ----------
+  async openJobDetail(jobId) {
+    console.log('[MobileViewer] openJobDetail:', jobId);
+    this.isShowingJobDetail = true;
+
+    // 検索結果エリアを隠して工程表エリアを表示
+    const searchResults = document.getElementById('viewer-search-results');
+    const searchBar = searchResults ? searchResults.previousElementSibling : null;
+    const detailArea = document.getElementById('viewer-job-detail');
+
+    // 検索バー＋結果を非表示
+    if (searchResults) searchResults.style.display = 'none';
+    if (searchBar && searchBar.querySelector('#viewer-search-input')) {
+      searchBar.style.display = 'none';
+    }
+
+    // 工番詳細エリアを表示
+    if (detailArea) {
+      detailArea.classList.remove('hidden');
+      detailArea.style.display = 'block';
+    }
+
+    try {
+      const job = Store.getJobById(jobId);
+      if (!job) {
+        const contentDiv = document.getElementById('viewer-job-detail-content');
+        if (contentDiv) {
+          contentDiv.innerHTML = '<div class="text-center text-red-500 py-8">工番データが見つかりません</div>';
+        }
+        return;
+      }
+
+      // 工番詳細のインライン描画
+      this.renderJobDetailInline(jobId, job);
+    } catch (e) {
+      console.error('[MobileViewer] 工番別工程表表示エラー:', e);
+      const contentDiv = document.getElementById('viewer-job-detail-content');
+      if (contentDiv) {
+        contentDiv.innerHTML = '<div class="text-center text-red-500 py-8">表示エラーが発生しました</div>';
+      }
+    }
+  },
+
+  renderJobDetailInline(jobId, job) {
+    const contentDiv = document.getElementById('viewer-job-detail-content');
+    if (!contentDiv) return;
+
+    const jobNo = Utils.escapeHtml(job['工番'] || '');
+    const customer = Utils.escapeHtml(job['顧客名'] || '');
+    const destination = Utils.escapeHtml(job['納入先'] || '');
+    const product = Utils.escapeHtml(job['設備/製品名'] || '');
+    const qty = job['台数'] || '';
+    const shipDate = job['出荷予定日'] ? Utils.formatShortDate(job['出荷予定日']) : '-';
+    const drawDate = job['出図予定日'] ? Utils.formatShortDate(job['出図予定日']) : '-';
+    const displayCustomer = destination || customer;
+
+    // 該当工番のスケジュールを取得
+    const schedules = Store.state.schedules.filter(s => s.jobId === jobId);
+    const processes = Store.state.processes || [];
+
+    // ヘッダー情報
+    let headerHtml = `
+      <div class="viewer-detail-info">
+        <div class="viewer-detail-title">${jobNo} ${product}</div>
+        <div class="viewer-detail-meta">
+          <span>${displayCustomer}</span>
+          ${qty ? `<span>台数: ${qty}</span>` : ''}
+        </div>
+        <div class="viewer-detail-dates">
+          <span>出図: ${drawDate}</span>
+          <span>出荷: ${shipDate}</span>
+        </div>
+      </div>
+    `;
+
+    if (schedules.length === 0) {
+      contentDiv.innerHTML = headerHtml +
+        '<div class="text-center text-gray-400 py-8 text-sm">この工番にはスケジュールがありません</div>';
+      return;
+    }
+
+    // 日付範囲を計算
+    let minDateStr = null;
+    let maxDateStr = null;
+    schedules.forEach(s => {
+      if (!minDateStr || s.start < minDateStr) minDateStr = s.start;
+      if (!maxDateStr || s.end > maxDateStr) maxDateStr = s.end;
+    });
+
+    // 前後7日のマージン
+    const marginDays = 7;
+    const rangeStart = Utils.addDays(minDateStr, -marginDays);
+    const rangeEnd = Utils.addDays(maxDateStr, marginDays);
+    const totalDays = Utils.getDaysBetween(rangeStart, rangeEnd) + 1;
+    const dates = Utils.generateDateRange(rangeStart, totalDays);
+    const today = Utils.getToday();
+    const cellWidth = 28; // モバイル用セル幅
+
+    // 工程でグループ化
+    const processScheduleMap = {};
+    schedules.forEach(s => {
+      if (!processScheduleMap[s.processId]) {
+        processScheduleMap[s.processId] = [];
+      }
+      processScheduleMap[s.processId].push(s);
+    });
+
+    // 工程順取得
+    const usedProcessIds = Object.keys(processScheduleMap);
+    const orderedProcesses = usedProcessIds.map(pid => {
+      const proc = Store.getProcessById(pid);
+      return proc || { processId: pid, '工程名': pid };
+    }).filter(Boolean);
+
+    // 工程の表示順でソート
+    orderedProcesses.sort((a, b) => {
+      const orderA = a['表示順(order)'] || 9999;
+      const orderB = b['表示順(order)'] || 9999;
+      return orderA - orderB;
+    });
+
+    const gridWidth = dates.length * cellWidth;
+
+    // 日付ヘッダー生成
+    let dateHeaderHtml = '<div class="viewer-gantt-date-row" style="display:flex;">';
+    dateHeaderHtml += `<div class="viewer-gantt-process-label" style="min-width:80px;max-width:80px;flex-shrink:0;"></div>`;
+    dateHeaderHtml += `<div style="display:flex;width:${gridWidth}px;">`;
+    dates.forEach(dateStr => {
+      const d = Utils.parseLocalDate(dateStr);
+      const dayOfWeek = d.getDay();
+      const isToday = dateStr === today;
+      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+      const isSunday = dayOfWeek === 0;
+      const dayNames = ['日','月','火','水','木','金','土'];
+
+      let cls = 'viewer-gantt-date-cell';
+      if (isToday) cls += ' is-today';
+      if (isWeekend) cls += ' is-weekend';
+      if (isSunday) cls += ' is-sunday';
+
+      dateHeaderHtml += `<div class="${cls}" style="width:${cellWidth}px;min-width:${cellWidth}px;text-align:center;font-size:9px;line-height:1.2;">
+        <div>${d.getMonth()+1}/${d.getDate()}</div>
+        <div>${dayNames[dayOfWeek]}</div>
+      </div>`;
+    });
+    dateHeaderHtml += '</div></div>';
+
+    // 工程行生成
+    let rowsHtml = '';
+    orderedProcesses.forEach(proc => {
+      const procName = Utils.escapeHtml(Store.getProcessDisplayName(proc.processId));
+      const procColorRaw = proc['工程色(colorHex)'];
+      const procColor = Utils.normalizeColor(procColorRaw) || '#6B7280';
+      const procSchedules = processScheduleMap[proc.processId] || [];
+      const isMilestone = Store.isMilestone(proc.processId);
+
+      rowsHtml += `<div class="viewer-gantt-row" style="display:flex;align-items:stretch;">`;
+      // 工程名ラベル（左固定）
+      rowsHtml += `<div class="viewer-gantt-process-label" style="min-width:80px;max-width:80px;flex-shrink:0;border-left:4px solid ${procColor};padding:4px 6px;font-size:11px;display:flex;align-items:center;word-break:break-all;background:#fafafa;border-bottom:1px solid #e5e7eb;">${procName}</div>`;
+      // グリッド部分
+      rowsHtml += `<div class="viewer-gantt-grid" style="position:relative;width:${gridWidth}px;min-height:32px;border-bottom:1px solid #e5e7eb;">`;
+
+      // 背景セル（今日・休日ハイライト）
+      dates.forEach((dateStr, i) => {
+        const d = Utils.parseLocalDate(dateStr);
+        const dayOfWeek = d.getDay();
+        const isToday = dateStr === today;
+        const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+        const isSunday = dayOfWeek === 0;
+
+        let bgColor = 'transparent';
+        if (isToday) bgColor = '#dbeafe';
+        else if (isSunday) bgColor = '#fee2e2';
+        else if (isWeekend) bgColor = '#fef9c3';
+
+        rowsHtml += `<div style="position:absolute;left:${i*cellWidth}px;top:0;bottom:0;width:${cellWidth}px;background:${bgColor};border-right:1px solid #f0f0f0;"></div>`;
+      });
+
+      // スケジュールバー
+      procSchedules.forEach(s => {
+        const startIdx = Utils.getDaysBetween(rangeStart, s.start);
+        const endIdx = Utils.getDaysBetween(rangeStart, s.end);
+        const barLeft = startIdx * cellWidth;
+        const barWidth = (endIdx - startIdx + 1) * cellWidth;
+
+        if (barWidth > 0 && startIdx >= 0 && startIdx < dates.length) {
+          const label = s.label || '';
+          const person = s.mainPersonId ? Store.getPersonById(s.mainPersonId) : null;
+          const personName = person ? (person['氏名'] || '') : '';
+          const displayText = Utils.escapeHtml(label || personName);
+
+          if (isMilestone) {
+            // マイルストーン表示
+            rowsHtml += `<div class="viewer-gantt-milestone" style="position:absolute;left:${barLeft}px;top:4px;font-size:10px;color:${procColor};white-space:nowrap;" title="${procName}">
+              ★
+            </div>`;
+          } else {
+            // 通常バー表示
+            rowsHtml += `<div class="viewer-gantt-bar" style="position:absolute;left:${barLeft}px;top:4px;width:${barWidth}px;height:24px;background:${procColor};border-radius:3px;overflow:hidden;display:flex;align-items:center;padding:0 4px;">
+              <span style="font-size:10px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${displayText}</span>
+            </div>`;
+          }
+        }
+      });
+
+      rowsHtml += '</div></div>';
+    });
+
+    // 全体HTML
+    contentDiv.innerHTML = headerHtml + `
+      <div class="viewer-gantt-container" style="margin-top:12px;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
+        <div class="viewer-gantt-scroll" style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+          ${dateHeaderHtml}
+          ${rowsHtml}
+        </div>
+      </div>
+    `;
+
+    // 今日の位置にスクロール
+    this.scrollGanttToToday(rangeStart, cellWidth);
+  },
+
+  /**
+   * ガントチャートを今日の位置にスクロール
+   */
+  scrollGanttToToday(rangeStart, cellWidth) {
+    const today = Utils.getToday();
+    const todayOffset = Utils.getDaysBetween(rangeStart, today);
+    if (todayOffset < 0) return;
+
+    const scrollContainer = document.querySelector('.viewer-gantt-scroll');
+    if (scrollContainer) {
+      // 今日を少し左寄りに表示（画面幅の1/4の位置に）
+      const scrollPos = Math.max(0, todayOffset * cellWidth - scrollContainer.clientWidth / 4);
+      setTimeout(() => {
+        scrollContainer.scrollLeft = scrollPos;
+      }, 100);
+    }
+  },
+
+  // ---------- 戻るボタン ----------
+  setupBackButton() {
+    const backBtn = document.getElementById('viewer-back-to-search');
+    if (backBtn) {
+      backBtn.addEventListener('click', () => {
+        this.closeJobDetail();
+      });
+    }
+  },
+
+  closeJobDetail() {
+    console.log('[MobileViewer] closeJobDetail');
+    this.isShowingJobDetail = false;
+
+    // 検索エリアを復元
+    const searchResults = document.getElementById('viewer-search-results');
+    const searchBar = searchResults ? searchResults.previousElementSibling : null;
+    const detailArea = document.getElementById('viewer-job-detail');
+
+    if (searchResults) searchResults.style.display = '';
+    if (searchBar && searchBar.querySelector('#viewer-search-input')) {
+      searchBar.style.display = '';
+    }
+
+    // 工番詳細エリアを非表示
+    if (detailArea) {
+      detailArea.classList.add('hidden');
+      detailArea.style.display = 'none';
+    }
+
+    // 詳細コンテンツをクリア
+    const contentDiv = document.getElementById('viewer-job-detail-content');
+    if (contentDiv) contentDiv.innerHTML = '';
+  },
+
+  // ---------- 更新ボタン ----------
+  setupRefreshButton() {
+    const refreshBtn = document.getElementById('viewer-refresh-btn');
+    if (refreshBtn) {
+      refreshBtn.addEventListener('click', () => {
+        this.refresh();
+      });
+    }
+  },
+
+  // ---------- 今週の予定 ----------
+  renderWeekly() {
+    const container = document.getElementById('viewer-weekly-container');
+    if (!container) return;
+
+    console.log('[MobileViewer] renderWeekly');
+
+    try {
+      // WeeklyPlanのロジックを直接利用して描画
+      const weekStart = WeeklyPlan.getWeekStart(new Date());
+      const weekEnd = WeeklyPlan.getWeekEnd(weekStart);
+      const dates = Utils.generateDateRange(weekStart, 7);
+      const today = Utils.getToday();
+      const dayNames = ['日','月','火','水','木','金','土'];
+
+      // WeeklyPlanのデータ構築メソッドを利用
+      // weekStartを設定してからbuildImportantWeekRowsを呼ぶ
+      const origWeekStart = WeeklyPlan.weekStart;
+      WeeklyPlan.weekStart = weekStart;
+      const { rows } = WeeklyPlan.buildImportantWeekRows();
+      WeeklyPlan.weekStart = origWeekStart; // 元に戻す
+
+      // 期間表示
+      const startMonth = Utils.getMonth(weekStart);
+      const startDay = Utils.getDay(weekStart);
+      const endMonth = Utils.getMonth(weekEnd);
+      const endDay = Utils.getDay(weekEnd);
+      const rangeText = `${startMonth}/${startDay}（${Utils.getDayOfWeek(weekStart)}）〜 ${endMonth}/${endDay}（${Utils.getDayOfWeek(weekEnd)}）`;
+
+      let html = `
+        <div class="viewer-weekly-header">
+          <div class="viewer-weekly-nav">
+            <button type="button" onclick="MobileViewer.weeklyPrev()" class="viewer-week-btn">&lt; 前週</button>
+            <span class="viewer-weekly-range">${rangeText}</span>
+            <button type="button" onclick="MobileViewer.weeklyNext()" class="viewer-week-btn">次週 &gt;</button>
+          </div>
+          <button type="button" onclick="MobileViewer.weeklyToday()" class="viewer-week-today-btn">今週に戻る</button>
+        </div>
+      `;
+
+      if (rows.length === 0) {
+        html += '<div class="text-center text-gray-400 py-8 text-sm">この週に重要工程がある工番はありません</div>';
+        container.innerHTML = html;
+        return;
+      }
+
+      // テーブル形式で描画
+      html += '<div class="viewer-weekly-table-wrap">';
+      html += '<table class="viewer-weekly-table">';
+
+      // 日付ヘッダー
+      html += '<thead><tr>';
+      html += '<th class="viewer-weekly-th-job">工番情報</th>';
+      dates.forEach((dateStr, index) => {
+        const d = Utils.parseLocalDate(dateStr);
+        const dayOfWeek = d.getDay();
+        const isToday = dateStr === today;
+        const isWeekend = index >= 5;
+        const daySetting = Store.getDaySetting ? Store.getDaySetting(dateStr) : null;
+        let cls = 'viewer-weekly-th-day';
+        if (isToday) cls += ' is-today';
+        if (isWeekend) cls += ' is-weekend';
+        if (daySetting === 'WORKDAY') cls += ' is-workday';
+        if (daySetting === 'HOLIDAY') cls += ' is-holiday';
+
+        html += `<th class="${cls}">${Utils.getMonth(dateStr)}/${Utils.getDay(dateStr)}<br><span class="text-xs">${dayNames[dayOfWeek]}</span></th>`;
+      });
+      html += '</tr></thead>';
+
+      // データ行
+      html += '<tbody>';
+      rows.forEach(row => {
+        const job = row.job;
+        const jobNo = Utils.escapeHtml(job['工番'] || '');
+        const product = Utils.escapeHtml(job['設備/製品名'] || '');
+        const customer = Utils.escapeHtml(job['顧客名'] || '');
+        const shipDate = job['出荷予定日'] ? Utils.formatShortDate(job['出荷予定日']) : '';
+
+        html += '<tr>';
+        // 工番情報セル
+        html += `<td class="viewer-weekly-td-job" onclick="MobileViewer.switchToSearchAndOpen('${job.jobId}')">
+          <div class="font-medium text-xs">${jobNo}</div>
+          <div class="text-xs text-gray-500 truncate">${product}</div>
+          ${customer ? `<div class="text-xs text-gray-400 truncate">${customer}</div>` : ''}
+          ${shipDate ? `<div class="text-xs text-blue-500">出荷:${shipDate}</div>` : ''}
+        </td>`;
+
+        // 曜日セル
+        row.dayCells.forEach((dayProcesses, index) => {
+          const dateStr = dates[index];
+          const isToday = dateStr === today;
+          const isWeekend = index >= 5;
+          const daySetting = Store.getDaySetting ? Store.getDaySetting(dateStr) : null;
+          let tdCls = 'viewer-weekly-td-day';
+          if (isToday) tdCls += ' is-today';
+          if (isWeekend) tdCls += ' is-weekend';
+          if (daySetting === 'WORKDAY') tdCls += ' is-workday';
+          if (daySetting === 'HOLIDAY') tdCls += ' is-holiday';
+
+          let cellContent = '';
+          if (dayProcesses.length > 0) {
+            const names = dayProcesses.map(p => p.name).join(' / ');
+            const firstColor = dayProcesses[0].color;
+            cellContent = `<span class="viewer-weekly-tag" style="background-color:${firstColor};">${Utils.escapeHtml(names)}</span>`;
+          }
+
+          html += `<td class="${tdCls}">${cellContent}</td>`;
+        });
+
+        html += '</tr>';
+      });
+      html += '</tbody></table></div>';
+
+      container.innerHTML = html;
+    } catch (e) {
+      console.error('[MobileViewer] 今週の予定表示エラー:', e);
+      container.innerHTML = '<div class="text-center text-red-500 py-8 text-sm">表示エラーが発生しました</div>';
+    }
+  },
+
+  // 週間ナビゲーション用の内部weekStart管理
+  _weekStart: null,
+
+  _getWeekStart() {
+    if (!this._weekStart) {
+      this._weekStart = WeeklyPlan.getWeekStart(new Date());
+    }
+    return this._weekStart;
+  },
+
+  weeklyPrev() {
+    this._weekStart = Utils.addDays(this._getWeekStart(), -7);
+    this.renderWeeklyWithDate(this._weekStart);
+  },
+
+  weeklyNext() {
+    this._weekStart = Utils.addDays(this._getWeekStart(), 7);
+    this.renderWeeklyWithDate(this._weekStart);
+  },
+
+  weeklyToday() {
+    this._weekStart = WeeklyPlan.getWeekStart(new Date());
+    this.renderWeeklyWithDate(this._weekStart);
+  },
+
+  renderWeeklyWithDate(weekStart) {
+    const container = document.getElementById('viewer-weekly-container');
+    if (!container) return;
+
+    try {
+      const weekEnd = WeeklyPlan.getWeekEnd(weekStart);
+      const dates = Utils.generateDateRange(weekStart, 7);
+      const today = Utils.getToday();
+      const dayNames = ['日','月','火','水','木','金','土'];
+
+      // WeeklyPlanのデータ構築を利用
+      const origWeekStart = WeeklyPlan.weekStart;
+      WeeklyPlan.weekStart = weekStart;
+      const { rows } = WeeklyPlan.buildImportantWeekRows();
+      WeeklyPlan.weekStart = origWeekStart;
+
+      const startMonth = Utils.getMonth(weekStart);
+      const startDay = Utils.getDay(weekStart);
+      const endMonth = Utils.getMonth(weekEnd);
+      const endDay = Utils.getDay(weekEnd);
+      const rangeText = `${startMonth}/${startDay}（${Utils.getDayOfWeek(weekStart)}）〜 ${endMonth}/${endDay}（${Utils.getDayOfWeek(weekEnd)}）`;
+
+      let html = `
+        <div class="viewer-weekly-header">
+          <div class="viewer-weekly-nav">
+            <button type="button" onclick="MobileViewer.weeklyPrev()" class="viewer-week-btn">&lt; 前週</button>
+            <span class="viewer-weekly-range">${rangeText}</span>
+            <button type="button" onclick="MobileViewer.weeklyNext()" class="viewer-week-btn">次週 &gt;</button>
+          </div>
+          <button type="button" onclick="MobileViewer.weeklyToday()" class="viewer-week-today-btn">今週に戻る</button>
+        </div>
+      `;
+
+      if (rows.length === 0) {
+        html += '<div class="text-center text-gray-400 py-8 text-sm">この週に重要工程がある工番はありません</div>';
+        container.innerHTML = html;
+        return;
+      }
+
+      html += '<div class="viewer-weekly-table-wrap">';
+      html += '<table class="viewer-weekly-table">';
+      html += '<thead><tr>';
+      html += '<th class="viewer-weekly-th-job">工番情報</th>';
+      dates.forEach((dateStr, index) => {
+        const d = Utils.parseLocalDate(dateStr);
+        const dayOfWeek = d.getDay();
+        const isToday = dateStr === today;
+        const isWeekend = index >= 5;
+        const daySetting = Store.getDaySetting ? Store.getDaySetting(dateStr) : null;
+        let cls = 'viewer-weekly-th-day';
+        if (isToday) cls += ' is-today';
+        if (isWeekend) cls += ' is-weekend';
+        if (daySetting === 'WORKDAY') cls += ' is-workday';
+        if (daySetting === 'HOLIDAY') cls += ' is-holiday';
+        html += `<th class="${cls}">${Utils.getMonth(dateStr)}/${Utils.getDay(dateStr)}<br><span class="text-xs">${dayNames[dayOfWeek]}</span></th>`;
+      });
+      html += '</tr></thead>';
+
+      html += '<tbody>';
+      rows.forEach(row => {
+        const job = row.job;
+        const jobNo = Utils.escapeHtml(job['工番'] || '');
+        const product = Utils.escapeHtml(job['設備/製品名'] || '');
+        const customer = Utils.escapeHtml(job['顧客名'] || '');
+        const shipDate = job['出荷予定日'] ? Utils.formatShortDate(job['出荷予定日']) : '';
+
+        html += '<tr>';
+        html += `<td class="viewer-weekly-td-job" onclick="MobileViewer.switchToSearchAndOpen('${job.jobId}')">
+          <div class="font-medium text-xs">${jobNo}</div>
+          <div class="text-xs text-gray-500 truncate">${product}</div>
+          ${customer ? `<div class="text-xs text-gray-400 truncate">${customer}</div>` : ''}
+          ${shipDate ? `<div class="text-xs text-blue-500">出荷:${shipDate}</div>` : ''}
+        </td>`;
+
+        row.dayCells.forEach((dayProcesses, index) => {
+          const dateStr = dates[index];
+          const isToday = dateStr === today;
+          const isWeekend = index >= 5;
+          const daySetting = Store.getDaySetting ? Store.getDaySetting(dateStr) : null;
+          let tdCls = 'viewer-weekly-td-day';
+          if (isToday) tdCls += ' is-today';
+          if (isWeekend) tdCls += ' is-weekend';
+          if (daySetting === 'WORKDAY') tdCls += ' is-workday';
+          if (daySetting === 'HOLIDAY') tdCls += ' is-holiday';
+
+          let cellContent = '';
+          if (dayProcesses.length > 0) {
+            const names = dayProcesses.map(p => p.name).join(' / ');
+            const firstColor = dayProcesses[0].color;
+            cellContent = `<span class="viewer-weekly-tag" style="background-color:${firstColor};">${Utils.escapeHtml(names)}</span>`;
+          }
+          html += `<td class="${tdCls}">${cellContent}</td>`;
+        });
+        html += '</tr>';
+      });
+      html += '</tbody></table></div>';
+
+      container.innerHTML = html;
+    } catch (e) {
+      console.error('[MobileViewer] renderWeeklyWithDate error:', e);
+      container.innerHTML = '<div class="text-center text-red-500 py-8 text-sm">表示エラーが発生しました</div>';
+    }
+  },
+
+  /**
+   * 検索タブに切り替えて工番詳細を開く（週間表等からの遷移用）
+   */
+  switchToSearchAndOpen(jobId) {
+    this.switchTab('search');
+    // 少し遅延して詳細を開く（タブ切り替えのレンダリング待ち）
+    setTimeout(() => this.openJobDetail(jobId), 50);
+  },
+
+  // ---------- 出張計画 ----------
+  renderTravel() {
+    const container = document.getElementById('viewer-travel-container');
+    if (!container) return;
+
+    console.log('[MobileViewer] renderTravel');
+
+    try {
+      const today = Utils.getToday();
+      // TravelPlan.renderEmbedded() を利用
+      TravelPlan.renderEmbedded({
+        containerId: 'viewer-travel-container',
+        dateFrom: today,
+        days: 60
+      });
+    } catch (e) {
+      console.error('[MobileViewer] 出張計画表示エラー:', e);
+      container.innerHTML = '<div class="text-center text-red-500 py-8 text-sm">表示エラーが発生しました</div>';
+    }
+  },
+
+  // ---------- TSC予定 ----------
+  async renderCalendar() {
+    const container = document.getElementById('viewer-calendar-container');
+    if (!container) return;
+
+    console.log('[MobileViewer] renderCalendar');
+
+    try {
+      const today = Utils.getToday();
+      const days = 60;
+
+      // コンテナ内にカレンダーイベント用と出張計画用のdivを用意
+      container.innerHTML = `
+        <div class="viewer-section-title">TSC カレンダーイベント</div>
+        <div id="viewer-tsc-events" class="mb-4">
+          <div class="text-center text-gray-400 py-4 text-sm">読み込み中...</div>
+        </div>
+        <div class="viewer-section-title">TSC 出張計画</div>
+        <div id="viewer-tsc-trips"></div>
+      `;
+
+      // カレンダーイベント表示（非同期）
+      CalendarEventViewer.render({
+        containerId: 'viewer-tsc-events',
+        calendarType: 'TSC',
+        startDate: today,
+        days: days
+      });
+
+      // 埋め込み出張計画
+      TravelPlan.renderEmbedded({
+        containerId: 'viewer-tsc-trips',
+        deptFilter: 'TSC',
+        dateFrom: today,
+        days: days
+      });
+    } catch (e) {
+      console.error('[MobileViewer] TSC予定表示エラー:', e);
+      container.innerHTML = '<div class="text-center text-red-500 py-8 text-sm">表示エラーが発生しました</div>';
+    }
+  },
+
+  // ---------- 電気予定 ----------
+  async renderElectrical() {
+    const container = document.getElementById('viewer-electrical-container');
+    if (!container) return;
+
+    console.log('[MobileViewer] renderElectrical');
+
+    try {
+      const today = Utils.getToday();
+      const days = 60;
+
+      container.innerHTML = `
+        <div class="viewer-section-title">電気設計 カレンダーイベント</div>
+        <div id="viewer-electrical-events" class="mb-4">
+          <div class="text-center text-gray-400 py-4 text-sm">読み込み中...</div>
+        </div>
+        <div class="viewer-section-title">電気設計 出張計画</div>
+        <div id="viewer-electrical-trips"></div>
+      `;
+
+      // カレンダーイベント表示（非同期）
+      CalendarEventViewer.render({
+        containerId: 'viewer-electrical-events',
+        calendarType: 'ELECTRICAL',
+        startDate: today,
+        days: days
+      });
+
+      // 埋め込み出張計画
+      TravelPlan.renderEmbedded({
+        containerId: 'viewer-electrical-trips',
+        deptFilter: '電気設計',
+        dateFrom: today,
+        days: days
+      });
+    } catch (e) {
+      console.error('[MobileViewer] 電気予定表示エラー:', e);
+      container.innerHTML = '<div class="text-center text-red-500 py-8 text-sm">表示エラーが発生しました</div>';
+    }
+  },
+
+  // ---------- ユーティリティ ----------
+  showLoading(show) {
+    const el = document.getElementById('viewer-loading');
+    if (el) {
+      if (show) {
+        el.classList.remove('hidden');
+        el.style.display = 'flex';
+      } else {
+        el.classList.add('hidden');
+        el.style.display = 'none';
+      }
+    }
+  },
+
+  showError(message) {
+    // Toast コンテナがviewer.htmlにない場合はalertにフォールバック
+    const toastContainer = document.getElementById('toast-container');
+    if (toastContainer) {
+      Utils.showToast(message, 'error', 5000);
+    } else {
+      console.error('[MobileViewer]', message);
+      // 簡易トースト表示
+      const toast = document.createElement('div');
+      toast.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#ef4444;color:#fff;padding:12px 20px;border-radius:8px;font-size:14px;z-index:99999;max-width:90%;text-align:center;';
+      toast.textContent = message;
+      document.body.appendChild(toast);
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transition = 'opacity 0.3s';
+        setTimeout(() => toast.remove(), 300);
+      }, 5000);
+    }
+  },
+
+  refresh() {
+    console.log('[MobileViewer] refresh');
+    // キャッシュクリア
+    if (CalendarEventViewer.clearCache) {
+      CalendarEventViewer.clearCache();
+    }
+    this.loadData().then(() => {
+      this.renderTabContent(this.currentTab);
+      // 検索タブの場合は再検索
+      if (this.currentTab === 'search') {
+        const input = document.getElementById('viewer-search-input');
+        this.doSearch(input ? input.value : '');
+      }
+    });
+  }
+};
+
+// ==========================================
+// App.init() の自動実行を抑制
+// ==========================================
+// scripts.html の最後に以下がある:
+//   document.addEventListener('DOMContentLoaded', () => App.init());
+//
+// viewer.html では scripts.html の前に window.__VIEWER_MODE__ = true を設定済み
+// App.init() を上書きしてビュアーモード時は何もしないようにする
+//
+// ※ scripts.html はこのファイルの前に読み込まれるため、
+//    DOMContentLoaded リスナーは既に登録済み。
+//    App.init() 自体を差し替えることで無効化する。
+
+if (window.__VIEWER_MODE__) {
+  console.log('[MobileViewer] Viewer mode detected - overriding App.init()');
+
+  // 元の App.init() を保存（必要に応じて参照可能）
+  App._originalInit = App.init;
+
+  // App.init() を無効化
+  App.init = function() {
+    console.log('[MobileViewer] App.init() suppressed in viewer mode');
+    // 何もしない
+  };
+
+  // Utils.setLoading() をビュアー向けに上書き
+  // 元のsetLoadingは#loading要素を参照するが、viewerには存在しない
+  Utils._originalSetLoading = Utils.setLoading;
+  Utils.setLoading = function(show) {
+    // ビュアーのローディング要素を使用
+    const el = document.getElementById('viewer-loading');
+    if (el) {
+      if (show) {
+        el.classList.remove('hidden');
+        el.style.display = 'flex';
+      } else {
+        el.classList.add('hidden');
+        el.style.display = 'none';
+      }
+    }
+    // 元の要素も試す（存在すれば）
+    const origEl = document.getElementById('loading');
+    if (origEl) {
+      if (show) {
+        origEl.classList.remove('hidden');
+      } else {
+        origEl.classList.add('hidden');
+      }
+    }
+  };
+
+  // DOMContentLoaded で MobileViewer.init() を実行
+  // scripts.html の DOMContentLoaded は App.init() を呼ぶが、
+  // 上で差し替え済みなので何もしない。
+  // このファイルの DOMContentLoaded で MobileViewer を初期化する。
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+      console.log('[MobileViewer] DOMContentLoaded - starting MobileViewer.init()');
+      MobileViewer.init();
+    });
+  } else {
+    // DOMContentLoaded が既に発火済みの場合（スクリプトが遅延読み込みされた場合）
+    console.log('[MobileViewer] DOM already ready - starting MobileViewer.init()');
+    MobileViewer.init();
+  }
+}
+
+console.log('[MobileViewer] viewer-scripts.html fully loaded');
+</script>

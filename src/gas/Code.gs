@@ -9,6 +9,30 @@
  * @returns {HtmlOutput}
  */
 function doGet(e) {
+  var mode = (e && e.parameter && e.parameter.mode) ? e.parameter.mode : '';
+
+  // mode未指定 → ランディング（起動分岐）画面
+  if (!mode) {
+    return HtmlService.createHtmlOutputFromFile('landing')
+      .setTitle('生産工程表')
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
+      .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+  }
+
+  // mode=viewer → タブレット用ビュアー（閲覧専用）
+  if (mode === 'viewer') {
+    var viewerTemplate = HtmlService.createTemplateFromFile('viewer');
+    viewerTemplate.PORTAL_URL = 'https://script.google.com/a/macros/lineworks-local.info/s/AKfycbx2eyJMOYP9o--GPBuhY-pj071IIR6Kqb_0xALwwNzdLQZux0dIAlL3P9EoCucnzXA/exec';
+    var viewerEmail = getCurrentUserEmail_();
+    viewerTemplate.USER_EMAIL = viewerEmail;
+    viewerTemplate.CAN_EDIT = false; // ビュアーは常に閲覧専用
+    return viewerTemplate.evaluate()
+      .setTitle('生産工程表 - ビュアー')
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
+      .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+  }
+
+  // mode=pc（またはその他） → 既存のPC版 index.html
   const template = HtmlService.createTemplateFromFile('index');
   template.PORTAL_URL = 'https://script.google.com/a/macros/lineworks-local.info/s/AKfycbx2eyJMOYP9o--GPBuhY-pj071IIR6Kqb_0xALwwNzdLQZux0dIAlL3P9EoCucnzXA/exec';
   // 権限情報を注入

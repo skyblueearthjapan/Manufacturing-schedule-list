@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>生産工程表</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', 'Hiragino Sans', 'Meiryo', sans-serif;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col">
+
+  <!-- ヘッダー -->
+  <header class="bg-white shadow-sm">
+    <div class="max-w-4xl mx-auto px-4 py-6 text-center">
+      <h1 class="text-2xl sm:text-3xl font-bold text-gray-800">生産工程表</h1>
+      <p class="mt-1 text-sm text-gray-500">Manufacturing Schedule System</p>
+    </div>
+  </header>
+
+  <!-- メインコンテンツ -->
+  <main class="flex-1 flex items-center justify-center px-4 py-12">
+    <div class="w-full max-w-lg space-y-6">
+
+      <!-- PC版ボタン -->
+      <button onclick="navigateTo('pc')"
+        class="w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800
+               text-white font-semibold text-lg sm:text-xl
+               rounded-xl shadow-md hover:shadow-lg
+               transition-all duration-200
+               px-6 py-6 min-h-[100px]
+               flex flex-col items-center justify-center gap-2
+               focus:outline-none focus:ring-4 focus:ring-blue-300">
+        <span class="text-2xl sm:text-3xl">&#128187;</span>
+        <span>生産工程表に進む</span>
+        <span class="text-sm font-normal text-blue-200">PC向け - フル機能</span>
+      </button>
+
+      <!-- タブレット用ビュアーボタン -->
+      <button onclick="navigateTo('viewer')"
+        class="w-full bg-sky-500 hover:bg-sky-600 active:bg-sky-700
+               text-white font-semibold text-lg sm:text-xl
+               rounded-xl shadow-md hover:shadow-lg
+               transition-all duration-200
+               px-6 py-6 min-h-[100px]
+               flex flex-col items-center justify-center gap-2
+               focus:outline-none focus:ring-4 focus:ring-sky-300">
+        <span class="text-2xl sm:text-3xl">&#128196;</span>
+        <span>タブレット用ビュアーを開く</span>
+        <span class="text-sm font-normal text-sky-200">タブレット・スマホ向け - 閲覧専用</span>
+      </button>
+
+    </div>
+  </main>
+
+  <!-- フッター -->
+  <footer class="text-center text-xs text-gray-400 py-4">
+    &copy; 2025 生産工程表
+  </footer>
+
+  <script>
+    function navigateTo(mode) {
+      var baseUrl = window.location.href.split('?')[0];
+      window.location.href = baseUrl + '?mode=' + mode;
+    }
+  </script>
+
+</body>
+</html>
