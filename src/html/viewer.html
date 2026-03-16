@@ -25,7 +25,7 @@
   <?!= include('css'); ?>
   <?!= include('viewer-css'); ?>
 </head>
-<body class="bg-white min-h-screen flex flex-col">
+<body class="viewer-app bg-white min-h-screen flex flex-col">
 
   <!-- ========== ヘッダー（固定） ========== -->
   <header class="bg-primary text-white sticky top-0 z-50 shadow-md">
@@ -111,7 +111,7 @@
 
       <!-- 工番別工程表表示エリア（インライン） -->
       <div id="viewer-job-detail" class="hidden">
-        <div class="sticky bg-white z-30 px-3 py-2 border-b border-gray-100" style="top: 0;">
+        <div id="viewer-detail-sticky-header" class="sticky bg-white z-30 px-3 py-1 border-b border-gray-100" style="top: 0;">
           <button type="button" id="viewer-back-to-search"
                   class="flex items-center text-primary text-sm font-medium px-2 py-2 rounded-lg active:bg-blue-50 transition"
                   style="min-height: 44px;">
