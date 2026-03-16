@@ -814,6 +814,50 @@
   }
 
   /* ----------------------------------------
+     17b. TSC予定・電気予定 - カレンダー横スクロール対応
+     ---------------------------------------- */
+
+  /* カレンダーコンテナを横スクロール可能にする */
+  #viewer-calendar-container .calendar-month-section,
+  #viewer-electrical-container .calendar-month-section {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* 曜日ヘッダーと日付グリッドで同じ列幅を使う */
+  #viewer-calendar-container .calendar-week-header,
+  #viewer-electrical-container .calendar-week-header,
+  #viewer-calendar-container .calendar-month-grid,
+  #viewer-electrical-container .calendar-month-grid {
+    grid-template-columns: repeat(7, minmax(100px, 1fr)) !important;
+    min-width: 700px;
+  }
+
+  /* 日付セルの高さをモバイル向けに調整 */
+  #viewer-calendar-container .calendar-day-cell,
+  #viewer-electrical-container .calendar-day-cell {
+    min-height: 60px;
+    font-size: 11px;
+  }
+
+  /* スマホ横画面ではさらに縮小 */
+  @media (max-height: 500px) {
+    #viewer-calendar-container .calendar-week-header,
+    #viewer-electrical-container .calendar-week-header,
+    #viewer-calendar-container .calendar-month-grid,
+    #viewer-electrical-container .calendar-month-grid {
+      grid-template-columns: repeat(7, minmax(80px, 1fr)) !important;
+      min-width: 560px;
+    }
+    #viewer-calendar-container .calendar-day-cell,
+    #viewer-electrical-container .calendar-day-cell {
+      min-height: 40px;
+      font-size: 10px;
+      padding: 2px !important;
+    }
+  }
+
+  /* ----------------------------------------
      18. 工番別工程表 - 左固定・右スクロール構造
      ---------------------------------------- */
   .viewer-gantt-container {
