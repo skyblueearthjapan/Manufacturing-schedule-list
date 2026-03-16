@@ -868,6 +868,21 @@ function createTrip(payload) {
     }
   }
 
+  // --- 関連移動予定への車両自動適用 ---
+  if (payload.vehicleId && payload.kind !== 'move') {
+    try {
+      propagateVehicleToRelatedMoves(tripId, {
+        personId: payload.personId,
+        start: formatDate(payload.start),
+        end: formatDate(payload.end),
+        vehicleId: payload.vehicleId,
+        kind: payload.kind || ''
+      });
+    } catch (e) {
+      Logger.log('propagateVehicleToRelatedMoves error: ' + e.message);
+    }
+  }
+
   return {
     tripId,
     ...payload,
@@ -1004,6 +1019,21 @@ function updateTrip(tripId, patch, expectedUpdatedAt) {
       const rowNum = targetRowIndex + 1;
       if (vehSyncIdx !== -1) sheet.getRange(rowNum, vehSyncIdx + 1).setValue('error');
       if (vehErrIdx !== -1) sheet.getRange(rowNum, vehErrIdx + 1).setValue(e.message);
+    }
+  }
+
+  // --- 関連移動予定への車両自動適用（更新時） ---
+  if (result.vehicleId && result.kind !== 'move' && patch.hasOwnProperty('vehicleId')) {
+    try {
+      propagateVehicleToRelatedMoves(tripId, {
+        personId: result.personId,
+        start: result.start,
+        end: result.end,
+        vehicleId: result.vehicleId,
+        kind: result.kind || ''
+      });
+    } catch (e) {
+      Logger.log('propagateVehicleToRelatedMoves error in updateTrip: ' + e.message);
     }
   }
 

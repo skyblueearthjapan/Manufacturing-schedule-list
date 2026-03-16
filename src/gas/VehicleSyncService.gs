@@ -751,6 +751,105 @@ function deleteReservationDays_(daysSheet, reservationId) {
 }
 
 /**
+ * 出張予定(site)に車両を設定した際、関連する移動(move)にも同じ車両を自動適用する
+ * 関連移動 = 同じpersonId + kind='move' + 日付が出張の前日or翌日
+ * @param {string} tripId - 対象の出張予定tripId
+ * @param {Object} tripData - {personId, start, end, vehicleId, kind}
+ */
+function propagateVehicleToRelatedMoves(tripId, tripData) {
+  // siteトリップ以外、または車両未指定の場合はスキップ
+  if (!tripData.vehicleId) return;
+  if (tripData.kind === 'move') return; // 移動自体は伝播しない
+
+  try {
+    const sheet = getSheet(CONFIG.SHEETS.TRIPS);
+    const data = sheet.getDataRange().getValues();
+    if (data.length < 2) return;
+
+    const headers = data[0].map(h => String(h).trim());
+    const tripIdIdx = headers.indexOf('tripId');
+    const personIdIdx = headers.indexOf('personId');
+    const startIdx = headers.indexOf('start');
+    const endIdx = headers.indexOf('end');
+    const kindIdx = headers.indexOf('kind');
+    const vehicleIdIdx = headers.indexOf('vehicleId');
+
+    if (tripIdIdx === -1 || personIdIdx === -1 || kindIdx === -1 || vehicleIdIdx === -1) return;
+
+    const personId = tripData.personId;
+    const siteStart = tripData.start; // YYYY-MM-DD
+    const siteEnd = tripData.end;
+
+    // 前日・翌日を計算
+    const dayBefore = Utils_addDays_(siteStart, -1);
+    const dayAfter = Utils_addDays_(siteEnd, 1);
+
+    let updatedCount = 0;
+
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][tripIdIdx] === tripId) continue; // 自分自身はスキップ
+      if (data[i][personIdIdx] !== personId) continue;
+      if (data[i][kindIdx] !== 'move') continue;
+
+      const moveStart = formatDate(data[i][startIdx]);
+      const moveEnd = formatDate(data[i][endIdx]);
+
+      // 前日移動 or 翌日移動に該当するか
+      const isRelated = (moveStart === dayBefore || moveEnd === dayBefore ||
+                         moveStart === dayAfter || moveEnd === dayAfter ||
+                         (moveStart >= siteStart && moveEnd <= siteEnd));
+
+      if (isRelated) {
+        const currentVehicleId = data[i][vehicleIdIdx];
+        if (currentVehicleId !== tripData.vehicleId) {
+          // 車両IDを更新
+          sheet.getRange(i + 1, vehicleIdIdx + 1).setValue(tripData.vehicleId);
+          updatedCount++;
+
+          // 車両予約も同期
+          const moveTripId = data[i][tripIdIdx];
+          const moveTripData = {};
+          headers.forEach((h, idx) => { moveTripData[h] = data[i][idx]; });
+          moveTripData.vehicleId = tripData.vehicleId;
+          moveTripData.start = formatDate(moveTripData.start);
+          moveTripData.end = formatDate(moveTripData.end);
+
+          try {
+            const syncResult = syncTripToVehicleReservation(moveTripId, moveTripData, 'create');
+            if (syncResult.ok) {
+              const vehResIdIdx = headers.indexOf('vehicleReservationId');
+              const vehSyncIdx = headers.indexOf('vehicleSyncStatus');
+              if (vehResIdIdx !== -1) sheet.getRange(i + 1, vehResIdIdx + 1).setValue(syncResult.reservationId || '');
+              if (vehSyncIdx !== -1) sheet.getRange(i + 1, vehSyncIdx + 1).setValue('synced');
+            }
+          } catch (e) {
+            Logger.log('移動予定の車両同期エラー (tripId=' + moveTripId + '): ' + e.message);
+          }
+        }
+      }
+    }
+
+    if (updatedCount > 0) {
+      Logger.log('関連移動予定に車両を自動適用: ' + updatedCount + '件');
+    }
+  } catch (e) {
+    Logger.log('propagateVehicleToRelatedMoves error: ' + e.message);
+  }
+}
+
+/**
+ * 日付文字列に日数を加算
+ * @param {string} dateStr - YYYY-MM-DD
+ * @param {number} days
+ * @returns {string} YYYY-MM-DD
+ */
+function Utils_addDays_(dateStr, days) {
+  const d = new Date(dateStr);
+  d.setDate(d.getDate() + days);
+  return formatDateForVehicle_(d);
+}
+
+/**
  * 車両統合セットアップ（GASエディタから手動実行用）
  * Tripsシートに車両管理用カラムを追加する
  */

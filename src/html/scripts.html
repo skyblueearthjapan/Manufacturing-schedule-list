@@ -9676,6 +9676,10 @@ const TripModal = {
       return;
     }
 
+    // 親の出張予定の車両を引き継ぐ
+    const vehicleSelect = document.getElementById('trip-vehicle');
+    const parentVehicleId = vehicleSelect ? vehicleSelect.value : '';
+
     const payload = {
       personId,
       start,
@@ -9684,6 +9688,7 @@ const TripModal = {
       '用件': '移動',
       '備考': '',
       kind: 'move',
+      vehicleId: parentVehicleId,
       source: 'manual'
     };
 
