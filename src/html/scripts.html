@@ -2822,6 +2822,12 @@ const Gantt = {
    * ※出張予定は独自のスクロールを持ち、大工程表とは同期しない（日付セル幅が異なるため）
    */
   renderTrips() {
+    // 折りたたみ中は描画スキップ（不要なDOM操作でガタつく原因を防止）
+    const section = document.getElementById('gantt-trip-section');
+    if (section && section.classList.contains('collapsed')) {
+      return;
+    }
+
     const { displayStartDate, displayDays, tripPersonFilter } = Store.state;
 
     // 表示期間の終了日を計算
@@ -2839,10 +2845,9 @@ const Gantt = {
     }
 
     // 埋め込み出張計画を描画
-    // ※TravelPlan.renderEmbedded内でヘッダー↔本体の同期は設定される
     TravelPlan.renderEmbedded({
       containerId: 'gantt-trip-container',
-      personId: tripPersonFilter, // フィルタがあれば適用
+      personId: tripPersonFilter,
       dateFrom: displayStartDate,
       days: displayDays
     });
@@ -7314,26 +7319,16 @@ const ExcelGantt = {
   tripPersonFilter: null,
 
   renderTrips() {
+    // 折りたたみ中は描画スキップ
+    const section = document.getElementById('gantt-trip-section');
+    if (section && section.classList.contains('collapsed')) return;
+
     const container = document.getElementById('gantt-trip-container');
     const countEl = document.getElementById('gantt-trip-count');
     if (!container) return;
 
     const trips = Store.state.trips || [];
     let filteredTrips = trips;
-
-    // デバッグログ: 埋め込み出張計画の状態
-    console.log('[TripEmbed] timeline', {
-      start: Store.state.displayStartDate,
-      end: Utils.addDays(Store.state.displayStartDate, Store.state.displayDays - 1),
-      days: Store.state.displayDays,
-      colWidth: this.config?.colWidth
-    });
-    console.log('[TripEmbed] raw trips', trips.map(t => ({
-      tripId: t.tripId,
-      personId: t.personId,
-      start: t.start,
-      end: t.end
-    })));
 
     // 担当者フィルタ
     if (this.tripPersonFilter) {
