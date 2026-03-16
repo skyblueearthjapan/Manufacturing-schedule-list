@@ -163,6 +163,15 @@ function ensureTripsVehicleColumns() {
 }
 
 /**
+ * 車両マスタ取得API（フロントエンドから遅延ロード用）
+ * google.script.run.api_getVehicleMaster() で呼び出される
+ * @returns {Object[]}
+ */
+function api_getVehicleMaster() {
+  return getVehicleMaster();
+}
+
+/**
  * 車両管理DBのVehiclesシートからactive車両一覧を取得
  * @returns {Object[]} [{vehicle_id, name, category, display_order, plate_no, ui_style, active}]
  */

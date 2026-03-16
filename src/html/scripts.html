@@ -9404,15 +9404,22 @@ const TripModal = {
     personSelect.innerHTML = '<option value="">選択してください</option>' +
       people.map(p => `<option value="${p.personId}">${Utils.escapeHtml(p['氏名'])} (${Utils.escapeHtml(p['部署/区分'] || '')})</option>`).join('');
 
-    // 車両プルダウン生成
+    // 車両プルダウン生成（遅延ロード）
     const vehicleSelect = document.getElementById('trip-vehicle');
     if (vehicleSelect) {
-      const vehicles = Store.state.vehicles || [];
-      vehicleSelect.innerHTML = '<option value="">なし（車両不要）</option>' +
-        vehicles.map(v => {
-          const cat = v.category === 'owned' ? '社有車' : '借用可';
-          return `<option value="${v.vehicle_id}">${Utils.escapeHtml(v.name)} (${cat})</option>`;
-        }).join('');
+      if (!Store.state.vehicles || Store.state.vehicles.length === 0) {
+        vehicleSelect.innerHTML = '<option value="">読み込み中...</option>';
+        // 初回のみAPIで取得
+        API.call('api_getVehicleMaster').then(vehicles => {
+          Store.state.vehicles = vehicles || [];
+          TripModal._populateVehicleSelect(vehicleSelect, trip ? (trip.vehicleId || '') : '');
+        }).catch(e => {
+          console.error('車両マスタ取得エラー:', e);
+          vehicleSelect.innerHTML = '<option value="">車両情報取得失敗</option>';
+        });
+      } else {
+        TripModal._populateVehicleSelect(vehicleSelect, trip ? (trip.vehicleId || '') : '');
+      }
     }
 
     if (trip) {
@@ -9614,6 +9621,23 @@ const TripModal = {
 
     this.close();
     TravelPlan.render();
+  },
+
+  /**
+   * 車両プルダウンの選択肢を生成
+   * @param {HTMLSelectElement} selectEl
+   * @param {string} selectedValue
+   */
+  _populateVehicleSelect(selectEl, selectedValue) {
+    const vehicles = Store.state.vehicles || [];
+    selectEl.innerHTML = '<option value="">なし（車両不要）</option>' +
+      vehicles.map(v => {
+        const cat = v.category === 'owned' ? '社有車' : '借用可';
+        return `<option value="${v.vehicle_id}">${Utils.escapeHtml(v.name)} (${cat})</option>`;
+      }).join('');
+    if (selectedValue) {
+      selectEl.value = selectedValue;
+    }
   },
 
   /**

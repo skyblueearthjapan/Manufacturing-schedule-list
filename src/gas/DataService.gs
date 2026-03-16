@@ -1894,13 +1894,8 @@ function getBootstrapData(rangeStart, days = CONFIG.DEFAULT_DISPLAY_DAYS) {
     Logger.log('DaySettings取得をスキップ: ' + e.message);
   }
 
-  // 車両マスタを取得（失敗しても続行）
-  let vehicles = [];
-  try {
-    vehicles = getVehicleMaster();
-  } catch (e) {
-    Logger.log('getVehicleMaster error: ' + e.message);
-  }
+  // 車両マスタはBootstrapDataには含めない（GAS同時実行数制限対策）
+  // TripModal初回オープン時にapi_getVehicleMaster()で遅延ロードする
 
   return {
     jobs: getAllJobs(),
@@ -1913,7 +1908,6 @@ function getBootstrapData(rangeStart, days = CONFIG.DEFAULT_DISPLAY_DAYS) {
     workerJobAssign: getAllWorkerJobAssigns(),
     topMemos: topMemos,
     daySettings: daySettings,
-    vehicles: vehicles,
     meta: {
       rangeStart: start,
       rangeEnd: end,
