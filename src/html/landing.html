@@ -14,13 +14,28 @@
       to   { opacity: 1; transform: translateY(0); }
     }
     .fade-in { animation: fadeIn 0.4s ease-out; }
-    @keyframes pulse-ring {
-      0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.5); }
-      70% { box-shadow: 0 0 0 12px rgba(59, 130, 246, 0); }
-      100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+    @keyframes glow-flash {
+      0%   { box-shadow: 0 0 8px 2px rgba(250, 204, 21, 0.8), 0 0 0 0 rgba(250, 204, 21, 0.4); transform: scale(1); }
+      25%  { box-shadow: 0 0 20px 8px rgba(250, 204, 21, 1), 0 0 40px 12px rgba(251, 146, 60, 0.5); transform: scale(1.03); }
+      50%  { box-shadow: 0 0 8px 2px rgba(251, 146, 60, 0.8), 0 0 0 0 rgba(250, 204, 21, 0.3); transform: scale(1); }
+      75%  { box-shadow: 0 0 20px 8px rgba(250, 204, 21, 1), 0 0 40px 12px rgba(251, 146, 60, 0.5); transform: scale(1.03); }
+      100% { box-shadow: 0 0 8px 2px rgba(250, 204, 21, 0.8), 0 0 0 0 rgba(250, 204, 21, 0.4); transform: scale(1); }
     }
     .pulse-recommend {
-      animation: pulse-ring 1.5s ease-out infinite;
+      animation: glow-flash 1.8s ease-in-out infinite;
+      border: 3px solid #facc15 !important;
+    }
+    .recommend-label {
+      display: inline-block;
+      background: linear-gradient(135deg, #f59e0b, #ef4444);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 700;
+      padding: 4px 14px;
+      border-radius: 20px;
+      margin-bottom: 4px;
+      letter-spacing: 1px;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.2);
     }
   </style>
 </head>
@@ -126,10 +141,14 @@
 
       if (result.target === 'viewer') {
         recommendEl.textContent = '「タブレット用ビュアーを開く」';
-        document.getElementById('btn-viewer').classList.add('ring-4', 'ring-sky-300', 'pulse-recommend');
+        var btnViewer = document.getElementById('btn-viewer');
+        btnViewer.classList.add('pulse-recommend');
+        btnViewer.insertAdjacentHTML('afterbegin', '<span class="recommend-label">&#9654; おすすめ</span>');
       } else {
         recommendEl.textContent = '「生産工程表に進む」';
-        document.getElementById('btn-pc').classList.add('ring-4', 'ring-blue-300', 'pulse-recommend');
+        var btnPc = document.getElementById('btn-pc');
+        btnPc.classList.add('pulse-recommend');
+        btnPc.insertAdjacentHTML('afterbegin', '<span class="recommend-label">&#9654; おすすめ</span>');
       }
 
       msgEl.style.display = 'block';
