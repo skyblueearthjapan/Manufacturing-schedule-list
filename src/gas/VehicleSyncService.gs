@@ -96,6 +96,37 @@ function formatDateForVehicle_(date) {
   return `${y}-${m}-${day}`;
 }
 
+/**
+ * 車両管理DBのシートデータからヘッダー行を検索してデータを構造化
+ * 車両管理DBはタイトル行+説明行の後にヘッダー行がある構造
+ * @param {Array[]} data - getDataRange().getValues()の結果
+ * @param {string} keyColumn - ヘッダー行を特定するキーカラム名
+ * @returns {{headerRowIdx: number, headers: string[], rows: Object[]}}
+ */
+function parseVehicleDbSheet_(data, keyColumn) {
+  let headerRowIdx = -1;
+  for (let i = 0; i < data.length; i++) {
+    if (data[i].indexOf(keyColumn) !== -1) {
+      headerRowIdx = i;
+      break;
+    }
+  }
+  if (headerRowIdx === -1) {
+    return { headerRowIdx: -1, headers: [], rows: [] };
+  }
+
+  const headers = data[headerRowIdx];
+  const rows = [];
+  for (let i = headerRowIdx + 1; i < data.length; i++) {
+    const row = {};
+    headers.forEach((h, idx) => {
+      if (h) row[h] = data[i][idx];
+    });
+    rows.push(row);
+  }
+  return { headerRowIdx, headers, rows };
+}
+
 // ============================================
 // メイン関数
 // ============================================
@@ -141,17 +172,23 @@ function getVehicleMaster() {
     const data = sheet.getDataRange().getValues();
     if (data.length < 2) return [];
 
-    const headers = data[0];
+    const parsed = parseVehicleDbSheet_(data, 'vehicle_id');
+    if (parsed.headerRowIdx === -1) {
+      Logger.log('車両マスタ: vehicle_idヘッダーが見つかりません');
+      return [];
+    }
+
     const vehicles = [];
 
-    for (let i = 1; i < data.length; i++) {
-      const row = {};
-      headers.forEach((h, idx) => {
-        row[h] = data[i][idx];
-      });
+    for (let i = 0; i < parsed.rows.length; i++) {
+      const row = parsed.rows[i];
+
+      // 空行スキップ
+      if (!row.vehicle_id) continue;
 
       // activeな車両のみ
-      if (row.active === true || row.active === 'TRUE' || row.active === 'true') {
+      const active = row.active;
+      if (active === true || active === 'TRUE' || active === 'true' || active === 1) {
         vehicles.push({
           vehicle_id: row.vehicle_id || '',
           name: row.name || '',
@@ -191,19 +228,21 @@ function api_checkVehicleAvailability(startDate, endDate, excludeTripId) {
     // ReservationDaysシートから期間内の予約日を取得
     const daysSheet = getVehicleDbSheet_(CONFIG.VEHICLE_DB.SHEETS.RESERVATION_DAYS);
     const daysData = daysSheet.getDataRange().getValues();
-    if (daysData.length < 2) return result;
+    const daysParsed = parseVehicleDbSheet_(daysData, 'reservation_id');
+    if (daysParsed.headerRowIdx === -1) return result;
 
-    const daysHeaders = daysData[0];
+    const daysHeaders = daysParsed.headers;
     const daysResIdIdx = daysHeaders.indexOf('reservation_id');
     const daysVehicleIdx = daysHeaders.indexOf('vehicle_id');
     const daysDateIdx = daysHeaders.indexOf('date');
 
     // 期間内のReservationDayからreservation_idを集める
     const relevantReservationIds = new Set();
-    for (let i = 1; i < daysData.length; i++) {
-      const dayDate = formatDateForVehicle_(daysData[i][daysDateIdx]);
+    const allDaysRows = daysData.slice(daysParsed.headerRowIdx + 1);
+    for (let i = 0; i < allDaysRows.length; i++) {
+      const dayDate = formatDateForVehicle_(allDaysRows[i][daysDateIdx]);
       if (dayDate >= startDate && dayDate <= endDate) {
-        relevantReservationIds.add(daysData[i][daysResIdIdx]);
+        relevantReservationIds.add(allDaysRows[i][daysResIdIdx]);
       }
     }
 
@@ -212,9 +251,10 @@ function api_checkVehicleAvailability(startDate, endDate, excludeTripId) {
     // Reservationsシートから予約詳細を取得
     const resSheet = getVehicleDbSheet_(CONFIG.VEHICLE_DB.SHEETS.RESERVATIONS);
     const resData = resSheet.getDataRange().getValues();
-    if (resData.length < 2) return result;
+    const resParsed = parseVehicleDbSheet_(resData, 'reservation_id');
+    if (resParsed.headerRowIdx === -1) return result;
 
-    const resHeaders = resData[0];
+    const resHeaders = resParsed.headers;
     const resIdIdx = resHeaders.indexOf('reservation_id');
     const resVehicleIdx = resHeaders.indexOf('vehicle_id');
     const resStatusIdx = resHeaders.indexOf('status');
@@ -225,30 +265,31 @@ function api_checkVehicleAvailability(startDate, endDate, excludeTripId) {
     const resSourceSystemIdx = resHeaders.indexOf('source_system');
     const resSourceIdIdx = resHeaders.indexOf('source_id');
 
-    for (let i = 1; i < resData.length; i++) {
-      const resId = resData[i][resIdIdx];
+    const allResRows = resData.slice(resParsed.headerRowIdx + 1);
+    for (let i = 0; i < allResRows.length; i++) {
+      const resId = allResRows[i][resIdIdx];
       if (!relevantReservationIds.has(resId)) continue;
 
-      const status = resData[i][resStatusIdx];
+      const status = allResRows[i][resStatusIdx];
       if (status !== 'active') continue;
 
       // excludeTripId指定時はsource_id=excludeTripIdの予約を除外
       if (excludeTripId) {
-        const sourceId = resData[i][resSourceIdIdx];
+        const sourceId = allResRows[i][resSourceIdIdx];
         if (sourceId === excludeTripId) continue;
       }
 
-      const vehicleId = resData[i][resVehicleIdx];
+      const vehicleId = allResRows[i][resVehicleIdx];
       if (!result[vehicleId]) {
         result[vehicleId] = { available: true, conflicts: [] };
       }
 
       result[vehicleId].available = false;
       result[vehicleId].conflicts.push({
-        worker_name: resData[i][resWorkerIdx] || '',
-        dept_name: resData[i][resDeptIdx] || '',
-        start_date: formatDateForVehicle_(resData[i][resStartIdx]),
-        end_date: formatDateForVehicle_(resData[i][resEndIdx])
+        worker_name: allResRows[i][resWorkerIdx] || '',
+        dept_name: allResRows[i][resDeptIdx] || '',
+        start_date: formatDateForVehicle_(allResRows[i][resStartIdx]),
+        end_date: formatDateForVehicle_(allResRows[i][resEndIdx])
       });
     }
 
@@ -327,7 +368,9 @@ function syncCreate_(tripId, tripData, lock) {
   const reservationId = genVehicleReservationId_();
 
   // Reservationsに1行追加
-  const resHeaders = resSheet.getRange(1, 1, 1, resSheet.getLastColumn()).getValues()[0];
+  const resData = resSheet.getDataRange().getValues();
+  const resParsed = parseVehicleDbSheet_(resData, 'reservation_id');
+  const resHeaders = resParsed.headerRowIdx !== -1 ? resParsed.headers : resData[0];
   const newResRow = resHeaders.map(h => {
     switch (h) {
       case 'reservation_id': return reservationId;
@@ -388,7 +431,9 @@ function syncUpdate_(tripId, tripData, lock) {
 
   const now = nowIso_();
   const user = Session.getActiveUser().getEmail() || '';
-  const resHeaders = resSheet.getRange(1, 1, 1, resSheet.getLastColumn()).getValues()[0];
+  const resData = resSheet.getDataRange().getValues();
+  const resParsed = parseVehicleDbSheet_(resData, 'reservation_id');
+  const resHeaders = resParsed.headerRowIdx !== -1 ? resParsed.headers : resData[0];
 
   // 車両変更チェック
   const vehicleChanged = existing.data.vehicle_id !== tripData.vehicleId;
@@ -493,12 +538,15 @@ function findReservationBySourceId_(resSheet, tripId) {
   const data = resSheet.getDataRange().getValues();
   if (data.length < 2) return null;
 
-  const headers = data[0];
+  const parsed = parseVehicleDbSheet_(data, 'reservation_id');
+  if (parsed.headerRowIdx === -1) return null;
+
+  const headers = parsed.headers;
   const sourceIdIdx = headers.indexOf('source_id');
   const statusIdx = headers.indexOf('status');
   if (sourceIdIdx === -1) return null;
 
-  for (let i = 1; i < data.length; i++) {
+  for (let i = parsed.headerRowIdx + 1; i < data.length; i++) {
     if (data[i][sourceIdIdx] === tripId && data[i][statusIdx] === 'active') {
       const rowData = {};
       headers.forEach((h, idx) => {
@@ -528,13 +576,16 @@ function checkConflicts_(resSheet, daysSheet, vehicleId, startDate, endDate, exc
   const daysData = daysSheet.getDataRange().getValues();
   if (daysData.length < 2) return result;
 
-  const daysHeaders = daysData[0];
+  const daysParsed = parseVehicleDbSheet_(daysData, 'reservation_id');
+  if (daysParsed.headerRowIdx === -1) return result;
+
+  const daysHeaders = daysParsed.headers;
   const dResIdIdx = daysHeaders.indexOf('reservation_id');
   const dVehicleIdx = daysHeaders.indexOf('vehicle_id');
   const dDateIdx = daysHeaders.indexOf('date');
 
   const conflictResIds = new Set();
-  for (let i = 1; i < daysData.length; i++) {
+  for (let i = daysParsed.headerRowIdx + 1; i < daysData.length; i++) {
     if (daysData[i][dVehicleIdx] !== vehicleId) continue;
     const dayDate = formatDateForVehicle_(daysData[i][dDateIdx]);
     if (dayDate >= startDate && dayDate <= endDate) {
@@ -549,7 +600,10 @@ function checkConflicts_(resSheet, daysSheet, vehicleId, startDate, endDate, exc
 
   // Reservationsシートで予約詳細を確認
   const resData = resSheet.getDataRange().getValues();
-  const resHeaders = resData[0];
+  const resParsed = parseVehicleDbSheet_(resData, 'reservation_id');
+  if (resParsed.headerRowIdx === -1) return result;
+
+  const resHeaders = resParsed.headers;
   const rIdIdx = resHeaders.indexOf('reservation_id');
   const rStatusIdx = resHeaders.indexOf('status');
   const rSourceSystemIdx = resHeaders.indexOf('source_system');
@@ -558,7 +612,7 @@ function checkConflicts_(resSheet, daysSheet, vehicleId, startDate, endDate, exc
   const rStartIdx = resHeaders.indexOf('start_date');
   const rEndIdx = resHeaders.indexOf('end_date');
 
-  for (let i = 1; i < resData.length; i++) {
+  for (let i = resParsed.headerRowIdx + 1; i < resData.length; i++) {
     const resId = resData[i][rIdIdx];
     if (!conflictResIds.has(resId)) continue;
     if (resData[i][rStatusIdx] !== 'active') continue;
@@ -592,7 +646,9 @@ function checkConflicts_(resSheet, daysSheet, vehicleId, startDate, endDate, exc
 function cancelGeneralReservations_(resSheet, rowIndices) {
   if (rowIndices.length === 0) return;
 
-  const headers = resSheet.getRange(1, 1, 1, resSheet.getLastColumn()).getValues()[0];
+  const data = resSheet.getDataRange().getValues();
+  const parsed = parseVehicleDbSheet_(data, 'reservation_id');
+  const headers = parsed.headerRowIdx !== -1 ? parsed.headers : data[0];
   const statusIdx = headers.indexOf('status');
   const updatedAtIdx = headers.indexOf('updated_at');
   const updatedByIdx = headers.indexOf('updated_by');
@@ -613,7 +669,9 @@ function cancelGeneralReservations_(resSheet, rowIndices) {
  * @param {number} rowIndex - 1-based
  */
 function cancelReservation_(resSheet, rowIndex) {
-  const headers = resSheet.getRange(1, 1, 1, resSheet.getLastColumn()).getValues()[0];
+  const data = resSheet.getDataRange().getValues();
+  const parsed = parseVehicleDbSheet_(data, 'reservation_id');
+  const headers = parsed.headerRowIdx !== -1 ? parsed.headers : data[0];
   const statusIdx = headers.indexOf('status');
   const updatedAtIdx = headers.indexOf('updated_at');
   const updatedByIdx = headers.indexOf('updated_by');
@@ -638,7 +696,9 @@ function appendReservationDays_(daysSheet, reservationId, vehicleId, startDate, 
   const dates = expandDates_(startDate, endDate);
   const now = nowIso_();
 
-  const daysHeaders = daysSheet.getRange(1, 1, 1, daysSheet.getLastColumn()).getValues()[0];
+  const daysData = daysSheet.getDataRange().getValues();
+  const daysParsed = parseVehicleDbSheet_(daysData, 'reservation_id');
+  const daysHeaders = daysParsed.headerRowIdx !== -1 ? daysParsed.headers : daysData[0];
 
   dates.forEach(date => {
     const dateStr = formatDateForVehicle_(date);
@@ -675,12 +735,15 @@ function deleteReservationDays_(daysSheet, reservationId) {
   const data = daysSheet.getDataRange().getValues();
   if (data.length < 2) return;
 
-  const headers = data[0];
+  const parsed = parseVehicleDbSheet_(data, 'reservation_id');
+  if (parsed.headerRowIdx === -1) return;
+
+  const headers = parsed.headers;
   const resIdIdx = headers.indexOf('reservation_id');
   if (resIdIdx === -1) return;
 
   // 下から上に向かって削除（行番号のズレを防ぐ）
-  for (let i = data.length - 1; i >= 1; i--) {
+  for (let i = data.length - 1; i >= parsed.headerRowIdx + 1; i--) {
     if (data[i][resIdIdx] === reservationId) {
       daysSheet.deleteRow(i + 1); // 1-based
     }
@@ -694,4 +757,41 @@ function deleteReservationDays_(daysSheet, reservationId) {
 function setupVehicleIntegration() {
   ensureTripsVehicleColumns();
   Logger.log('車両統合セットアップ完了');
+}
+
+/**
+ * デバッグ用: 車両マスタ取得テスト
+ * GASエディタから実行してログを確認
+ */
+function debugGetVehicleMaster() {
+  try {
+    const sheet = getVehicleDbSheet_(CONFIG.VEHICLE_DB.SHEETS.VEHICLES);
+    const data = sheet.getDataRange().getValues();
+    console.log('シート行数: ' + data.length);
+
+    const parsed = parseVehicleDbSheet_(data, 'vehicle_id');
+    console.log('ヘッダー行インデックス: ' + parsed.headerRowIdx);
+    console.log('ヘッダー: ' + JSON.stringify(parsed.headers));
+
+    if (parsed.headerRowIdx !== -1 && parsed.rows.length > 0) {
+      console.log('1行目データ: ' + JSON.stringify(parsed.rows[0]));
+      // active列の型を確認
+      const headers = parsed.headers;
+      const activeIdx = headers.indexOf('active');
+      console.log('active列インデックス: ' + activeIdx);
+      if (activeIdx >= 0) {
+        for (var i = parsed.headerRowIdx + 1; i < Math.min(data.length, parsed.headerRowIdx + 4); i++) {
+          var val = data[i][activeIdx];
+          console.log('行' + i + ' active値: ' + JSON.stringify(val) + ' 型: ' + typeof val);
+        }
+      }
+    }
+
+    var vehicles = getVehicleMaster();
+    console.log('取得車両数: ' + vehicles.length);
+    console.log('車両一覧: ' + JSON.stringify(vehicles));
+  } catch (e) {
+    console.log('エラー: ' + e.message);
+    console.log('スタック: ' + e.stack);
+  }
 }
