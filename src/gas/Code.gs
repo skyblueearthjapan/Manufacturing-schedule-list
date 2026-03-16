@@ -279,6 +279,10 @@ function api_getDaySettings(fromISO, toISO) {
   return sanitizeForClient(getDaySettingsMap(fromISO, toISO));
 }
 
+// ========== Vehicle API ==========
+// api_checkVehicleAvailability(startDate, endDate, excludeTripId) は
+// VehicleSyncService.gs で直接定義済み（google.script.run から呼び出し可能）
+
 // ========== Calendar API ==========
 function api_getCalendarEvents(calendarId, startDate, endDate) {
   return sanitizeForClient(getCalendarEvents(calendarId, startDate, endDate));

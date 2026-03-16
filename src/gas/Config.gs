@@ -58,6 +58,18 @@ const CONFIG = {
     ELECTRICAL: 'electrical-01@lineworks-local.info'
   },
 
+  // 車両管理DB設定
+  VEHICLE_DB: {
+    SPREADSHEET_ID: '1qBILIns6ge5E-ZiH4LoPLkuJ1gbSDMX54kXb0RJKJJw',
+    SHEETS: {
+      VEHICLES: 'Vehicles',
+      RESERVATIONS: 'Reservations',
+      RESERVATION_DAYS: 'ReservationDays'
+    },
+    SOURCE_SYSTEM: 'seisan',
+    DEFAULT_SLOT: 'FULL'
+  },
+
   // TSC部署設定（カレンダー同期用）
   TSC_DEPARTMENT: {
     // TSC部署のメンバーpersonId一覧（PeopleシートのpersonId）

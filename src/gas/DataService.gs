@@ -830,13 +830,54 @@ function createTrip(payload) {
 
   sheet.appendRow(newRow);
 
+  // --- 車両予約同期 ---
+  let vehicleSyncStatus = '';
+  let vehicleReservationId = '';
+  if (payload.vehicleId) {
+    try {
+      const syncResult = syncTripToVehicleReservation(tripId, {
+        ...payload,
+        tripId: tripId,
+        start: formatDate(payload.start),
+        end: formatDate(payload.end)
+      }, 'create');
+
+      const vehResIdIdx = headers.indexOf('vehicleReservationId');
+      const vehSyncIdx = headers.indexOf('vehicleSyncStatus');
+      const vehErrIdx = headers.indexOf('vehicleSyncError');
+      const lastRow = sheet.getLastRow();
+
+      if (syncResult.ok) {
+        vehicleReservationId = syncResult.reservationId || '';
+        vehicleSyncStatus = 'synced';
+        if (vehResIdIdx !== -1) sheet.getRange(lastRow, vehResIdIdx + 1).setValue(syncResult.reservationId);
+        if (vehSyncIdx !== -1) sheet.getRange(lastRow, vehSyncIdx + 1).setValue('synced');
+        if (vehErrIdx !== -1) sheet.getRange(lastRow, vehErrIdx + 1).setValue('');
+      } else {
+        vehicleSyncStatus = syncResult.status || 'error';
+        if (vehSyncIdx !== -1) sheet.getRange(lastRow, vehSyncIdx + 1).setValue(syncResult.status || 'error');
+        if (vehErrIdx !== -1) sheet.getRange(lastRow, vehErrIdx + 1).setValue(syncResult.error || '');
+      }
+    } catch (e) {
+      Logger.log('Vehicle sync error in createTrip: ' + e.message);
+      vehicleSyncStatus = 'error';
+      const vehSyncIdx = headers.indexOf('vehicleSyncStatus');
+      const vehErrIdx = headers.indexOf('vehicleSyncError');
+      if (vehSyncIdx !== -1) sheet.getRange(sheet.getLastRow(), vehSyncIdx + 1).setValue('error');
+      if (vehErrIdx !== -1) sheet.getRange(sheet.getLastRow(), vehErrIdx + 1).setValue(e.message);
+    }
+  }
+
   return {
     tripId,
     ...payload,
     genKey,
     start: formatDate(payload.start),
     end: formatDate(payload.end),
-    updatedAt: formatDateTime(now)
+    updatedAt: formatDateTime(now),
+    vehicleId: payload.vehicleId || '',
+    vehicleReservationId: vehicleReservationId,
+    vehicleSyncStatus: vehicleSyncStatus
   };
 }
 
@@ -929,6 +970,43 @@ function updateTrip(tripId, patch, expectedUpdatedAt) {
   result.updatedAt = formatDateTime(now);
   result.isLocked = result.isLocked === true || result.isLocked === 'TRUE' || result.isLocked === 'true';
 
+  // --- 車両予約同期（更新）---
+  const needsVehicleSync = (patch.hasOwnProperty('vehicleId') ||
+                            patch.hasOwnProperty('start') ||
+                            patch.hasOwnProperty('end') ||
+                            patch.hasOwnProperty('personId')) &&
+                           (result.vehicleId || patch.vehicleId);
+  if (needsVehicleSync) {
+    try {
+      const syncResult = syncTripToVehicleReservation(tripId, result, 'update');
+
+      const vehResIdIdx = headers.indexOf('vehicleReservationId');
+      const vehSyncIdx = headers.indexOf('vehicleSyncStatus');
+      const vehErrIdx = headers.indexOf('vehicleSyncError');
+      const rowNum = targetRowIndex + 1;
+
+      if (syncResult.ok) {
+        result.vehicleReservationId = syncResult.reservationId || result.vehicleReservationId || '';
+        result.vehicleSyncStatus = 'synced';
+        if (vehResIdIdx !== -1) sheet.getRange(rowNum, vehResIdIdx + 1).setValue(syncResult.reservationId);
+        if (vehSyncIdx !== -1) sheet.getRange(rowNum, vehSyncIdx + 1).setValue('synced');
+        if (vehErrIdx !== -1) sheet.getRange(rowNum, vehErrIdx + 1).setValue('');
+      } else {
+        result.vehicleSyncStatus = syncResult.status || 'error';
+        if (vehSyncIdx !== -1) sheet.getRange(rowNum, vehSyncIdx + 1).setValue(syncResult.status || 'error');
+        if (vehErrIdx !== -1) sheet.getRange(rowNum, vehErrIdx + 1).setValue(syncResult.error || '');
+      }
+    } catch (e) {
+      Logger.log('Vehicle sync error in updateTrip: ' + e.message);
+      result.vehicleSyncStatus = 'error';
+      const vehSyncIdx = headers.indexOf('vehicleSyncStatus');
+      const vehErrIdx = headers.indexOf('vehicleSyncError');
+      const rowNum = targetRowIndex + 1;
+      if (vehSyncIdx !== -1) sheet.getRange(rowNum, vehSyncIdx + 1).setValue('error');
+      if (vehErrIdx !== -1) sheet.getRange(rowNum, vehErrIdx + 1).setValue(e.message);
+    }
+  }
+
   return result;
 }
 
@@ -1017,8 +1095,21 @@ function deleteTrip(tripId) {
     throw new Error('指定された出張予定が見つかりません');
   }
 
+  // --- 車両予約同期（削除）---
+  const vehResIdIdx = headers.indexOf('vehicleReservationId');
+  const vehicleReservationId = (vehResIdIdx !== -1) ? data[targetRowIndex][vehResIdIdx] : '';
+
   // 物理削除
   sheet.deleteRow(targetRowIndex + 1);
+
+  // 車両予約をキャンセル
+  if (vehicleReservationId) {
+    try {
+      syncTripToVehicleReservation(tripId, {}, 'delete');
+    } catch (e) {
+      Logger.log('Vehicle sync error in deleteTrip: ' + e.message);
+    }
+  }
 
   return { success: true, tripId };
 }
@@ -1773,6 +1864,14 @@ function getBootstrapData(rangeStart, days = CONFIG.DEFAULT_DISPLAY_DAYS) {
     Logger.log('DaySettings取得をスキップ: ' + e.message);
   }
 
+  // 車両マスタを取得（失敗しても続行）
+  let vehicles = [];
+  try {
+    vehicles = getVehicleMaster();
+  } catch (e) {
+    Logger.log('getVehicleMaster error: ' + e.message);
+  }
+
   return {
     jobs: getAllJobs(),
     processes: getAllProcesses(),
@@ -1784,6 +1883,7 @@ function getBootstrapData(rangeStart, days = CONFIG.DEFAULT_DISPLAY_DAYS) {
     workerJobAssign: getAllWorkerJobAssigns(),
     topMemos: topMemos,
     daySettings: daySettings,
+    vehicles: vehicles,
     meta: {
       rangeStart: start,
       rangeEnd: end,

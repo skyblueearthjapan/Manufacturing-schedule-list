@@ -1234,6 +1234,28 @@
             <input type="text" id="trip-note" class="form-input" placeholder="メモ">
           </div>
 
+          <!-- 車両選択 -->
+          <div class="form-group">
+            <label class="form-label">使用車両</label>
+            <div class="flex items-center gap-2">
+              <select id="trip-vehicle" class="form-select flex-1">
+                <option value="">なし（車両不要）</option>
+              </select>
+              <button type="button" id="trip-vehicle-check-btn"
+                      onclick="TripModal.checkVehicleAvailability()"
+                      class="btn btn-secondary text-xs px-2 py-1"
+                      style="white-space: nowrap;">
+                空き確認
+              </button>
+            </div>
+            <div id="trip-vehicle-status" class="text-xs mt-1"></div>
+          </div>
+
+          <!-- 車両予約同期状態 -->
+          <div id="trip-vehicle-sync-area" class="flex items-center gap-2 text-xs mb-2" style="display:none;">
+            <span id="trip-vehicle-sync-badge" class="px-2 py-0.5 rounded"></span>
+          </div>
+
           <!-- ステータス表示 -->
           <div id="trip-status-area" class="flex items-center gap-2 text-sm text-gray-600 mb-4">
             <span id="trip-source-badge" class="px-2 py-0.5 rounded text-xs"></span>

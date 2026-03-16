@@ -1211,6 +1211,7 @@ const Store = {
         topMemos: topMemos,
         topMemoExpanded: false, // 常に折りたたみで開始
         daySettings: data.daySettings || {},
+        vehicles: data.vehicles || [],
         lastFetchedAt: data.meta?.fetchedAt || new Date().toISOString(),
         isLoading: false
       });
@@ -1492,14 +1493,23 @@ const Store = {
               trips[tempIdx] = { ...saved };
               delete trips[tempIdx]._tempId;
               console.log(`[Store] Trip tempId ${saved._tempId} → ${saved.tripId}`);
-              return;
+            }
+          } else {
+            const idx = trips.findIndex(t => t.tripId === saved.tripId);
+            if (idx >= 0) {
+              trips[idx] = { ...trips[idx], ...saved };
+            } else {
+              trips.push(saved);
             }
           }
-          const idx = trips.findIndex(t => t.tripId === saved.tripId);
-          if (idx >= 0) {
-            trips[idx] = { ...trips[idx], ...saved };
-          } else {
-            trips.push(saved);
+
+          // trip保存結果の車両同期状態確認
+          if (saved.vehicleSyncStatus === 'error') {
+            Utils.showToast('車両予約の同期に失敗しました: ' + (saved.vehicleSyncError || ''), 'error', 5000);
+          } else if (saved.vehicleSyncStatus === 'conflict') {
+            Utils.showToast('車両予約が競合しています（手動確認要）', 'warning', 5000);
+          } else if (saved.vehicleSyncStatus === 'synced') {
+            Utils.showToast('車両予約を登録しました', 'success', 3000);
           }
         });
       }
@@ -9394,6 +9404,17 @@ const TripModal = {
     personSelect.innerHTML = '<option value="">選択してください</option>' +
       people.map(p => `<option value="${p.personId}">${Utils.escapeHtml(p['氏名'])} (${Utils.escapeHtml(p['部署/区分'] || '')})</option>`).join('');
 
+    // 車両プルダウン生成
+    const vehicleSelect = document.getElementById('trip-vehicle');
+    if (vehicleSelect) {
+      const vehicles = Store.state.vehicles || [];
+      vehicleSelect.innerHTML = '<option value="">なし（車両不要）</option>' +
+        vehicles.map(v => {
+          const cat = v.category === 'owned' ? '社有車' : '借用可';
+          return `<option value="${v.vehicle_id}">${Utils.escapeHtml(v.name)} (${cat})</option>`;
+        }).join('');
+    }
+
     if (trip) {
       // 編集モード
       document.getElementById('trip-id').value = trip.tripId || '';
@@ -9425,6 +9446,29 @@ const TripModal = {
         lockedBadge.classList.add('hidden');
       }
 
+      // 車両選択
+      if (vehicleSelect) {
+        vehicleSelect.value = trip.vehicleId || '';
+      }
+      // 車両同期状態表示
+      const syncArea = document.getElementById('trip-vehicle-sync-area');
+      const syncBadge = document.getElementById('trip-vehicle-sync-badge');
+      if (syncArea && syncBadge && trip.vehicleSyncStatus) {
+        syncArea.style.display = 'flex';
+        if (trip.vehicleSyncStatus === 'synced') {
+          syncBadge.textContent = '✓ 車両予約済み';
+          syncBadge.className = 'px-2 py-0.5 rounded bg-green-100 text-green-700';
+        } else if (trip.vehicleSyncStatus === 'error') {
+          syncBadge.textContent = '✗ 車両予約エラー: ' + (trip.vehicleSyncError || '');
+          syncBadge.className = 'px-2 py-0.5 rounded bg-red-100 text-red-700';
+        } else if (trip.vehicleSyncStatus === 'conflict') {
+          syncBadge.textContent = '⚠ 車両予約競合';
+          syncBadge.className = 'px-2 py-0.5 rounded bg-amber-100 text-amber-700';
+        }
+      } else if (syncArea) {
+        syncArea.style.display = 'none';
+      }
+
       // ロック済みの場合は編集不可
       this.setReadonly(trip.isLocked === true);
 
@@ -9440,6 +9484,13 @@ const TripModal = {
       document.getElementById('trip-destination').value = '';
       document.getElementById('trip-purpose').value = '';
       document.getElementById('trip-note').value = '';
+
+      // 車両: 新規モード
+      if (vehicleSelect) vehicleSelect.value = '';
+      const syncArea = document.getElementById('trip-vehicle-sync-area');
+      if (syncArea) syncArea.style.display = 'none';
+      const vehicleStatusDiv = document.getElementById('trip-vehicle-status');
+      if (vehicleStatusDiv) vehicleStatusDiv.innerHTML = '';
 
       document.getElementById('trip-source-badge').textContent = '';
       document.getElementById('trip-locked-badge').classList.add('hidden');
@@ -9463,10 +9514,14 @@ const TripModal = {
     });
 
     document.getElementById('trip-save-btn').disabled = isReadonly;
+    const vehicleCheckBtn = document.getElementById('trip-vehicle-check-btn');
+    if (vehicleCheckBtn) vehicleCheckBtn.disabled = isReadonly;
     if (isReadonly) {
       document.getElementById('trip-save-btn').classList.add('opacity-50', 'cursor-not-allowed');
+      if (vehicleCheckBtn) vehicleCheckBtn.classList.add('opacity-50', 'cursor-not-allowed');
     } else {
       document.getElementById('trip-save-btn').classList.remove('opacity-50', 'cursor-not-allowed');
+      if (vehicleCheckBtn) vehicleCheckBtn.classList.remove('opacity-50', 'cursor-not-allowed');
     }
   },
 
@@ -9484,6 +9539,7 @@ const TripModal = {
     const destination = document.getElementById('trip-destination').value;
     const purpose = document.getElementById('trip-purpose').value;
     const note = document.getElementById('trip-note').value;
+    const vehicleId = document.getElementById('trip-vehicle') ? document.getElementById('trip-vehicle').value : '';
 
     if (!personId || !start || !end || !destination) {
       Utils.showToast('必須項目を入力してください', 'error');
@@ -9502,6 +9558,7 @@ const TripModal = {
       '行先': destination,
       '用件': purpose,
       '備考': note,
+      vehicleId: vehicleId,
       source: 'manual'
     };
 
@@ -9557,6 +9614,53 @@ const TripModal = {
 
     this.close();
     TravelPlan.render();
+  },
+
+  /**
+   * 車両空き状況を確認
+   */
+  async checkVehicleAvailability() {
+    const startDate = document.getElementById('trip-start').value;
+    const endDate = document.getElementById('trip-end').value;
+    const statusDiv = document.getElementById('trip-vehicle-status');
+    const vehicleSelect = document.getElementById('trip-vehicle');
+
+    if (!startDate || !endDate) {
+      if (statusDiv) statusDiv.innerHTML = '<span class="text-amber-600">日付を入力してください</span>';
+      return;
+    }
+
+    if (statusDiv) statusDiv.innerHTML = '<span class="text-gray-400">確認中...</span>';
+
+    try {
+      const excludeTripId = this.isNew ? '' : (document.getElementById('trip-id').value || '');
+      const result = await API.call('api_checkVehicleAvailability', startDate, endDate, excludeTripId);
+
+      if (!result || typeof result !== 'object') {
+        if (statusDiv) statusDiv.innerHTML = '<span class="text-red-500">確認に失敗しました</span>';
+        return;
+      }
+
+      // selectの各optionに空き状況を反映
+      const options = vehicleSelect.querySelectorAll('option');
+      options.forEach(opt => {
+        if (!opt.value) return; // 「なし」オプションはスキップ
+        const info = result[opt.value];
+        if (info && !info.available) {
+          const conflictNames = (info.conflicts || []).map(c => c.worker_name).join(', ');
+          opt.textContent = opt.textContent.replace(/ [✓✗].*$/, '') + ' ✗ 予約あり(' + conflictNames + ')';
+          opt.disabled = true;
+        } else {
+          opt.textContent = opt.textContent.replace(/ [✓✗].*$/, '') + ' ✓ 空き';
+          opt.disabled = false;
+        }
+      });
+
+      if (statusDiv) statusDiv.innerHTML = '<span class="text-green-600">空き状況を更新しました</span>';
+    } catch (e) {
+      console.error('checkVehicleAvailability error:', e);
+      if (statusDiv) statusDiv.innerHTML = '<span class="text-red-500">確認に失敗しました</span>';
+    }
   },
 
   /**
