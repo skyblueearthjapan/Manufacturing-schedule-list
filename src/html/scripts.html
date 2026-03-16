@@ -2765,9 +2765,9 @@ const Gantt = {
     if (!section) return;
     const wasCollapsed = section.classList.contains('collapsed');
     section.classList.toggle('collapsed');
-    // 展開時: 即時描画（CSSトランジション廃止済み）
+    // 展開時: 強制再描画
     if (wasCollapsed) {
-      this.renderTrips();
+      this.renderTrips(true);
     }
   },
 
@@ -2792,9 +2792,9 @@ const Gantt = {
       }
     }
 
-    // フィルタ成功時は再描画（setStateでsubscribers経由で呼ばれるが念のため）
+    // フィルタ成功時は強制再描画
     if (result.success) {
-      this.renderTrips();
+      this.renderTrips(true);
     }
   },
 
@@ -2814,21 +2814,32 @@ const Gantt = {
     }
 
     Store.clearTripPersonFilter();
-    this.renderTrips();
+    this.renderTrips(true);
   },
 
   /**
    * 埋め込み出張計画を描画
    * ※出張予定は独自のスクロールを持ち、大工程表とは同期しない（日付セル幅が異なるため）
    */
-  renderTrips() {
-    // 折りたたみ中は描画スキップ（不要なDOM操作でガタつく原因を防止）
+  // 出張計画の描画済みフラグ（展開中の不要な再描画を防止）
+  _tripRendered: false,
+  _tripRenderKey: '',
+
+  renderTrips(force) {
+    // 折りたたみ中は描画スキップ
     const section = document.getElementById('gantt-trip-section');
     if (section && section.classList.contains('collapsed')) {
+      this._tripRendered = false;
       return;
     }
 
     const { displayStartDate, displayDays, tripPersonFilter } = Store.state;
+
+    // 描画キー（表示範囲+フィルタが変わった場合のみ再描画）
+    const renderKey = `${displayStartDate}_${displayDays}_${tripPersonFilter || ''}`;
+    if (!force && this._tripRendered && this._tripRenderKey === renderKey) {
+      return; // 同じ条件で描画済み → スキップ
+    }
 
     // 表示期間の終了日を計算
     const dates = Utils.generateDateRange(displayStartDate, displayDays);
@@ -2838,7 +2849,7 @@ const Gantt = {
     // フィルタ済みのトリップを取得
     const filteredTrips = Store.getFilteredTrips(viewStart, viewEnd);
 
-    // トリップ数をカウント（フィルタ後の件数）
+    // トリップ数をカウント
     const countEl = document.getElementById('gantt-trip-count');
     if (countEl) {
       countEl.textContent = `${filteredTrips.length}件`;
@@ -2851,6 +2862,9 @@ const Gantt = {
       dateFrom: displayStartDate,
       days: displayDays
     });
+
+    this._tripRendered = true;
+    this._tripRenderKey = renderKey;
   },
 
   /**
@@ -7318,17 +7332,10 @@ const ExcelGantt = {
   // ====== 出張予定セクション ======
   tripPersonFilter: null,
 
-  renderTrips() {
-    // 折りたたみ中は描画スキップ
-    const section = document.getElementById('gantt-trip-section');
-    if (section && section.classList.contains('collapsed')) return;
-
-    const container = document.getElementById('gantt-trip-container');
-    const countEl = document.getElementById('gantt-trip-count');
-    if (!container) return;
-
-    const trips = Store.state.trips || [];
-    let filteredTrips = trips;
+  renderTrips(force) {
+    // Gantt側のrenderTripsに委譲（同じgantt-trip-containerを使用）
+    Gantt.renderTrips(force);
+    return;
 
     // 担当者フィルタ
     if (this.tripPersonFilter) {
@@ -7399,15 +7406,7 @@ const ExcelGantt = {
   },
 
   toggleTripSection() {
-    const section = document.getElementById('gantt-trip-section');
-    if (section) {
-      const wasCollapsed = section.classList.contains('collapsed');
-      section.classList.toggle('collapsed');
-      if (wasCollapsed) {
-        // CSSトランジション完了後に再描画
-        setTimeout(() => this.renderTrips(), 350);
-      }
-    }
+    Gantt.toggleTripSection();
   },
 
   handleTripPersonSearch() {
