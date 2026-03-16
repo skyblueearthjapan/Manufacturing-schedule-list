@@ -830,8 +830,8 @@
   #viewer-electrical-container .calendar-week-header,
   #viewer-calendar-container .calendar-month-grid,
   #viewer-electrical-container .calendar-month-grid {
-    grid-template-columns: repeat(7, 100px) !important;
-    width: 700px !important;
+    grid-template-columns: repeat(7, 200px) !important;
+    width: 1400px !important;
   }
 
   /* 日付セルの高さをモバイル向けに調整 */
@@ -843,15 +843,8 @@
     overflow-wrap: break-word;
   }
 
-  /* スマホ横画面ではさらに縮小 */
+  /* スマホ横画面 */
   @media (max-height: 500px) {
-    #viewer-calendar-container .calendar-week-header,
-    #viewer-electrical-container .calendar-week-header,
-    #viewer-calendar-container .calendar-month-grid,
-    #viewer-electrical-container .calendar-month-grid {
-      grid-template-columns: repeat(7, 80px) !important;
-      width: 560px !important;
-    }
     #viewer-calendar-container .calendar-day-cell,
     #viewer-electrical-container .calendar-day-cell {
       min-height: 40px;
