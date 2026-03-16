@@ -10788,18 +10788,12 @@ const TravelPlan = {
       </div>
     `;
 
-    // DOM操作を一括で行い、レイアウトスラッシュを防止
-    container.style.contain = 'layout style';
     container.innerHTML = html;
 
-    // 次のフレームでイベント設定（DOM描画完了後）
-    requestAnimationFrame(() => {
-      // ドラッグ/リサイズイベント設定（cellWidthを渡す）
-      this.setupEmbeddedDragHandlers(containerId, visibleTrips, cellWidth);
-      // スクロール同期
-      this.setupEmbeddedScrollSync(containerId);
-      container.style.contain = '';
-    });
+    // ドラッグ/リサイズイベント設定
+    this.setupEmbeddedDragHandlers(containerId, visibleTrips, cellWidth);
+    // スクロール同期
+    this.setupEmbeddedScrollSync(containerId);
   },
 
   /**
@@ -11194,46 +11188,9 @@ const TravelPlan = {
    * コンテナのサイズが変わった時（表示/非表示切替、パネル開閉など）に再描画
    */
   setupEmbeddedResizeObservers() {
-    // 監視対象のコンテナIDとそれに対応する再描画関数
-    const containers = [
-      { id: 'gantt-trip-container', render: () => Gantt.renderTrips() },
-      { id: 'calendar-trip-container', render: () => CalendarView.renderTrips() },
-      { id: 'electrical-trip-container', render: () => ElectricalView.renderTrips() },
-      { id: 'person-gantt-trip-container', render: () => PersonGanttOverlay.renderTrips() }
-    ];
-
-    containers.forEach(({ id, render }) => {
-      const container = document.getElementById(id);
-      if (!container) return;
-
-      let lastWidth = 0;
-      let isRendering = false;  // 再帰防止フラグ
-      let debounceTimer = null;
-      const ro = new ResizeObserver((entries) => {
-        if (isRendering) return;  // 自分の描画によるリサイズは無視
-        for (const entry of entries) {
-          const width = entry.contentRect.width;
-          // 幅が50px未満の場合はまだ表示されていないので無視
-          if (width < 50) continue;
-          // 幅が変わった場合のみ再描画（debounce 300ms）
-          if (Math.abs(width - lastWidth) > 5) {
-            lastWidth = width;
-            clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(() => {
-              isRendering = true;
-              try {
-                render();
-              } catch (e) {
-                console.warn(`[TravelPlan] ResizeObserver render failed for ${id}:`, e);
-              }
-              // 描画後のリサイズイベントを無視するため少し待つ
-              setTimeout(() => { isRendering = false; }, 200);
-            }, 300);
-          }
-        }
-      });
-      ro.observe(container);
-    });
+    // ResizeObserverは無効化
+    // 出張計画の再描画はtoggleTripSection()、Store変更通知、
+    // 表示期間変更時のみ行う（リサイズによる再描画はガタつきの原因）
   },
 
   /**
