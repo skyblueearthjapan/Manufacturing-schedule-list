@@ -824,13 +824,14 @@
     -webkit-overflow-scrolling: touch;
   }
 
-  /* 曜日ヘッダーと日付グリッドで同じ列幅を使う */
+  /* 曜日ヘッダーと日付グリッドで同じ固定列幅を使う */
+  /* ※ 別gridコンテナなので1frでは独立計算されてズレる → 固定幅で統一 */
   #viewer-calendar-container .calendar-week-header,
   #viewer-electrical-container .calendar-week-header,
   #viewer-calendar-container .calendar-month-grid,
   #viewer-electrical-container .calendar-month-grid {
-    grid-template-columns: repeat(7, minmax(100px, 1fr)) !important;
-    min-width: 700px;
+    grid-template-columns: repeat(7, 100px) !important;
+    width: 700px !important;
   }
 
   /* 日付セルの高さをモバイル向けに調整 */
@@ -838,6 +839,8 @@
   #viewer-electrical-container .calendar-day-cell {
     min-height: 60px;
     font-size: 11px;
+    word-break: break-all;
+    overflow-wrap: break-word;
   }
 
   /* スマホ横画面ではさらに縮小 */
@@ -846,8 +849,8 @@
     #viewer-electrical-container .calendar-week-header,
     #viewer-calendar-container .calendar-month-grid,
     #viewer-electrical-container .calendar-month-grid {
-      grid-template-columns: repeat(7, minmax(80px, 1fr)) !important;
-      min-width: 560px;
+      grid-template-columns: repeat(7, 80px) !important;
+      width: 560px !important;
     }
     #viewer-calendar-container .calendar-day-cell,
     #viewer-electrical-container .calendar-day-cell {
