@@ -859,6 +859,22 @@
   }
 
   /* ===== 19. 出張計画 - モバイル時の左ペイン幅縮小 ===== */
+
+  /* 出張計画 - trip-wrapのgrid列幅を上書き（根本原因修正） */
+  #viewer-travel-container .trip-wrap,
+  #viewer-tsc-trips .trip-wrap,
+  #viewer-electrical-trips .trip-wrap {
+    grid-template-columns: 55px 1fr !important;
+  }
+
+  @media (min-width: 768px) {
+    #viewer-travel-container .trip-wrap,
+    #viewer-tsc-trips .trip-wrap,
+    #viewer-electrical-trips .trip-wrap {
+      grid-template-columns: 70px 1fr !important;
+    }
+  }
+
   #viewer-travel-container .trip-left,
   #viewer-tsc-trips .trip-left,
   #viewer-electrical-trips .trip-left {

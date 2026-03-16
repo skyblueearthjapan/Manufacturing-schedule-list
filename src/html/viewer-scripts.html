@@ -358,13 +358,10 @@ const MobileViewer = {
 
     const gridWidth = dates.length * cellWidth;
 
-    // 左固定列HTML生成（工程名列）
-    let fixedColHtml = '';
-    // 日付ヘッダー行の空セル（左固定列側）
-    fixedColHtml += `<div class="viewer-gantt-fixed-cell viewer-gantt-date-header-cell" style="min-height:32px;background:#fafafa;border-bottom:1px solid #e5e7eb;"></div>`;
-
-    // 右スクロール部分の日付ヘッダー生成
-    let dateHeaderHtml = '<div class="viewer-gantt-date-row" style="display:flex;width:' + gridWidth + 'px;">';
+    // 日付ヘッダー行（左sticky空セル + 日付セル）
+    let dateHeaderRowHtml = `<div style="display:flex;min-width:${70 + gridWidth}px;">`;
+    dateHeaderRowHtml += `<div style="width:70px;min-width:70px;position:sticky;left:0;z-index:2;background:#f3f4f6;min-height:32px;border-right:1px solid #d1d5db;border-bottom:1px solid #e5e7eb;"></div>`;
+    dateHeaderRowHtml += `<div style="display:flex;">`;
     dates.forEach(dateStr => {
       const d = Utils.parseLocalDate(dateStr);
       const dayOfWeek = d.getDay();
@@ -378,15 +375,15 @@ const MobileViewer = {
       if (isWeekend) cls += ' is-weekend';
       if (isSunday) cls += ' is-sunday';
 
-      dateHeaderHtml += `<div class="${cls}" style="width:${cellWidth}px;min-width:${cellWidth}px;text-align:center;font-size:9px;line-height:1.2;">
+      dateHeaderRowHtml += `<div class="${cls}" style="width:${cellWidth}px;min-width:${cellWidth}px;text-align:center;font-size:9px;line-height:1.2;">
         <div>${d.getMonth()+1}/${d.getDate()}</div>
         <div>${dayNames[dayOfWeek]}</div>
       </div>`;
     });
-    dateHeaderHtml += '</div>';
+    dateHeaderRowHtml += '</div></div>';
 
-    // 工程行生成（左固定列とスクロール部分を分離）
-    let scrollRowsHtml = '';
+    // 工程行生成（各行を1つのflexコンテナにまとめる）
+    let processRowsHtml = '';
     orderedProcesses.forEach(proc => {
       const procName = Utils.escapeHtml(Store.getProcessDisplayName(proc.processId));
       const procColorRaw = proc['工程色(colorHex)'];
@@ -394,12 +391,14 @@ const MobileViewer = {
       const procSchedules = processScheduleMap[proc.processId] || [];
       const isMilestone = Store.isMilestone(proc.processId);
 
-      // 左固定列に工程名を追加
-      fixedColHtml += `<div class="viewer-gantt-fixed-cell" style="min-height:32px;border-left:4px solid ${procColor};padding:4px 6px;font-size:11px;display:flex;align-items:center;word-break:break-all;background:#fafafa;border-bottom:1px solid #e5e7eb;">${procName}</div>`;
+      // 1行 = 1つのflexコンテナ（左sticky工程名 + 右グリッド）
+      processRowsHtml += `<div style="display:flex;min-width:${70 + gridWidth}px;">`;
 
-      // スクロール部分にグリッドを追加
-      scrollRowsHtml += `<div class="viewer-gantt-row">`;
-      scrollRowsHtml += `<div class="viewer-gantt-grid" style="position:relative;width:${gridWidth}px;min-height:32px;border-bottom:1px solid #e5e7eb;">`;
+      // 左セル（position:stickyで横スクロール時に固定）
+      processRowsHtml += `<div style="width:70px;min-width:70px;position:sticky;left:0;z-index:2;background:#fafafa;border-left:4px solid ${procColor};padding:2px 4px;font-size:10px;display:flex;align-items:center;word-break:break-all;line-height:1.2;border-bottom:1px solid #e5e7eb;border-right:1px solid #d1d5db;">${procName}</div>`;
+
+      // 右セル（ガントグリッド）
+      processRowsHtml += `<div style="position:relative;width:${gridWidth}px;min-height:32px;border-bottom:1px solid #e5e7eb;">`;
 
       // 背景セル（今日・休日ハイライト）
       dates.forEach((dateStr, i) => {
@@ -414,7 +413,7 @@ const MobileViewer = {
         else if (isSunday) bgColor = '#fee2e2';
         else if (isWeekend) bgColor = '#fef9c3';
 
-        scrollRowsHtml += `<div style="position:absolute;left:${i*cellWidth}px;top:0;bottom:0;width:${cellWidth}px;background:${bgColor};border-right:1px solid #f0f0f0;"></div>`;
+        processRowsHtml += `<div style="position:absolute;left:${i*cellWidth}px;top:0;bottom:0;width:${cellWidth}px;background:${bgColor};border-right:1px solid #f0f0f0;"></div>`;
       });
 
       // スケジュールバー
@@ -432,32 +431,27 @@ const MobileViewer = {
 
           if (isMilestone) {
             // マイルストーン表示
-            scrollRowsHtml += `<div class="viewer-gantt-milestone" style="position:absolute;left:${barLeft}px;top:4px;font-size:10px;color:${procColor};white-space:nowrap;" title="${procName}">
+            processRowsHtml += `<div class="viewer-gantt-milestone" style="position:absolute;left:${barLeft}px;top:4px;font-size:10px;color:${procColor};white-space:nowrap;" title="${procName}">
               ★
             </div>`;
           } else {
             // 通常バー表示
-            scrollRowsHtml += `<div class="viewer-gantt-bar" style="position:absolute;left:${barLeft}px;top:4px;width:${barWidth}px;height:24px;background:${procColor};border-radius:3px;overflow:hidden;display:flex;align-items:center;padding:0 4px;">
+            processRowsHtml += `<div class="viewer-gantt-bar" style="position:absolute;left:${barLeft}px;top:4px;width:${barWidth}px;height:24px;background:${procColor};border-radius:3px;overflow:hidden;display:flex;align-items:center;padding:0 4px;">
               <span style="font-size:10px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${displayText}</span>
             </div>`;
           }
         }
       });
 
-      scrollRowsHtml += '</div></div>';
+      processRowsHtml += '</div></div>';
     });
 
-    // 全体HTML（左固定列 + 右スクロール部分）
+    // 全体HTML（1つのoverflow-x:autoコンテナ内にsticky左セル付きの行を並べる）
     contentDiv.innerHTML = headerHtml + `
       <div class="viewer-gantt-container" style="margin-top:12px;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
-        <div class="viewer-gantt-scroll-wrapper" style="display:flex;overflow:hidden;">
-          <div class="viewer-gantt-fixed-col" style="flex-shrink:0;width:70px;min-width:70px;max-width:70px;z-index:2;background:#fafafa;">
-            ${fixedColHtml}
-          </div>
-          <div class="viewer-gantt-scroll-area" style="overflow-x:auto;-webkit-overflow-scrolling:touch;flex:1;">
-            ${dateHeaderHtml}
-            ${scrollRowsHtml}
-          </div>
+        <div class="viewer-gantt-scroll" style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+          ${dateHeaderRowHtml}
+          ${processRowsHtml}
         </div>
       </div>
     `;
@@ -474,7 +468,7 @@ const MobileViewer = {
     const todayOffset = Utils.getDaysBetween(rangeStart, today);
     if (todayOffset < 0) return;
 
-    const scrollContainer = document.querySelector('.viewer-gantt-scroll-area');
+    const scrollContainer = document.querySelector('.viewer-gantt-scroll');
     if (scrollContainer) {
       // 今日を少し左寄りに表示（画面幅の1/4の位置に）
       const scrollPos = Math.max(0, todayOffset * cellWidth - scrollContainer.clientWidth / 4);
