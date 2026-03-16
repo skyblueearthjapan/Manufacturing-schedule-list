@@ -2764,10 +2764,30 @@ const Gantt = {
     const section = document.getElementById('gantt-trip-section');
     if (section) {
       const wasCollapsed = section.classList.contains('collapsed');
-      section.classList.toggle('collapsed');
-      // 展開時は少し待ってから再描画（CSSトランジション完了後）
       if (wasCollapsed) {
-        setTimeout(() => this.renderTrips(), 350);
+        // 展開時: 先にコンテンツを非表示のまま描画してからトランジション開始
+        const container = document.getElementById('gantt-trip-container');
+        if (container) container.style.visibility = 'hidden';
+        section.classList.remove('collapsed');
+        // トランジション完了後にコンテンツを描画して一括表示
+        const onTransitionEnd = () => {
+          section.removeEventListener('transitionend', onTransitionEnd);
+          this.renderTrips();
+          if (container) {
+            requestAnimationFrame(() => {
+              container.style.visibility = '';
+            });
+          }
+        };
+        section.addEventListener('transitionend', onTransitionEnd);
+        // フォールバック（transitionendが発火しない場合）
+        setTimeout(() => {
+          section.removeEventListener('transitionend', onTransitionEnd);
+          this.renderTrips();
+          if (container) container.style.visibility = '';
+        }, 500);
+      } else {
+        section.classList.add('collapsed');
       }
     }
   },
@@ -10789,13 +10809,18 @@ const TravelPlan = {
       </div>
     `;
 
+    // DOM操作を一括で行い、レイアウトスラッシュを防止
+    container.style.contain = 'layout style';
     container.innerHTML = html;
 
-    // ドラッグ/リサイズイベント設定（cellWidthを渡す）
-    this.setupEmbeddedDragHandlers(containerId, visibleTrips, cellWidth);
-
-    // スクロール同期
-    this.setupEmbeddedScrollSync(containerId);
+    // 次のフレームでイベント設定（DOM描画完了後）
+    requestAnimationFrame(() => {
+      // ドラッグ/リサイズイベント設定（cellWidthを渡す）
+      this.setupEmbeddedDragHandlers(containerId, visibleTrips, cellWidth);
+      // スクロール同期
+      this.setupEmbeddedScrollSync(containerId);
+      container.style.contain = '';
+    });
   },
 
   /**
