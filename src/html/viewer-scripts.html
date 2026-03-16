@@ -361,7 +361,7 @@ const MobileViewer = {
     // 左固定列HTML生成（工程名列）
     let fixedColHtml = '';
     // 日付ヘッダー行の空セル（左固定列側）
-    fixedColHtml += `<div class="viewer-gantt-fixed-cell viewer-gantt-date-header-cell" style="min-width:80px;max-width:80px;height:36px;background:#fafafa;border-bottom:1px solid #e5e7eb;"></div>`;
+    fixedColHtml += `<div class="viewer-gantt-fixed-cell viewer-gantt-date-header-cell" style="min-height:32px;background:#fafafa;border-bottom:1px solid #e5e7eb;"></div>`;
 
     // 右スクロール部分の日付ヘッダー生成
     let dateHeaderHtml = '<div class="viewer-gantt-date-row" style="display:flex;width:' + gridWidth + 'px;">';
@@ -395,7 +395,7 @@ const MobileViewer = {
       const isMilestone = Store.isMilestone(proc.processId);
 
       // 左固定列に工程名を追加
-      fixedColHtml += `<div class="viewer-gantt-fixed-cell" style="min-width:80px;max-width:80px;min-height:32px;border-left:4px solid ${procColor};padding:4px 6px;font-size:11px;display:flex;align-items:center;word-break:break-all;background:#fafafa;border-bottom:1px solid #e5e7eb;">${procName}</div>`;
+      fixedColHtml += `<div class="viewer-gantt-fixed-cell" style="min-height:32px;border-left:4px solid ${procColor};padding:4px 6px;font-size:11px;display:flex;align-items:center;word-break:break-all;background:#fafafa;border-bottom:1px solid #e5e7eb;">${procName}</div>`;
 
       // スクロール部分にグリッドを追加
       scrollRowsHtml += `<div class="viewer-gantt-row">`;
@@ -451,7 +451,7 @@ const MobileViewer = {
     contentDiv.innerHTML = headerHtml + `
       <div class="viewer-gantt-container" style="margin-top:12px;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
         <div class="viewer-gantt-scroll-wrapper" style="display:flex;overflow:hidden;">
-          <div class="viewer-gantt-fixed-col" style="flex-shrink:0;z-index:2;background:#fafafa;">
+          <div class="viewer-gantt-fixed-col" style="flex-shrink:0;width:70px;min-width:70px;max-width:70px;z-index:2;background:#fafafa;">
             ${fixedColHtml}
           </div>
           <div class="viewer-gantt-scroll-area" style="overflow-x:auto;-webkit-overflow-scrolling:touch;flex:1;">

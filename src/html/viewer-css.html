@@ -858,62 +858,61 @@
     color: #6b7280;
   }
 
-  /* ----------------------------------------
-     19. 出張計画 - モバイル時の左ペイン幅縮小
-     ---------------------------------------- */
-  #viewer-travel-container .travel-person-info,
-  #viewer-tsc-trips .travel-person-info,
-  #viewer-electrical-trips .travel-person-info {
-    width: 60px !important;
-    min-width: 60px !important;
-    max-width: 60px !important;
-    padding: 2px 4px !important;
-    font-size: 10px !important;
+  /* ===== 19. 出張計画 - モバイル時の左ペイン幅縮小 ===== */
+  #viewer-travel-container .trip-left,
+  #viewer-tsc-trips .trip-left,
+  #viewer-electrical-trips .trip-left {
+    width: 55px !important;
+    min-width: 55px !important;
+    max-width: 55px !important;
+    flex-shrink: 0 !important;
   }
-  #viewer-travel-container .travel-person-info .name,
-  #viewer-tsc-trips .travel-person-info .name,
-  #viewer-electrical-trips .travel-person-info .name {
-    font-size: 11px !important;
+  #viewer-travel-container .trip-left-head,
+  #viewer-tsc-trips .trip-left-head,
+  #viewer-electrical-trips .trip-left-head {
+    font-size: 8px !important;
+    padding: 2px !important;
+  }
+  #viewer-travel-container .trip-left-row,
+  #viewer-tsc-trips .trip-left-row,
+  #viewer-electrical-trips .trip-left-row {
+    padding: 1px 2px !important;
+  }
+  #viewer-travel-container .trip-left-name,
+  #viewer-tsc-trips .trip-left-name,
+  #viewer-electrical-trips .trip-left-name {
+    font-size: 10px !important;
     white-space: nowrap !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;
+    max-width: 48px !important;
   }
-  #viewer-travel-container .travel-person-info .dept,
-  #viewer-tsc-trips .travel-person-info .dept,
-  #viewer-electrical-trips .travel-person-info .dept {
-    font-size: 9px !important;
+  #viewer-travel-container .trip-left-dept,
+  #viewer-tsc-trips .trip-left-dept,
+  #viewer-electrical-trips .trip-left-dept {
+    font-size: 8px !important;
   }
-  #viewer-travel-container .travel-person-info .memo,
-  #viewer-tsc-trips .travel-person-info .memo,
-  #viewer-electrical-trips .travel-person-info .memo {
-    display: none !important;
+  #viewer-travel-container .trip-color-bar,
+  #viewer-tsc-trips .trip-color-bar,
+  #viewer-electrical-trips .trip-color-bar {
+    width: 3px !important;
+    min-width: 3px !important;
   }
 
+  /* タブレット(768px以上)では少し広め */
   @media (min-width: 768px) {
-    #viewer-travel-container .travel-person-info,
-    #viewer-tsc-trips .travel-person-info,
-    #viewer-electrical-trips .travel-person-info {
-      width: 80px !important;
-      min-width: 80px !important;
-      max-width: 80px !important;
+    #viewer-travel-container .trip-left,
+    #viewer-tsc-trips .trip-left,
+    #viewer-electrical-trips .trip-left {
+      width: 70px !important;
+      min-width: 70px !important;
+      max-width: 70px !important;
     }
-  }
-
-  #viewer-travel-container .travel-fixed-header,
-  #viewer-tsc-trips .travel-fixed-header,
-  #viewer-electrical-trips .travel-fixed-header {
-    width: 60px !important;
-    min-width: 60px !important;
-    max-width: 60px !important;
-    font-size: 9px !important;
-  }
-  @media (min-width: 768px) {
-    #viewer-travel-container .travel-fixed-header,
-    #viewer-tsc-trips .travel-fixed-header,
-    #viewer-electrical-trips .travel-fixed-header {
-      width: 80px !important;
-      min-width: 80px !important;
-      max-width: 80px !important;
+    #viewer-travel-container .trip-left-name,
+    #viewer-tsc-trips .trip-left-name,
+    #viewer-electrical-trips .trip-left-name {
+      max-width: 58px !important;
+      font-size: 11px !important;
     }
   }
 

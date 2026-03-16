@@ -28,7 +28,7 @@
 <body class="viewer-app bg-white min-h-screen flex flex-col">
 
   <!-- ========== ヘッダー（固定） ========== -->
-  <header class="bg-primary text-white sticky top-0 z-50 shadow-md">
+  <header class="viewer-header bg-primary text-white z-50 shadow-md">
     <div class="flex items-center justify-between px-3 py-2" style="min-height: 48px;">
       <!-- 左: 戻るボタン -->
       <button id="viewer-back-btn" type="button"
@@ -54,7 +54,7 @@
   </header>
 
   <!-- ========== タブバー（固定、ヘッダー下） ========== -->
-  <nav class="bg-white border-b border-gray-200 sticky z-40" style="top: 48px;">
+  <nav class="viewer-tab-nav bg-white border-b border-gray-200 z-40">
     <div id="viewer-tabs" class="flex overflow-x-auto no-scrollbar" style="-webkit-overflow-scrolling: touch;">
       <button type="button" class="viewer-tab active" data-tab="search"
               style="min-height: 44px; white-space: nowrap; padding: 10px 14px; font-size: 14px;">
@@ -85,7 +85,7 @@
     <!-- ===== (a) 工程スケジュール検索 ===== -->
     <section id="tab-search" class="viewer-panel">
       <!-- 検索バー（パネル内固定） -->
-      <div class="sticky bg-white z-30 px-3 py-3 border-b border-gray-100" style="top: 0;">
+      <div class="bg-white z-30 px-3 py-2 border-b border-gray-100">
         <div class="flex items-center gap-2">
           <input type="search" id="viewer-search-input"
                  class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
@@ -111,7 +111,7 @@
 
       <!-- 工番別工程表表示エリア（インライン） -->
       <div id="viewer-job-detail" class="hidden">
-        <div id="viewer-detail-sticky-header" class="sticky bg-white z-30 px-3 py-1 border-b border-gray-100" style="top: 0;">
+        <div id="viewer-detail-sticky-header" class="bg-white z-30 px-3 py-1 border-b border-gray-100">
           <button type="button" id="viewer-back-to-search"
                   class="flex items-center text-primary text-sm font-medium px-2 py-2 rounded-lg active:bg-blue-50 transition"
                   style="min-height: 44px;">

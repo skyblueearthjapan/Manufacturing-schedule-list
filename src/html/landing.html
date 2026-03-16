@@ -189,10 +189,14 @@
       window.top.location.href = baseUrl + '?mode=' + mode;
     }
 
-    // ページ読み込み後に自動判定開始
-    window.addEventListener('load', function() {
+    // ページ読み込み後に自動判定開始（DOMContentLoadedで高速化）
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', function() {
+        startAutoRedirect();
+      });
+    } else {
       startAutoRedirect();
-    });
+    }
   </script>
 
 </body>
