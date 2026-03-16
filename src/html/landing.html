@@ -9,16 +9,19 @@
     body {
       font-family: 'Segoe UI', 'Hiragino Sans', 'Meiryo', sans-serif;
     }
-    .countdown-bar {
-      height: 4px;
-      background: #2563eb;
-      transition: width 0.1s linear;
-    }
     @keyframes fadeIn {
       from { opacity: 0; transform: translateY(8px); }
       to   { opacity: 1; transform: translateY(0); }
     }
     .fade-in { animation: fadeIn 0.4s ease-out; }
+    @keyframes pulse-ring {
+      0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.5); }
+      70% { box-shadow: 0 0 0 12px rgba(59, 130, 246, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+    }
+    .pulse-recommend {
+      animation: pulse-ring 1.5s ease-out infinite;
+    }
   </style>
 </head>
 <body class="bg-gray-100 min-h-screen flex flex-col">
@@ -33,20 +36,14 @@
 
   <!-- メインコンテンツ -->
   <main class="flex-1 flex items-center justify-center px-4 py-12">
-    <div class="w-full max-w-lg space-y-6 fade-in">
+    <div class="w-full max-w-lg space-y-5 fade-in">
 
-      <!-- 自動判定メッセージ -->
-      <div id="auto-detect-msg" class="bg-white rounded-xl shadow-sm p-4 text-center" style="display:none;">
-        <p class="text-sm text-gray-600">
-          <span id="detect-device-type" class="font-medium text-gray-800"></span> を検出しました
+      <!-- 端末判定メッセージ -->
+      <div id="detect-msg" class="bg-blue-50 border border-blue-200 rounded-xl p-3 text-center" style="display:none;">
+        <p class="text-sm text-blue-800">
+          <span id="detect-device-type" class="font-bold"></span> を検出しました。
+          下の<span id="detect-recommend" class="font-bold"></span>ボタンをタップしてください。
         </p>
-        <p class="text-sm text-gray-500 mt-1">
-          <span id="detect-countdown">2</span>秒後に自動で <span id="detect-target" class="font-medium"></span> に移動します...
-        </p>
-        <div class="mt-2 bg-gray-200 rounded-full overflow-hidden">
-          <div id="countdown-bar" class="countdown-bar" style="width:100%"></div>
-        </div>
-        <button onclick="cancelAutoRedirect()" class="mt-2 text-xs text-blue-600 underline">自動遷移をキャンセル</button>
       </div>
 
       <!-- PC版ボタン -->
@@ -88,10 +85,9 @@
   <script>
     // ==========================================
     // 端末自動判定（UA + 画面幅 + タッチ判定）
+    // ※ GAS iframeのセキュリティ制約により自動遷移不可
+    // → 推奨ボタンをハイライト表示、ユーザータップで遷移
     // ==========================================
-    var autoRedirectTimer = null;
-    var countdownInterval = null;
-    var autoRedirectCancelled = false;
 
     function detectDevice() {
       var ua = navigator.userAgent || '';
@@ -102,100 +98,55 @@
                      (navigator.maxTouchPoints > 0) ||
                      (navigator.msMaxTouchPoints > 0);
 
-      // --- UA判定 ---
-      // スマートフォン判定（iPhone, Android Phone）
       var isPhone = /iPhone|iPod|Android.*Mobile|Windows Phone/i.test(ua);
-      // タブレット判定（iPad, Android Tablet）
-      // 注意: 最新iPadはMacintoshを含むUAを送信する
       var isTabletUA = /iPad|Android(?!.*Mobile)/i.test(ua);
-      // iPadOS判定（Macintosh UA + タッチ対応 = iPad）
       var isIPadOS = /Macintosh/i.test(ua) && hasTouch && minDimension >= 700;
 
-      // --- 複合判定 ---
       if (isPhone) {
         return { type: 'mobile', label: 'スマートフォン', target: 'viewer' };
       }
       if (isTabletUA || isIPadOS) {
         return { type: 'tablet', label: 'タブレット', target: 'viewer' };
       }
-      // タッチ対応 + 小画面 = モバイルデバイスの可能性
       if (hasTouch && minDimension < 900) {
         return { type: 'mobile', label: 'モバイルデバイス', target: 'viewer' };
       }
-      // PC（タッチ対応PCを含む）
       return { type: 'pc', label: 'PC', target: 'pc' };
     }
 
-    function startAutoRedirect() {
+    function highlightRecommended() {
       var result = detectDevice();
-      var msgEl = document.getElementById('auto-detect-msg');
+
+      // 判定メッセージ表示
+      var msgEl = document.getElementById('detect-msg');
       var deviceEl = document.getElementById('detect-device-type');
-      var targetEl = document.getElementById('detect-target');
-      var countdownEl = document.getElementById('detect-countdown');
-      var barEl = document.getElementById('countdown-bar');
+      var recommendEl = document.getElementById('detect-recommend');
 
       deviceEl.textContent = result.label;
-      targetEl.textContent = result.target === 'viewer' ? '簡易ビュアー' : '生産工程表（PC版）';
-      msgEl.style.display = 'block';
 
-      // 推奨ボタンをハイライト
       if (result.target === 'viewer') {
-        document.getElementById('btn-viewer').classList.add('ring-4', 'ring-sky-300');
+        recommendEl.textContent = '「タブレット用ビュアーを開く」';
+        document.getElementById('btn-viewer').classList.add('ring-4', 'ring-sky-300', 'pulse-recommend');
       } else {
-        document.getElementById('btn-pc').classList.add('ring-4', 'ring-blue-300');
+        recommendEl.textContent = '「生産工程表に進む」';
+        document.getElementById('btn-pc').classList.add('ring-4', 'ring-blue-300', 'pulse-recommend');
       }
 
-      // カウントダウン（2秒）
-      var remaining = 2000;
-      var total = 2000;
-      var step = 50; // 50ms間隔で更新
-
-      countdownInterval = setInterval(function() {
-        remaining -= step;
-        if (remaining <= 0) remaining = 0;
-
-        // カウントダウンテキスト更新
-        countdownEl.textContent = Math.ceil(remaining / 1000);
-        // プログレスバー更新
-        barEl.style.width = ((remaining / total) * 100) + '%';
-
-        if (remaining <= 0) {
-          clearInterval(countdownInterval);
-          if (!autoRedirectCancelled) {
-            navigateTo(result.target);
-          }
-        }
-      }, step);
-    }
-
-    function cancelAutoRedirect() {
-      autoRedirectCancelled = true;
-      if (countdownInterval) {
-        clearInterval(countdownInterval);
-        countdownInterval = null;
-      }
-      var msgEl = document.getElementById('auto-detect-msg');
-      msgEl.innerHTML = '<p class="text-sm text-gray-500">自動遷移をキャンセルしました。下のボタンから選択してください。</p>';
+      msgEl.style.display = 'block';
     }
 
     function navigateTo(mode) {
-      // 遷移中の二重クリック防止
-      autoRedirectCancelled = true;
-      if (countdownInterval) clearInterval(countdownInterval);
-
-      // GAS WebAppはiframe内で動作するため、window.locationではなく
-      // サーバーから注入された正しいURLを使用する
+      // GAS WebAppはiframe内で動作するため、サーバーから注入されたURLを使用
+      // window.top.location.href はユーザー操作（onclick）から呼ばれるので許可される
       var baseUrl = '<?= BASE_URL ?>';
       window.top.location.href = baseUrl + '?mode=' + mode;
     }
 
-    // ページ読み込み後に自動判定開始（DOMContentLoadedで高速化）
+    // DOM構築完了後に判定実行
     if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', function() {
-        startAutoRedirect();
-      });
+      document.addEventListener('DOMContentLoaded', highlightRecommended);
     } else {
-      startAutoRedirect();
+      highlightRecommended();
     }
   </script>
 
