@@ -6156,17 +6156,28 @@
   }
 
   body.edit-mode-off .job-changed-draw-date,
-  body.edit-mode-off .job-changed-ship-date,
-  body.edit-mode-off .xl-date-input-small {
+  body.edit-mode-off .job-changed-ship-date {
     pointer-events: none !important;
     opacity: 0.6;
   }
+  /* 閲覧モード時: 日付inputオーバーレイを完全非表示（テキストを見せる） */
+  body.edit-mode-off .xl-date-input-small {
+    display: none !important;
+  }
+  /* 閲覧モード時: セルのホバー効果も無効 */
+  body.edit-mode-off .xl-date-cell:hover {
+    background: transparent;
+    cursor: default;
+  }
 
-  /* 編集モードON時は確実にpointer-eventsを復活 */
+  /* 編集モードON時は確実に復活 */
   body.edit-mode-on .job-changed-draw-date,
-  body.edit-mode-on .job-changed-ship-date,
-  body.edit-mode-on .xl-date-input-small {
+  body.edit-mode-on .job-changed-ship-date {
     pointer-events: auto !important;
     opacity: 1;
+  }
+  body.edit-mode-on .xl-date-input-small {
+    display: block !important;
+    pointer-events: auto !important;
   }
 </style>
