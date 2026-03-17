@@ -2101,11 +2101,25 @@ const Gantt = {
     endDate: null
   },
 
+  _lastRenderKey: '',
   init() {
     this.setupEventListeners();
     this.attachGridEventListeners(); // イベント委譲は一度だけ設定
     Store.subscribe((state) => {
-      if (state.currentView === 'master') {
+      if (state.currentView !== 'master') return;
+      // jobs/schedules/tripsの実データが変わった場合のみ再描画
+      // pdfInfoCacheの変更では再描画しない（日付ピッカーのDOM破壊を防止）
+      const key = JSON.stringify({
+        j: (state.jobs || []).length,
+        s: (state.schedules || []).length,
+        t: (state.trips || []).length,
+        d: state.displayStartDate,
+        dd: state.displayDays,
+        e: state.editMode,
+        h: state.showHiddenJobs
+      });
+      if (key !== this._lastRenderKey) {
+        this._lastRenderKey = key;
         this.render();
       }
     });
@@ -6231,8 +6245,20 @@ const ExcelGantt = {
     this.setupScrollSync();
     this.setupDragEvents();
     this.setupCrossHighlight();
+    this._lastRenderKey = '';
     Store.subscribe((state) => {
-      if (state.currentView === 'master') {
+      if (state.currentView !== 'master') return;
+      const key = JSON.stringify({
+        j: (state.jobs || []).length,
+        s: (state.schedules || []).length,
+        t: (state.trips || []).length,
+        d: state.displayStartDate,
+        dd: state.displayDays,
+        e: state.editMode,
+        h: state.showHiddenJobs
+      });
+      if (key !== this._lastRenderKey) {
+        this._lastRenderKey = key;
         this.render();
       }
     });
