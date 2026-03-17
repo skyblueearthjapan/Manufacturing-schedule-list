@@ -6170,4 +6170,12 @@
     pointer-events: none !important;
     opacity: 0.6;
   }
+
+  /* 編集モードON時は確実にpointer-eventsを復活 */
+  body.edit-mode-on .job-changed-draw-date,
+  body.edit-mode-on .job-changed-ship-date,
+  body.edit-mode-on .xl-date-input-small {
+    pointer-events: auto !important;
+    opacity: 1;
+  }
 </style>
