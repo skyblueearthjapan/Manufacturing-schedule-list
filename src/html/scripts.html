@@ -6914,17 +6914,17 @@ const ExcelGantt = {
           <div class="xl-ship">
             <div class="ship-top xl-date-cell">
               <span class="date-label">予定:</span>
-              <input type="date" class="xl-date-input-full"
+              <input type="date" class="xl-date-input-full${job['出荷予定日'] ? '' : ' is-empty'}"
                 value="${job['出荷予定日'] || ''}"
-                onchange="ExcelGantt.updateJobOriginalDate('${job.jobId}', 'ship', this.value)"
+                onchange="ExcelGantt.updateJobOriginalDate('${job.jobId}', 'ship', this.value); this.classList.toggle('is-empty', !this.value);"
                 title="予定日を変更"
                 ${EditGuard.isEditing ? '' : 'readonly'}>
             </div>
             <div class="ship-bottom xl-date-cell">
               <span class="date-label">変更:</span>
-              <input type="date" class="xl-date-input-full"
+              <input type="date" class="xl-date-input-full${job['出荷予定日変更後'] ? '' : ' is-empty'}"
                 value="${job['出荷予定日変更後'] || ''}"
-                onchange="ExcelGantt.updateJobChangedDate('${job.jobId}', 'ship', this.value)"
+                onchange="ExcelGantt.updateJobChangedDate('${job.jobId}', 'ship', this.value); this.classList.toggle('is-empty', !this.value);"
                 title="変更日を入力"
                 ${EditGuard.isEditing ? '' : 'readonly'}>
             </div>
@@ -6934,17 +6934,17 @@ const ExcelGantt = {
           <div class="xl-draw">
             <div class="draw-top xl-date-cell">
               <span class="date-label">希望:</span>
-              <input type="date" class="xl-date-input-full"
+              <input type="date" class="xl-date-input-full${job['出図予定日'] ? '' : ' is-empty'}"
                 value="${job['出図予定日'] || ''}"
-                onchange="ExcelGantt.updateJobOriginalDate('${job.jobId}', 'draw', this.value)"
+                onchange="ExcelGantt.updateJobOriginalDate('${job.jobId}', 'draw', this.value); this.classList.toggle('is-empty', !this.value);"
                 title="希望日を変更"
                 ${EditGuard.isEditing ? '' : 'readonly'}>
             </div>
             <div class="draw-bottom xl-date-cell">
               <span class="date-label">実績:</span>
-              <input type="date" class="xl-date-input-full"
+              <input type="date" class="xl-date-input-full${job['出図予定日変更後'] ? '' : ' is-empty'}"
                 value="${job['出図予定日変更後'] || ''}"
-                onchange="ExcelGantt.updateJobChangedDate('${job.jobId}', 'draw', this.value)"
+                onchange="ExcelGantt.updateJobChangedDate('${job.jobId}', 'draw', this.value); this.classList.toggle('is-empty', !this.value);"
                 title="実績日を入力"
                 ${EditGuard.isEditing ? '' : 'readonly'}>
             </div>

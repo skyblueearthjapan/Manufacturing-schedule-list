@@ -5260,6 +5260,10 @@
     -moz-appearance: auto;
     appearance: auto;
   }
+  /* 空の日付inputの「年/月/日」プレースホルダーを非表示 */
+  .xl-date-input-full.is-empty::-webkit-datetime-edit {
+    color: transparent;
+  }
   .xl-date-input-full:hover {
     border-color: #1976d2;
     background: #e3f2fd;
