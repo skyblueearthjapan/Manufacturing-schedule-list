@@ -2344,13 +2344,13 @@ const Gantt = {
       const changedDrawDate = this.formatShortDate(job['出図予定日変更後']);
 
       html += `
-        <div class="job-info-block${jobRoleClass}" data-job-id="${job.jobId}" style="height: ${rowHeight}px; min-height: ${rowHeight}px;" onclick="Gantt.onJobClick('${job.jobId}')">
+        <div class="job-info-block${jobRoleClass}" data-job-id="${job.jobId}" style="height: ${rowHeight}px; min-height: ${rowHeight}px;">
           <div class="job-info-content">
             <div class="job-info-row1">
               ${jobRoleBadge}
               <div class="job-info-jobno">
                 <span class="label">[工番]</span>
-                <span>${Utils.escapeHtml(job['工番'] || '')}</span>
+                <span class="job-link" onclick="event.stopPropagation(); JobDetail.open('${job.jobId}');" title="工番別工程表を開く" style="cursor:pointer;color:#1565c0;text-decoration:underline;">${Utils.escapeHtml(job['工番'] || '')}</span>
               </div>
               <div class="job-info-person">${personDisplay ? Utils.escapeHtml(personDisplay) : ''}</div>
               <button type="button"
@@ -6875,7 +6875,7 @@ const ExcelGantt = {
       const rowNum = idx + 1;
 
       html += `
-        <div class="xl-row" data-job-id="${job.jobId}" onclick="ExcelGantt.onJobClick('${job.jobId}')">
+        <div class="xl-row" data-job-id="${job.jobId}">
           <!-- No列（上段：番号、下段：PDF[受][指]） -->
           <div class="xl-no">
             <div class="no-top">${rowNum}</div>
