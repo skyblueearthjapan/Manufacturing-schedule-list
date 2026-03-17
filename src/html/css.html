@@ -5236,7 +5236,7 @@
     gap: 2px;
   }
 
-  /* Excel風ビュー：日付セル - セル全体がクリック可能 */
+  /* Excel風ビュー：日付セル */
   .xl-date-cell {
     display: flex;
     align-items: center;
@@ -5245,31 +5245,35 @@
     cursor: pointer;
   }
 
-  /* Excel風ビュー：日付input - セル全体を覆う透明オーバーレイ */
+  /* Excel風ビュー：日付input（左端にカレンダーアイコンとして表示） */
   .xl-date-input-small {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    opacity: 0;
+    width: 22px;
+    height: 18px;
+    padding: 0;
+    border: 1px solid #bbb;
+    border-radius: 3px;
+    background: #f0f7ff;
     cursor: pointer;
-    z-index: 10;
-    /* ネイティブ日付ピッカーUIを有効にする */
+    flex-shrink: 0;
+    order: -1;
+    margin-right: 2px;
     -webkit-appearance: auto;
     -moz-appearance: auto;
     appearance: auto;
   }
-  /* セルホバー時の視覚フィードバック */
-  .xl-date-cell:hover {
-    background: #e3f2fd;
+  .xl-date-input-small:hover {
+    border-color: #1976d2;
+    background: #bbdefb;
   }
-  /* カレンダーアイコン領域を最大化（Chrome系） */
+  .xl-date-input-small:focus {
+    outline: 2px solid #1976d2;
+    outline-offset: 0;
+  }
   .xl-date-input-small::-webkit-calendar-picker-indicator {
     width: 100%;
     height: 100%;
     margin: 0;
-    padding: 0;
+    padding: 1px;
     cursor: pointer;
   }
 
@@ -6156,28 +6160,18 @@
   }
 
   body.edit-mode-off .job-changed-draw-date,
-  body.edit-mode-off .job-changed-ship-date {
-    pointer-events: none !important;
-    opacity: 0.6;
-  }
-  /* 閲覧モード時: 日付inputオーバーレイを完全非表示（テキストを見せる） */
+  body.edit-mode-off .job-changed-ship-date,
   body.edit-mode-off .xl-date-input-small {
     display: none !important;
   }
-  /* 閲覧モード時: セルのホバー効果も無効 */
-  body.edit-mode-off .xl-date-cell:hover {
-    background: transparent;
+  body.edit-mode-off .xl-date-cell {
     cursor: default;
   }
 
-  /* 編集モードON時は確実に復活 */
+  /* 編集モードON時は表示復活 */
   body.edit-mode-on .job-changed-draw-date,
-  body.edit-mode-on .job-changed-ship-date {
-    pointer-events: auto !important;
-    opacity: 1;
-  }
+  body.edit-mode-on .job-changed-ship-date,
   body.edit-mode-on .xl-date-input-small {
-    display: block !important;
-    pointer-events: auto !important;
+    display: inline-block !important;
   }
 </style>
