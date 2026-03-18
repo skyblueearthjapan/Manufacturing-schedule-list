@@ -515,6 +515,19 @@ function updatePerson(personId, patch, expectedUpdatedAt) {
   };
 }
 
+function deletePerson(personId) {
+  var sheet = getSheet(CONFIG.SHEETS.PEOPLE);
+  var data = sheet.getDataRange().getValues();
+  var idIdx = data[0].indexOf('personId');
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][idIdx]) === personId) {
+      sheet.deleteRow(i + 1);
+      return { success: true, personId: personId };
+    }
+  }
+  throw new Error('担当者が見つかりません: ' + personId);
+}
+
 // ============================================
 // Schedule（工程期間）
 // ============================================
@@ -2039,195 +2052,57 @@ function searchExternalJobMaster(query, limit = 20) {
  * @returns {Object} { success, created, updated, total, syncedAt }
  */
 function syncExternalWorkerMaster() {
-  var lock = LockService.getScriptLock();
-  try {
-    lock.waitLock(30000);
-  } catch (e) {
-    throw new Error('他の同期処理が実行中です。しばらく待ってから再試行してください。');
-  }
-
-  try {
-    // 1. 外部スプレッドシートを開いて作業員マスタを取得
-    var externalSs = SpreadsheetApp.openById(CONFIG.EXTERNAL_WORKER_SPREADSHEET_ID);
-    var externalSheet = externalSs.getSheetByName(CONFIG.EXTERNAL_WORKER_SHEET_NAME);
-
-    if (!externalSheet) {
-      var sheetNames = externalSs.getSheets().map(function(s) { return s.getName(); });
-      throw new Error('外部シート "' + CONFIG.EXTERNAL_WORKER_SHEET_NAME + '" が見つかりません。存在するシート: ' + sheetNames.join(', '));
-    }
-
-    var externalData = externalSheet.getDataRange().getValues();
-    if (externalData.length < 2) {
-      throw new Error('外部作業員マスタにデータがありません');
-    }
-
-    // 外部データのヘッダーからインデックスを特定
-    var extHeaders = externalData[0];
-    var extCodeIdx = extHeaders.indexOf('作業員コード');
-    var extNameIdx = extHeaders.indexOf('氏名');
-    var extDeptIdx = extHeaders.indexOf('部署');
-    var extTaskIdx = extHeaders.indexOf('担当業務');
-
-    if (extNameIdx === -1) {
-      throw new Error('外部作業員マスタに「氏名」列が見つかりません');
-    }
-
-    // 外部作業員リスト（ヘッダー除く）
-    var externalWorkers = [];
-    for (var i = 1; i < externalData.length; i++) {
-      var row = externalData[i];
-      var name = String(row[extNameIdx] || '').trim();
-      if (!name) continue;
-      externalWorkers.push({
-        code: extCodeIdx !== -1 ? String(row[extCodeIdx] || '').trim() : '',
-        name: name,
-        dept: extDeptIdx !== -1 ? String(row[extDeptIdx] || '').trim() : '',
-        task: extTaskIdx !== -1 ? String(row[extTaskIdx] || '').trim() : ''
-      });
-    }
-
-    // 2. 現在のPeopleシートを読み込み
-    var peopleSheet = getSheet(CONFIG.SHEETS.PEOPLE);
-    var peopleData = peopleSheet.getDataRange().getValues();
-    var headers = peopleData[0];
-
-    var colIdx = {};
-    headers.forEach(function(h, idx) { colIdx[h] = idx; });
-
-    // 既存の作業者情報をマップ化
-    // nameMap: 氏名 → 行番号（1-based, シート上の行）
-    // codeMap: 作業員コード → 行番号
-    var nameMap = {};
-    var codeMap = {};
-    var maxPersonNum = 0;
-
-    for (var r = 1; r < peopleData.length; r++) {
-      var pRow = peopleData[r];
-      var pName = String(pRow[colIdx['氏名']] || '').trim();
-      var pId = String(pRow[colIdx['personId']] || '');
-      var pNotes = String(pRow[colIdx['備考']] || '');
-
-      if (pName) {
-        nameMap[pName] = r + 1; // シート行番号（1-based、ヘッダーが1行目）
-      }
-
-      // 備考から[EXT:XXXX]パターンを抽出
-      var extMatch = pNotes.match(/\[EXT:([^\]]+)\]/);
-      if (extMatch) {
-        codeMap[extMatch[1]] = r + 1;
-      }
-
-      // 最大personId番号を追跡
-      var idMatch = pId.match(/^P\.(\d+)$/);
-      if (idMatch) {
-        maxPersonNum = Math.max(maxPersonNum, parseInt(idMatch[1]));
-      }
-    }
-
-    // 3. UPSERT処理
-    var created = 0;
-    var updated = 0;
-    var now = new Date();
-    var nowFormatted = formatDateTime(now);
-    var updatedBy = 'sync:external_worker';
-
-    for (var w = 0; w < externalWorkers.length; w++) {
-      var worker = externalWorkers[w];
-      var matchedRow = null;
-
-      // まず作業員コードでマッチを試みる
-      if (worker.code && codeMap[worker.code]) {
-        matchedRow = codeMap[worker.code];
-      }
-      // 次に氏名でマッチ
-      if (!matchedRow && nameMap[worker.name]) {
-        matchedRow = nameMap[worker.name];
-      }
-
-      if (matchedRow) {
-        // 既存レコードを更新（部署/区分のみ。色・有効フラグは保持）
-        var currentRow = peopleData[matchedRow - 1]; // 0-based配列アクセス
-        var currentDept = String(currentRow[colIdx['部署/区分']] || '').trim();
-        var newDept = worker.dept || currentDept;
-        var currentNotes = String(currentRow[colIdx['備考']] || '');
-
-        // 備考に[EXT:XXXX]がなければ追加
-        var hasExtTag = /\[EXT:[^\]]+\]/.test(currentNotes);
-        var newNotes = currentNotes;
-        if (worker.code && !hasExtTag) {
-          newNotes = (currentNotes ? currentNotes + ' ' : '') + '[EXT:' + worker.code + ']';
-        } else if (worker.code && hasExtTag) {
-          // 既存のEXTタグを更新
-          newNotes = currentNotes.replace(/\[EXT:[^\]]+\]/, '[EXT:' + worker.code + ']');
-        }
-
-        var needsUpdate = (newDept !== currentDept) || (newNotes !== currentNotes);
-
-        if (needsUpdate) {
-          if (colIdx['部署/区分'] !== undefined) {
-            peopleSheet.getRange(matchedRow, colIdx['部署/区分'] + 1).setValue(newDept);
-          }
-          if (colIdx['備考'] !== undefined) {
-            peopleSheet.getRange(matchedRow, colIdx['備考'] + 1).setValue(newNotes);
-          }
-          if (colIdx['updatedAt'] !== undefined) {
-            peopleSheet.getRange(matchedRow, colIdx['updatedAt'] + 1).setValue(now);
-          }
-          if (colIdx['updatedBy'] !== undefined) {
-            peopleSheet.getRange(matchedRow, colIdx['updatedBy'] + 1).setValue(updatedBy);
-          }
-          updated++;
-        }
-      } else {
-        // 新規作成
-        maxPersonNum++;
-        var newPersonId = 'P.' + String(maxPersonNum).padStart(2, '0');
-        var notes = worker.code ? '[EXT:' + worker.code + ']' : '';
-
-        var newRow = headers.map(function(header) {
-          switch (header) {
-            case 'personId': return newPersonId;
-            case '氏名': return worker.name;
-            case '部署/区分': return worker.dept;
-            case '作業者色(colorHex)': return '#6B7280';
-            case '有効(isActive)': return true;
-            case '備考': return notes;
-            case 'updatedAt': return now;
-            case 'updatedBy': return updatedBy;
-            default: return '';
-          }
-        });
-
-        peopleSheet.appendRow(newRow);
-
-        // 新規追加分もマップに登録（重複防止）
-        nameMap[worker.name] = peopleSheet.getLastRow();
-        if (worker.code) {
-          codeMap[worker.code] = peopleSheet.getLastRow();
-        }
-
-        created++;
-      }
-    }
-
-    var result = {
-      success: true,
-      created: created,
-      updated: updated,
-      total: externalWorkers.length,
-      syncedAt: nowFormatted
-    };
-
-    Logger.log('外部作業員マスター同期完了: ' + JSON.stringify(result));
-    return result;
-
-  } catch (error) {
-    Logger.log('外部作業員マスター同期エラー: ' + error.message);
-    throw error;
-  } finally {
-    lock.releaseLock();
-  }
+  var externalSs = SpreadsheetApp.openById(CONFIG.EXTERNAL_WORKER_SPREADSHEET_ID);
+  var externalSheet = externalSs.getSheetByName(CONFIG.EXTERNAL_WORKER_SHEET_NAME);
+  if (!externalSheet) throw new Error('外部シート "' + CONFIG.EXTERNAL_WORKER_SHEET_NAME + '" が見つかりません');
+  var data = externalSheet.getDataRange().getValues();
+  if (data.length < 2) throw new Error('外部作業員マスタにデータがありません');
+  var ss = getSpreadsheet();
+  var localSheet = ss.getSheetByName('外部_作業員マスタ');
+  if (!localSheet) { localSheet = ss.insertSheet('外部_作業員マスタ'); }
+  localSheet.clear();
+  localSheet.getRange(1, 1, data.length, data[0].length).setValues(data);
+  return { success: true, rowCount: data.length - 1, syncedAt: new Date().toISOString() };
 }
+
+function getExternalWorkerDepts() {
+  var ss = getSpreadsheet();
+  var sheet = ss.getSheetByName('外部_作業員マスタ');
+  if (!sheet) return [];
+  var data = sheet.getDataRange().getValues();
+  if (data.length < 2) return [];
+  var h = data[0], di = h.indexOf('部署');
+  if (di === -1) return [];
+  var set = {};
+  for (var i = 1; i < data.length; i++) {
+    var d = String(data[i][di] || '').trim();
+    if (d) set[d] = true;
+  }
+  return Object.keys(set).sort();
+}
+
+function getExternalWorkersByDept(dept) {
+  var ss = getSpreadsheet();
+  var sheet = ss.getSheetByName('外部_作業員マスタ');
+  if (!sheet) return [];
+  var data = sheet.getDataRange().getValues();
+  if (data.length < 2) return [];
+  var h = data[0], ci = h.indexOf('作業員コード'), ni = h.indexOf('氏名'), di = h.indexOf('部署');
+  if (ni === -1) return [];
+  var results = [];
+  for (var i = 1; i < data.length; i++) {
+    var name = String(data[i][ni] || '').trim();
+    var d = di !== -1 ? String(data[i][di] || '').trim() : '';
+    var code = ci !== -1 ? String(data[i][ci] || '').trim() : '';
+    if (!name) continue;
+    if (!dept || d === dept) {
+      results.push({ code: code, name: name, dept: d });
+    }
+  }
+  results.sort(function(a, b) { return a.name.localeCompare(b.name, 'ja'); });
+  return results;
+}
+
 
 // ============================================
 // Batch Save API（一括保存）

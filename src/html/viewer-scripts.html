@@ -215,21 +215,19 @@ const MobileViewer = {
       const product = Utils.escapeHtml(job['設備/製品名'] || '');
       const shipDate = job['出荷予定日'] ? Utils.formatShortDate(job['出荷予定日']) : '';
       const drawDate = job['出図予定日'] ? Utils.formatShortDate(job['出図予定日']) : '';
-      const shipWarnClass = Utils.getEffectiveDateWarningClass(job['出荷予定日'], job['出荷予定日変更後']);
-      const drawWarnClass = Utils.getEffectiveDateWarningClass(job['出図予定日'], job['出図予定日変更後']);
       const displayCustomer = destination || customer;
 
       return `
         <div class="viewer-job-card" data-job-id="${job.jobId}" onclick="MobileViewer.openJobDetail('${job.jobId}')">
           <div class="viewer-job-card-header">
             <span class="viewer-job-no">${jobNo}</span>
-            ${shipDate ? `<span class="viewer-ship-date ${shipWarnClass}">出荷: ${shipDate}</span>` : ''}
+            ${shipDate ? `<span class="viewer-ship-date">出荷: ${shipDate}</span>` : ''}
           </div>
           <div class="viewer-job-card-body">
             <div class="viewer-job-customer">${displayCustomer}</div>
             <div class="viewer-job-product">${product}</div>
           </div>
-          ${drawDate ? `<div class="viewer-job-card-footer ${drawWarnClass}">出図: ${drawDate}</div>` : ''}
+          ${drawDate ? `<div class="viewer-job-card-footer">出図: ${drawDate}</div>` : ''}
         </div>
       `;
     }).join('');
@@ -291,8 +289,6 @@ const MobileViewer = {
     const qty = job['台数'] || '';
     const shipDate = job['出荷予定日'] ? Utils.formatShortDate(job['出荷予定日']) : '-';
     const drawDate = job['出図予定日'] ? Utils.formatShortDate(job['出図予定日']) : '-';
-    const shipWarnClass = Utils.getEffectiveDateWarningClass(job['出荷予定日'], job['出荷予定日変更後']);
-    const drawWarnClass = Utils.getEffectiveDateWarningClass(job['出図予定日'], job['出図予定日変更後']);
     const displayCustomer = destination || customer;
 
     // 該当工番のスケジュールを取得
@@ -308,8 +304,8 @@ const MobileViewer = {
           ${qty ? `<span>台数: ${qty}</span>` : ''}
         </div>
         <div class="viewer-detail-dates">
-          <span class="${drawWarnClass}">出図: ${drawDate}</span>
-          <span class="${shipWarnClass}">出荷: ${shipDate}</span>
+          <span>出図: ${drawDate}</span>
+          <span>出荷: ${shipDate}</span>
         </div>
       </div>
     `;
@@ -604,7 +600,6 @@ const MobileViewer = {
         const product = Utils.escapeHtml(job['設備/製品名'] || '');
         const customer = Utils.escapeHtml(job['顧客名'] || '');
         const shipDate = job['出荷予定日'] ? Utils.formatShortDate(job['出荷予定日']) : '';
-        const shipWarnClass = Utils.getEffectiveDateWarningClass(job['出荷予定日'], job['出荷予定日変更後']);
 
         html += '<tr>';
         // 工番情報セル
@@ -612,7 +607,7 @@ const MobileViewer = {
           <div class="font-medium text-xs">${jobNo}</div>
           <div class="text-xs text-gray-500 truncate">${product}</div>
           ${customer ? `<div class="text-xs text-gray-400 truncate">${customer}</div>` : ''}
-          ${shipDate ? `<div class="text-xs ${shipWarnClass || 'text-blue-500'}">出荷:${shipDate}</div>` : ''}
+          ${shipDate ? `<div class="text-xs text-blue-500">出荷:${shipDate}</div>` : ''}
         </td>`;
 
         // 曜日セル
@@ -738,14 +733,13 @@ const MobileViewer = {
         const product = Utils.escapeHtml(job['設備/製品名'] || '');
         const customer = Utils.escapeHtml(job['顧客名'] || '');
         const shipDate = job['出荷予定日'] ? Utils.formatShortDate(job['出荷予定日']) : '';
-        const shipWarnClass = Utils.getEffectiveDateWarningClass(job['出荷予定日'], job['出荷予定日変更後']);
 
         html += '<tr>';
         html += `<td class="viewer-weekly-td-job" onclick="MobileViewer.switchToSearchAndOpen('${job.jobId}')">
           <div class="font-medium text-xs">${jobNo}</div>
           <div class="text-xs text-gray-500 truncate">${product}</div>
           ${customer ? `<div class="text-xs text-gray-400 truncate">${customer}</div>` : ''}
-          ${shipDate ? `<div class="text-xs ${shipWarnClass || 'text-blue-500'}">出荷:${shipDate}</div>` : ''}
+          ${shipDate ? `<div class="text-xs text-blue-500">出荷:${shipDate}</div>` : ''}
         </td>`;
 
         row.dayCells.forEach((dayProcesses, index) => {

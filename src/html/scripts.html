@@ -139,33 +139,6 @@ const Utils = {
     return dateStr;
   },
 
-  /**
-   * 日付の警告レベルCSSクラスを返す
-   * @param {string} dateStr - 'YYYY-MM-DD' 形式の日付文字列
-   * @returns {string} CSSクラス名 ('date-warn-overdue' | 'date-warn-today' | 'date-warn-soon' | '')
-   */
-  getDateWarningClass(dateStr) {
-    if (!dateStr) return '';
-    const match = dateStr.match(/(\d{4})-(\d{2})-(\d{2})/);
-    if (!match) return '';
-    const target = new Date(parseInt(match[1]), parseInt(match[2]) - 1, parseInt(match[3]));
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const diffDays = Math.floor((target - today) / (1000 * 60 * 60 * 24));
-    if (diffDays < 0) return 'date-warn-overdue';
-    if (diffDays === 0) return 'date-warn-today';
-    if (diffDays <= 3) return 'date-warn-soon';
-    return '';
-  },
-
-  /**
-   * 変更後日付があればそちら、なければ元日付で警告クラスを返す
-   */
-  getEffectiveDateWarningClass(originalDate, changedDate) {
-    const effectiveDate = changedDate || originalDate;
-    return this.getDateWarningClass(effectiveDate);
-  },
-
   generateDateRange(startDate, days) {
     const dates = [];
     for (let i = 0; i < days; i++) {
@@ -2370,10 +2343,6 @@ const Gantt = {
       const changedShipDate = this.formatShortDate(job['出荷予定日変更後']);
       const changedDrawDate = this.formatShortDate(job['出図予定日変更後']);
 
-      // 日付警告クラス
-      const shipWarnClass = Utils.getEffectiveDateWarningClass(job['出荷予定日'], job['出荷予定日変更後']);
-      const drawWarnClass = Utils.getEffectiveDateWarningClass(job['出図予定日'], job['出図予定日変更後']);
-
       html += `
         <div class="job-info-block${jobRoleClass}" data-job-id="${job.jobId}" style="height: ${rowHeight}px; min-height: ${rowHeight}px;">
           <div class="job-info-content">
@@ -2413,13 +2382,13 @@ const Gantt = {
             <div class="job-info-row3">
               <div class="job-info-draw-date">
                 <span class="label">出図:</span>
-                <span class="${changedDrawDate ? 'strikethrough' : drawWarnClass}">${drawDate || '-'}</span>
-                ${changedDrawDate ? `<span class="changed-date ${drawWarnClass}">→${changedDrawDate}</span>` : ''}
+                <span class="${changedDrawDate ? 'strikethrough' : ''}">${drawDate || '-'}</span>
+                ${changedDrawDate ? `<span class="changed-date">→${changedDrawDate}</span>` : ''}
               </div>
               <div class="job-info-ship-date">
                 <span class="label">出荷:</span>
-                <span class="${changedShipDate ? 'strikethrough' : shipWarnClass}">${shipDate || '-'}</span>
-                ${changedShipDate ? `<span class="changed-date ${shipWarnClass}">→${changedShipDate}</span>` : ''}
+                <span class="${changedShipDate ? 'strikethrough' : ''}">${shipDate || '-'}</span>
+                ${changedShipDate ? `<span class="changed-date">→${changedShipDate}</span>` : ''}
               </div>
             </div>
             <div class="job-info-row4">
@@ -3866,25 +3835,27 @@ const JobModal = {
     }
   },
 
-  // 担当者セレクトを生成（検索入力対応）
+  // 担当者セレクトを生成
   populatePersonSelects(mainPersonId = '', subPersonId = '') {
-    const mainHidden = document.getElementById('job-main-person');
-    const subHidden = document.getElementById('job-sub-person');
-    const mainSearch = document.getElementById('job-main-person-search');
-    const subSearch = document.getElementById('job-sub-person-search');
+    const people = Store.state.people;
+    const mainSelect = document.getElementById('job-main-person');
+    const subSelect = document.getElementById('job-sub-person');
 
-    if (!mainHidden || !subHidden) return;
+    if (!mainSelect || !subSelect) return;
 
-    // Set hidden field values
-    mainHidden.value = mainPersonId || '';
-    subHidden.value = subPersonId || '';
+    let optionsHtml = '<option value="">（未設定）</option>';
+    people.forEach(person => {
+      const color = person['作業者色(colorHex)'] || '#6b7280';
+      optionsHtml += `<option value="${person.personId}" style="border-left: 4px solid ${color};">
+        ${Utils.escapeHtml(person['氏名'])} (${Utils.escapeHtml(person['部署/区分'] || '')})
+      </option>`;
+    });
 
-    // Set search input display text
-    const mainP = mainPersonId ? Store.getPersonById(mainPersonId) : null;
-    if (mainSearch) mainSearch.value = mainP ? (mainP['部署/区分'] || '') + ' / ' + (mainP['氏名'] || '') : '';
+    mainSelect.innerHTML = optionsHtml;
+    subSelect.innerHTML = optionsHtml;
 
-    const subP = subPersonId ? Store.getPersonById(subPersonId) : null;
-    if (subSearch) subSearch.value = subP ? (subP['部署/区分'] || '') + ' / ' + (subP['氏名'] || '') : '';
+    if (mainPersonId) mainSelect.value = mainPersonId;
+    if (subPersonId) subSelect.value = subPersonId;
   },
 
   // 工番マスター検索入力
@@ -6891,10 +6862,6 @@ const ExcelGantt = {
       const changedShipDate = this.formatShortDate(job['出荷予定日変更後']);
       const changedDrawDate = this.formatShortDate(job['出図予定日変更後']);
 
-      // 日付警告クラス
-      const shipWarnClass = Utils.getEffectiveDateWarningClass(job['出荷予定日'], job['出荷予定日変更後']);
-      const drawWarnClass = Utils.getEffectiveDateWarningClass(job['出図予定日'], job['出図予定日変更後']);
-
       // 担当者
       const mainPerson = job.mainPersonId ? Store.getPersonById(job.mainPersonId) : null;
       const mainName = mainPerson?.['氏名'] || '';
@@ -6947,7 +6914,7 @@ const ExcelGantt = {
           <div class="xl-ship">
             <div class="ship-top xl-date-cell">
               <span class="date-label">予定:</span>
-              <input type="date" class="xl-date-input-full${job['出荷予定日'] ? '' : ' is-empty'}${!job['出荷予定日変更後'] && shipWarnClass ? ' ' + shipWarnClass : ''}"
+              <input type="date" class="xl-date-input-full${job['出荷予定日'] ? '' : ' is-empty'}"
                 value="${job['出荷予定日'] || ''}"
                 onchange="ExcelGantt.updateJobOriginalDate('${job.jobId}', 'ship', this.value); this.classList.toggle('is-empty', !this.value);"
                 title="予定日を変更"
@@ -6955,7 +6922,7 @@ const ExcelGantt = {
             </div>
             <div class="ship-bottom xl-date-cell">
               <span class="date-label">変更:</span>
-              <input type="date" class="xl-date-input-full${job['出荷予定日変更後'] ? '' : ' is-empty'}${job['出荷予定日変更後'] && shipWarnClass ? ' ' + shipWarnClass : ''}"
+              <input type="date" class="xl-date-input-full${job['出荷予定日変更後'] ? '' : ' is-empty'}"
                 value="${job['出荷予定日変更後'] || ''}"
                 onchange="ExcelGantt.updateJobChangedDate('${job.jobId}', 'ship', this.value); this.classList.toggle('is-empty', !this.value);"
                 title="変更日を入力"
@@ -6967,7 +6934,7 @@ const ExcelGantt = {
           <div class="xl-draw">
             <div class="draw-top xl-date-cell">
               <span class="date-label">希望:</span>
-              <input type="date" class="xl-date-input-full${job['出図予定日'] ? '' : ' is-empty'}${!job['出図予定日変更後'] && drawWarnClass ? ' ' + drawWarnClass : ''}"
+              <input type="date" class="xl-date-input-full${job['出図予定日'] ? '' : ' is-empty'}"
                 value="${job['出図予定日'] || ''}"
                 onchange="ExcelGantt.updateJobOriginalDate('${job.jobId}', 'draw', this.value); this.classList.toggle('is-empty', !this.value);"
                 title="希望日を変更"
@@ -6975,7 +6942,7 @@ const ExcelGantt = {
             </div>
             <div class="draw-bottom xl-date-cell">
               <span class="date-label">実績:</span>
-              <input type="date" class="xl-date-input-full${job['出図予定日変更後'] ? '' : ' is-empty'}${job['出図予定日変更後'] && drawWarnClass ? ' ' + drawWarnClass : ''}"
+              <input type="date" class="xl-date-input-full${job['出図予定日変更後'] ? '' : ' is-empty'}"
                 value="${job['出図予定日変更後'] || ''}"
                 onchange="ExcelGantt.updateJobChangedDate('${job.jobId}', 'draw', this.value); this.classList.toggle('is-empty', !this.value);"
                 title="実績日を入力"
@@ -8580,10 +8547,6 @@ const PersonGanttOverlay = {
       const changedShipDate = this.formatShortDate(job['出荷予定日変更後']);
       const changedDrawDate = this.formatShortDate(job['出図予定日変更後']);
 
-      // 日付警告クラス
-      const shipWarnClass = Utils.getEffectiveDateWarningClass(job['出荷予定日'], job['出荷予定日変更後']);
-      const drawWarnClass = Utils.getEffectiveDateWarningClass(job['出図予定日'], job['出図予定日変更後']);
-
       // 役割（主担当/副担当）
       const role = this._jobRoleMap.get(job.jobId);
       const roleClass = role === 'main' ? 'role-main' : 'role-sub';
@@ -8619,11 +8582,11 @@ const PersonGanttOverlay = {
           <div class="pg-ship">
             <div class="ship-top">
               <span class="date-label">予定:</span>
-              <span class="date-value ${changedShipDate ? 'strikethrough' : shipWarnClass}">${shipDate || '-'}</span>
+              <span class="date-value ${changedShipDate ? 'strikethrough' : ''}">${shipDate || '-'}</span>
             </div>
             <div class="ship-bottom">
               <span class="date-label">変更:</span>
-              <span class="date-value changed ${changedShipDate ? shipWarnClass : ''}">${changedShipDate || ''}</span>
+              <span class="date-value changed">${changedShipDate || ''}</span>
             </div>
           </div>
 
@@ -8631,11 +8594,11 @@ const PersonGanttOverlay = {
           <div class="pg-draw">
             <div class="draw-top">
               <span class="date-label">希望:</span>
-              <span class="date-value ${changedDrawDate ? 'strikethrough' : drawWarnClass}">${drawDatePlan || '-'}</span>
+              <span class="date-value ${changedDrawDate ? 'strikethrough' : ''}">${drawDatePlan || '-'}</span>
             </div>
             <div class="draw-bottom">
               <span class="date-label">実績:</span>
-              <span class="date-value changed ${changedDrawDate ? drawWarnClass : ''}">${changedDrawDate || ''}</span>
+              <span class="date-value changed">${changedDrawDate || ''}</span>
             </div>
           </div>
         </div>
@@ -9109,8 +9072,6 @@ const WeeklyPlan = {
     const customer = job['顧客名'] || '';
     const drawDate = job['出図予定日'] ? Utils.formatShortDate(job['出図予定日']) : '';
     const shipDate = job['出荷予定日'] ? Utils.formatShortDate(job['出荷予定日']) : '';
-    const shipWarnClass = Utils.getEffectiveDateWarningClass(job['出荷予定日'], job['出荷予定日変更後']);
-    const drawWarnClass = Utils.getEffectiveDateWarningClass(job['出図予定日'], job['出図予定日変更後']);
 
     // 1行目: 工番 製品名（台数）
     const line1 = `${jobNo}　${product}${qty ? '（' + qty + '）' : ''}`;
@@ -9118,16 +9079,16 @@ const WeeklyPlan = {
     // 2行目: 顧客名
     const line2 = customer ? `顧客：${customer}` : '';
 
-    // 3行目: 出図/出荷予定日（警告色付き）
+    // 3行目: 出図/出荷予定日
     let line3Parts = [];
-    if (drawDate) line3Parts.push(`<span class="${drawWarnClass}">出図：${Utils.escapeHtml(drawDate)}</span>`);
-    if (shipDate) line3Parts.push(`<span class="${shipWarnClass}">出荷：${Utils.escapeHtml(shipDate)}</span>`);
+    if (drawDate) line3Parts.push(`出図：${drawDate}`);
+    if (shipDate) line3Parts.push(`出荷：${shipDate}`);
     const line3 = line3Parts.join('　');
 
     return `
       <div class="job-line1">${Utils.escapeHtml(line1)}</div>
       ${line2 ? `<div class="job-line2">${Utils.escapeHtml(line2)}</div>` : ''}
-      ${line3 ? `<div class="job-line3">${line3}</div>` : ''}
+      ${line3 ? `<div class="job-line3">${Utils.escapeHtml(line3)}</div>` : ''}
     `;
   },
 
@@ -12507,8 +12468,7 @@ const ProcessOrderSettings = {
     }
 
     // 現在の工程マスタをコピー（表示順でソート済み）
-    const state = Store.getState();
-    this.orderedProcesses = [...state.processes]
+    this.orderedProcesses = [...(Store.state.processes || [])]
       .filter(p => p['有効(isActive)'] !== false)
       .sort((a, b) => (a['表示順(order)'] || 0) - (b['表示順(order)'] || 0));
 
@@ -12657,7 +12617,7 @@ const ProcessOrderSettings = {
 
       if (result.success) {
         // ローカルストアを更新
-        const state = Store.getState();
+        const state = Store.state;
         const updatedProcesses = state.processes.map(p => {
           const newIdx = newOrder.indexOf(p.processId);
           if (newIdx !== -1) {
