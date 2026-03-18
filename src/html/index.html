@@ -1036,17 +1036,15 @@
           <div class="form-row">
             <div class="form-group flex-1">
               <label class="form-label">主担当者</label>
-              <select id="job-main-person" class="form-select">
-                <option value="">（未設定）</option>
-                <!-- JSで生成 -->
-              </select>
+              <input type="text" id="job-main-person-search" class="form-input text-sm" placeholder="部署・氏名で検索..." list="main-person-list" autocomplete="off">
+              <datalist id="main-person-list"></datalist>
+              <input type="hidden" id="job-main-person" value="">
             </div>
             <div class="form-group flex-1">
               <label class="form-label">副担当者</label>
-              <select id="job-sub-person" class="form-select">
-                <option value="">（未設定）</option>
-                <!-- JSで生成 -->
-              </select>
+              <input type="text" id="job-sub-person-search" class="form-input text-sm" placeholder="部署・氏名で検索..." list="sub-person-list" autocomplete="off">
+              <datalist id="sub-person-list"></datalist>
+              <input type="hidden" id="job-sub-person" value="">
             </div>
           </div>
 
@@ -1116,9 +1114,12 @@
         <div class="modal-body">
           <div class="flex justify-between items-center mb-4">
             <p class="text-sm text-gray-600">担当者の追加・編集ができます</p>
-            <button onclick="PeopleModal.openNew()" class="btn btn-primary text-sm">
-              + 担当者を追加
-            </button>
+            <div class="flex gap-2">
+              <button type="button" onclick="API.call('api_syncExternalWorkerMaster').then(function(r){Utils.showToast('同期完了: '+r.created+'名追加, '+r.updated+'名更新','success');API.getPeople().then(function(p){Store.state.people=p;PeopleModal.renderList();});}).catch(function(e){Utils.showToast('同期失敗: '+e.message,'error');})" class="text-xs px-3 py-1.5 rounded border border-blue-300 text-blue-600 hover:bg-blue-50" title="外部マスタから同期">&#x1F504; 外部同期</button>
+              <button onclick="PeopleModal.openNew()" class="btn btn-primary text-sm">
+                + 担当者を追加
+              </button>
+            </div>
           </div>
           <div id="people-list-container" class="max-h-96 overflow-y-auto border rounded">
             <!-- JSで生成 -->
@@ -1374,6 +1375,58 @@
     if(el)ob.observe(el,{childList:true});
   });
   setInterval(run,3000);
+})();
+</script>
+<script>
+(function(){
+  // Populate person datalists grouped by department
+  function updatePersonLists(){
+    var S;try{S=Store;}catch(e){return;}
+    if(!S||!S.state||!S.state.people)return;
+    var people=S.state.people.filter(function(p){return p['有効(isActive)']!==false && p['有効(isActive)']!=='FALSE';});
+    people.sort(function(a,b){
+      var da=a['部署/区分']||'', db=b['部署/区分']||'';
+      if(da!==db)return da.localeCompare(db,'ja');
+      return (a['氏名']||'').localeCompare(b['氏名']||'','ja');
+    });
+    var html='';
+    people.forEach(function(p){
+      var dept=p['部署/区分']||'未設定';
+      html+='<option value="'+dept+' / '+(p['氏名']||'')+'" data-pid="'+p.personId+'"></option>';
+    });
+    ['main-person-list','sub-person-list'].forEach(function(id){
+      var dl=document.getElementById(id);
+      if(dl)dl.innerHTML=html;
+    });
+  }
+  function wireInput(searchId,hiddenId,listId){
+    var inp=document.getElementById(searchId);
+    if(!inp)return;
+    inp.addEventListener('input',function(){
+      var val=this.value;
+      var dl=document.getElementById(listId);
+      if(!dl)return;
+      var opts=dl.querySelectorAll('option');
+      var hid=document.getElementById(hiddenId);
+      var matched=false;
+      opts.forEach(function(o){
+        if(o.value===val){
+          hid.value=o.getAttribute('data-pid');
+          matched=true;
+        }
+      });
+      if(!matched)hid.value='';
+    });
+    inp.addEventListener('dblclick',function(){
+      this.value='';
+      document.getElementById(hiddenId).value='';
+    });
+  }
+  setInterval(updatePersonLists,5000);
+  setTimeout(function(){
+    wireInput('job-main-person-search','job-main-person','main-person-list');
+    wireInput('job-sub-person-search','job-sub-person','sub-person-list');
+  },1000);
 })();
 </script>
 </body>

@@ -110,6 +110,10 @@ function doPost(e) {
         result = deleteSchedule(params.scheduleId, params.expectedUpdatedAt);
         break;
 
+      case 'syncExternalWorkerMaster':
+        result = syncExternalWorkerMaster();
+        break;
+
       default:
         throw new Error(`Unknown action: ${action}`);
     }
@@ -203,6 +207,11 @@ function api_syncExternalJobMaster() {
 
 function api_searchExternalJobMaster(query, limit) {
   return searchExternalJobMaster(query, limit);
+}
+
+function api_syncExternalWorkerMaster() {
+  requireEditor();
+  return sanitizeForClient(syncExternalWorkerMaster());
 }
 
 function api_createPerson(payload) {
@@ -482,4 +491,35 @@ function requireEditor() {
 function api_getUserPermission() {
   const email = getCurrentUserEmail_();
   return { email: email, canEdit: isEditorEmail(email) };
+}
+
+// ========== 外部作業員マスター同期トリガー ==========
+
+/**
+ * 外部作業員マスター同期の日次トリガーをインストール
+ * GASエディタから手動で1回実行してください
+ */
+function installWorkerSyncTrigger() {
+  // 既存トリガーを削除
+  ScriptApp.getProjectTriggers().forEach(function(t) {
+    if (t.getHandlerFunction() === 'triggerWorkerSync') ScriptApp.deleteTrigger(t);
+  });
+  // 毎日6:00 AMに実行するトリガーを作成
+  ScriptApp.newTrigger('triggerWorkerSync')
+    .timeBased()
+    .everyDays(1)
+    .atHour(6)
+    .create();
+}
+
+/**
+ * トリガーから呼び出される作業員同期処理
+ */
+function triggerWorkerSync() {
+  try {
+    var result = syncExternalWorkerMaster();
+    console.log('Worker sync completed: ' + JSON.stringify(result));
+  } catch(e) {
+    console.error('Worker sync failed: ' + e.message);
+  }
 }

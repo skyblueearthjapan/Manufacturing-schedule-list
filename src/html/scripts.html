@@ -3866,27 +3866,25 @@ const JobModal = {
     }
   },
 
-  // 担当者セレクトを生成
+  // 担当者セレクトを生成（検索入力対応）
   populatePersonSelects(mainPersonId = '', subPersonId = '') {
-    const people = Store.state.people;
-    const mainSelect = document.getElementById('job-main-person');
-    const subSelect = document.getElementById('job-sub-person');
+    const mainHidden = document.getElementById('job-main-person');
+    const subHidden = document.getElementById('job-sub-person');
+    const mainSearch = document.getElementById('job-main-person-search');
+    const subSearch = document.getElementById('job-sub-person-search');
 
-    if (!mainSelect || !subSelect) return;
+    if (!mainHidden || !subHidden) return;
 
-    let optionsHtml = '<option value="">（未設定）</option>';
-    people.forEach(person => {
-      const color = person['作業者色(colorHex)'] || '#6b7280';
-      optionsHtml += `<option value="${person.personId}" style="border-left: 4px solid ${color};">
-        ${Utils.escapeHtml(person['氏名'])} (${Utils.escapeHtml(person['部署/区分'] || '')})
-      </option>`;
-    });
+    // Set hidden field values
+    mainHidden.value = mainPersonId || '';
+    subHidden.value = subPersonId || '';
 
-    mainSelect.innerHTML = optionsHtml;
-    subSelect.innerHTML = optionsHtml;
+    // Set search input display text
+    const mainP = mainPersonId ? Store.getPersonById(mainPersonId) : null;
+    if (mainSearch) mainSearch.value = mainP ? (mainP['部署/区分'] || '') + ' / ' + (mainP['氏名'] || '') : '';
 
-    if (mainPersonId) mainSelect.value = mainPersonId;
-    if (subPersonId) subSelect.value = subPersonId;
+    const subP = subPersonId ? Store.getPersonById(subPersonId) : null;
+    if (subSearch) subSearch.value = subP ? (subP['部署/区分'] || '') + ' / ' + (subP['氏名'] || '') : '';
   },
 
   // 工番マスター検索入力

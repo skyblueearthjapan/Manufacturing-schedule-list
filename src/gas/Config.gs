@@ -21,6 +21,10 @@ const CONFIG = {
     QUANTITY: 5             // F列: 数量
   },
 
+  // 外部作業員マスター設定
+  EXTERNAL_WORKER_SPREADSHEET_ID: '1iu5HoaknlW1W1HheeYv0jqcRq-aY0SyEE2seQd2pHkQ',
+  EXTERNAL_WORKER_SHEET_NAME: '作業員マスタ',
+
   // シート名
   SHEETS: {
     JOBS: 'Jobs',
