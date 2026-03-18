@@ -1314,5 +1314,67 @@
 
   <!-- JavaScript（統合ファイル） -->
   <?!= include('scripts'); ?>
+<script>
+(function(){
+  var W=['date-warn-overdue','date-warn-today','date-warn-soon','date-done'];
+  function gw(ds){
+    if(!ds)return'';
+    var m=ds.match(/(\d{4})-(\d{2})-(\d{2})/);
+    if(!m)return'';
+    var d=Math.floor((new Date(+m[1],+m[2]-1,+m[3])-(new Date(new Date().toDateString())))/864e5);
+    return d<0?'date-warn-overdue':d===0?'date-warn-today':d<=7?'date-warn-soon':'';
+  }
+  var busy=false;
+  function run(){
+    if(busy)return;
+    var S;try{S=Store;}catch(e){return;}
+    if(!S||!S.state||!S.state.jobs||!S.state.jobs.length)return;
+    busy=true;
+    try{
+      var jm={};S.state.jobs.forEach(function(j){jm[j.jobId]=j;});
+      document.querySelectorAll('[data-job-id]').forEach(function(row){
+        var j=jm[row.getAttribute('data-job-id')];
+        if(!j)return;
+        W.forEach(function(c){row.querySelectorAll('.'+c).forEach(function(e){e.classList.remove(c);});});
+        function add(sel,cls){row.querySelectorAll(sel).forEach(function(e){e.classList.add(cls);});}
+        var shipEff=j['出荷予定日変更後']||j['出荷予定日'];
+        var sw=gw(shipEff);
+        if(sw==='date-warn-overdue'){
+          var hcs=!!j['出荷予定日変更後'];
+          add('.xl-ship '+(hcs?'.ship-bottom':'.ship-top')+' input[type="date"]','date-done');
+          add((hcs?'.ship-bottom':'.ship-top')+' .date-value'+(hcs?'.changed':':not(.strikethrough)'),'date-done');
+          add('.job-info-ship-date '+(hcs?'.changed-date':'span:not(.label):not(.strikethrough):not(.changed-date)'),'date-done');
+        }else if(sw){
+          var hcs2=!!j['出荷予定日変更後'];
+          add('.xl-ship '+(hcs2?'.ship-bottom':'.ship-top')+' input[type="date"]',sw);
+          add((hcs2?'.ship-bottom':'.ship-top')+' .date-value'+(hcs2?'.changed':':not(.strikethrough)'),sw);
+          add('.job-info-ship-date '+(hcs2?'.changed-date':'span:not(.label):not(.strikethrough):not(.changed-date)'),sw);
+        }
+        var hasDrawResult=!!j['出図予定日変更後'];
+        if(hasDrawResult){
+          add('.xl-draw .draw-bottom input[type="date"]','date-done');
+          add('.draw-bottom .date-value.changed','date-done');
+          add('.job-info-draw-date .changed-date','date-done');
+        }else{
+          var dw=gw(j['出図予定日']);
+          if(dw){
+            add('.xl-draw .draw-top input[type="date"]',dw);
+            add('.draw-top .date-value:not(.strikethrough)',dw);
+            add('.job-info-draw-date span:not(.label):not(.strikethrough):not(.changed-date)',dw);
+          }
+        }
+      });
+    }finally{busy=false;}
+  }
+  var timer=null;
+  function debounced(){if(!timer)timer=setTimeout(function(){timer=null;run();},200);}
+  var ob=new MutationObserver(debounced);
+  ['gantt-job-pane','excelLeftRows','pgLeftRows'].forEach(function(id){
+    var el=document.getElementById(id);
+    if(el)ob.observe(el,{childList:true});
+  });
+  setInterval(run,3000);
+})();
+</script>
 </body>
 </html>
