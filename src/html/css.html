@@ -825,6 +825,51 @@
     margin-right: 2px;
   }
 
+  /* 日付警告色 */
+  .date-warn-overdue {
+    background: #fecaca !important;
+    color: #991b1b !important;
+    border-radius: 3px;
+    padding: 1px 4px;
+    animation: date-warn-pulse 2s ease-in-out infinite;
+  }
+  .date-warn-today {
+    background: #fed7aa !important;
+    color: #9a3412 !important;
+    border-radius: 3px;
+    padding: 1px 4px;
+    animation: date-warn-pulse 2s ease-in-out infinite;
+  }
+  .date-warn-soon {
+    background: #fef08a !important;
+    color: #854d0e !important;
+    border-radius: 3px;
+    padding: 1px 4px;
+  }
+  @keyframes date-warn-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+  }
+
+  /* 日付警告色 - input要素用 */
+  input.date-warn-overdue {
+    background: #fecaca !important;
+    color: #991b1b !important;
+    font-weight: 700 !important;
+    animation: date-warn-pulse 2s ease-in-out infinite;
+  }
+  input.date-warn-today {
+    background: #fed7aa !important;
+    color: #9a3412 !important;
+    font-weight: 700 !important;
+    animation: date-warn-pulse 2s ease-in-out infinite;
+  }
+  input.date-warn-soon {
+    background: #fef08a !important;
+    color: #854d0e !important;
+    font-weight: 700 !important;
+  }
+
   /* 取り消し線スタイル */
   .strikethrough {
     text-decoration: line-through;
